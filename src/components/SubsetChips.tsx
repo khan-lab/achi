@@ -38,6 +38,7 @@ function EmptyHint({ view, hasSubsets }: { view: View; hasSubsets: boolean }) {
 }
 
 export function SubsetChips({ view }: { view: View }) {
+  const setView = useStore((s) => s.setView);
   const subsets = useStore((s) => s.subsets);
   const selected = useStore((s) => s.selected);
   const toggleSelected = useStore((s) => s.toggleSelected);
@@ -71,6 +72,14 @@ export function SubsetChips({ view }: { view: View }) {
       <button className="chip" onClick={clearSelected}>
         Clear all
       </button>
+      {view !== "browser" && (
+        <div className="selhint-link">
+          See where these subsets lie along the genome:{" "}
+          <button className="linkbtn" onClick={() => setView("browser")}>
+            Genome Browser
+          </button>
+        </div>
+      )}
     </div>
   );
 }

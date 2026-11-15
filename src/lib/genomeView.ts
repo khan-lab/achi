@@ -162,7 +162,11 @@ export function brushLoci(ends: readonly [{ chrom: string; pos: number }, { chro
  * Data arrives by name: "density" and "regions" are declared empty here and
  * filled at runtime with api.datasets.set().
  */
-export function genomeSpec(opts: { contigs: Contig[]; tracks: GenomeTrack[] }): object {
+/** Colour of the marker for the genome browser's current locus (the igv ideogram's red box). */
+export const VIEWPORT_COLOR = "#d6282e";
+
+export function genomeSpec(opts: { contigs: Contig[]; tracks: GenomeTrack[]; rowHeight?: number }): object {
+  const rowHeight = opts.rowHeight ?? 22;
   const names = opts.tracks.map((t) => t.name);
   const colors = opts.tracks.map((t) => t.color);
   const rowY = { field: "track", type: "nominal", scale: { domain: names, padding: 0.2 }, axis: { title: null, labelLimit: 220 } };
@@ -177,25 +181,36 @@ export function genomeSpec(opts: { contigs: Contig[]; tracks: GenomeTrack[] }): 
   return {
     genomes: { intervene: { contigs: opts.contigs } },
     assembly: "intervene",
-    datasets: { density: [], regions: [] },
+    datasets: { density: [], regions: [], viewport: [] },
     resolve: { scale: { x: "shared" } },
     spacing: 6,
     vconcat: [
       {
         name: "chromosomes",
         height: 18,
-        data: { lazy: { type: "axisGenome", channel: "x" } },
-        encoding: {
-          x: { field: "continuousStart", type: "locus", axis: null },
-          x2: { field: "continuousEnd" },
-          text: { field: "name" },
-        },
         layer: [
           {
-            mark: { type: "rect", tooltip: null },
-            encoding: { fill: { field: "odd", type: "nominal", legend: null, scale: { domain: [true, false], range: ["#e8ecf2", "#ffffff"] } } },
+            data: { lazy: { type: "axisGenome", channel: "x" } },
+            encoding: {
+              x: { field: "continuousStart", type: "locus", axis: null },
+              x2: { field: "continuousEnd" },
+              text: { field: "name" },
+            },
+            layer: [
+              {
+                mark: { type: "rect", tooltip: null },
+                encoding: { fill: { field: "odd", type: "nominal", legend: null, scale: { domain: [true, false], range: ["#e8ecf2", "#ffffff"] } } },
+              },
+              { mark: { type: "text", size: 10, paddingX: 3, tooltip: null } },
+            ],
           },
-          { mark: { type: "text", size: 10, paddingX: 3, tooltip: null } },
+          {
+            // "You are here": the genome browser's current locus (one row, set at runtime).
+            name: "viewport",
+            data: { name: "viewport" },
+            mark: { type: "rect", minWidth: 3, fill: VIEWPORT_COLOR, fillOpacity: 0.25, stroke: VIEWPORT_COLOR, strokeWidth: 1.5, tooltip: null },
+            encoding: { x: { chrom: "chrom", pos: "start", type: "locus" }, x2: { chrom: "chrom", pos: "end" } },
+          },
         ],
       },
       {
@@ -215,7 +230,7 @@ export function genomeSpec(opts: { contigs: Contig[]; tracks: GenomeTrack[] }): 
       {
         name: "regions",
         title: { text: "Regions", fontSize: 11, anchor: "start" },
-        height: Math.max(24, names.length * 22),
+        height: Math.max(24, names.length * rowHeight),
         data: { name: "regions" },
         params: [{ name: "brush", select: { type: "interval", encodings: ["x"] } }],
         mark: { type: "rect", minWidth: 1, minOpacity: 0.6 },

@@ -97,6 +97,65 @@ header.top {
   background: var(--canvas);
 }
 
+/* "Selected subsets" column: a header with a hide button; hidden, it folds
+   to a thin strip that reopens it and counts the selected subsets. */
+.work.aside-closed {
+  grid-template-columns: var(--rail) minmax(0, 1fr) 36px;
+}
+.asidehd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.asidehd .eyebrow {
+  flex: 1;
+}
+.col.asidestrip {
+  padding: 8px 4px;
+  overflow: hidden;
+}
+.asidetab {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+.asidetab:hover {
+  background: var(--panel-3);
+  color: var(--ink);
+}
+.asidetab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.asidetab-label {
+  writing-mode: vertical-rl;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.asidetab-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ink-2);
+  color: var(--panel);
+  font-size: 10.5px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
 .card {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -788,6 +847,23 @@ footer .free .dot {
     overflow: visible;
     min-width: 0;
   }
+  /* One column: the hidden "Selected subsets" column is a full-width bar. */
+  .work.aside-closed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asidetab {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 6px 10px;
+  }
+  .asidetab-label {
+    writing-mode: horizontal-tb;
+  }
+  /* The column sits below, so the chevrons point down (show) and up (hide). */
+  .asidetab .icon,
+  .asidehd .icon {
+    transform: rotate(-90deg);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   * {
@@ -860,10 +936,14 @@ footer .free .dot {
   text-decoration: underline;
 }
 
-/* ---------- genome view (components/GenomeView.tsx) ---------- */
+/* ---------- genome-wide overview (components/GenomeView.tsx, in the Browser tab) ---------- */
 .genomeview {
-  padding: 0 14px 14px;
+  padding: 8px 0 4px;
   min-width: 0;
+}
+.gv-lead {
+  flex: 1 1 auto;
+  margin: 0;
 }
 .gv-toggle {
   margin-bottom: 8px;
@@ -901,6 +981,55 @@ footer .free .dot {
 .genomebrowser {
   padding: 0 14px 14px;
   min-width: 0;
+}
+/* Shared controls (rows shown in both views), then the overview, then igv. */
+.gb-shared {
+  padding-bottom: 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.gb-overview {
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.gb-overview-hd {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.gb-overview-hd .caret {
+  width: 10px;
+  font-size: 11px;
+}
+.gb-overview-hd .hint {
+  margin: 0;
+}
+.gb-sub {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.gb-sub .hint {
+  display: inline;
+  margin-left: 6px;
+  font-weight: 400;
+}
+.gb-sub-igv {
+  margin-bottom: 8px;
+}
+.selhint-link {
+  flex-basis: 100%;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin-top: 4px;
 }
 .gb-toolbar {
   display: flex;

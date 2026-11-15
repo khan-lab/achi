@@ -4,7 +4,7 @@
  * bearings, so no CSS centres them consistently. Every icon here is drawn on
  * the same 16×16 grid, centred, and inherits the button's text colour.
  */
-export type IconName = "download" | "copy" | "check" | "close" | "reset" | "included" | "excluded";
+export type IconName = "download" | "copy" | "check" | "close" | "reset" | "included" | "excluded" | "panelClose" | "panelOpen";
 
 const PATHS: Record<IconName, React.ReactNode> = {
   download: (
@@ -40,6 +40,9 @@ const PATHS: Record<IconName, React.ReactNode> = {
     </>
   ),
   excluded: <circle cx="8" cy="8" r="5.5" />,
+  // Side column: chevrons pointing the way the column moves (out to the right / back in).
+  panelClose: <path d="m6 3.5 4.5 4.5L6 12.5" />,
+  panelOpen: <path d="M10 3.5 5.5 8l4.5 4.5" />,
 };
 
 export function Icon({ name, size = 14 }: { name: IconName; size?: number }) {

@@ -46,12 +46,13 @@
   - **GREAT-like:** regulatory domains; genome or input-set background;
   - **Cistrome-GO-like:** regulatory-potential ranking and XL-mHG test.
 
-**Genome-wide location** of selected subsets (GenomeSpy)
+**Genome-wide overview** of selected subsets (GenomeSpy, Genome Browser tab)
 - Where each selected subset lies along the whole genome, with the input
-  sets as optional context: density per Mb and every region, zoomable from
-  genome to region; follows the UpSet selection.
-- Shift + drag to count each track's regions in an interval; click a region
-  to open it in the genome browser.
+  sets and reference sets as optional context: density per Mb and every
+  region, zoomable from genome to region; follows the UpSet selection.
+- Linked to the genome browser below it: click a region or Shift + drag
+  within a chromosome to show it there; its locus is marked in the overview.
+  Shift + drag also counts each row's regions in an interval.
 
 **Genome browser** (igv.js)
 - Input sets, selected subsets, GENCODE genes and any bundled reference set

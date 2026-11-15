@@ -75,7 +75,9 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           </li>
           <li>
             Selected subsets get their own summary, nearest-gene list and region table below the plot. Download them
-            one at a time as BED, or all at once with <em>Export selected subsets</em>.
+            one at a time as BED, or all at once with <em>Export selected subsets</em>. Their region lists sit in the
+            right-hand <em>Selected subsets</em> column; hide it with the arrow in its header to give the plots more
+            width, and click the thin strip on the right to show it again.
           </li>
           <li>
             The <em>Set Summary</em> tab describes each input set: interval statistics, where regions fall relative to
@@ -194,8 +196,12 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
             nearest TSS.
           </li>
           <li>
-            <strong>Browser</strong>: a genome browser (igv.js) with one track per input set and per selected subset,
-            GENCODE genes (one transcript per gene) and, on request, any of the bundled reference sets. Type a locus
+            <strong>Genome Browser</strong>: a genome-wide overview (GenomeSpy; see{" "}
+            <a href="#genome-location">below</a>) above a genome browser (igv.js), linked: click a region in the
+            overview, or Shift + drag within one chromosome, and the genome browser goes there; a red box in the
+            overview marks where it is. One set of controls applies to both: <em>Show the input sets</em> and the
+            bundled <em>Reference sets</em>. The genome browser shows one track per input set and per selected subset,
+            GENCODE genes (one transcript per gene) and the ticked reference sets. Type a locus
             (<code>chr1:1,000,000-1,100,000</code>) or a gene name, or click <em>view</em> next to a region of a
             selected subset, or a gene in a gene list, to go there. Sets with more than 50,000 regions are drawn when
             zoomed in. <em>Public tracks</em> (optional, after you agree) adds SCREEN merged signal (DNase, ATAC,
@@ -210,16 +216,19 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           link reopens the same view once you load the same files again. It never contains your data.
         </p>
 
-        <h3 id="genome-location">Genome-wide location of selected subsets</h3>
+        <h3 id="genome-location">Genome-wide overview (Genome Browser tab)</h3>
         <p>
-          Below the summary of the selected subsets, a GenomeSpy view shows where each selected subset lies along the
-          whole genome, optionally with the input sets and any bundled reference sets (ClinVar, GWAS Catalog, cCREs,
-          enhancers, CpG islands, problematic regions) as context rows: a density strip per track (regions per Mb, by
-          region midpoint; opacity relative to the track's densest Mb) above one row of regions per track. It follows
-          the selection made in UpSet, Venn or Table. Ctrl/⌘ + scroll zooms from the whole genome to single regions,
-          drag pans. <em>Shift + drag</em> selects an interval and counts each track's regions in it; clicking a region
-          opens it in the Browser tab, clicking a density bin zooms to it. Exports as SVG or PNG. Tracks of more than
-          500,000 regions are shown by density only. The view is loaded only when the card scrolls into view.
+          At the top of the Genome Browser tab, a GenomeSpy view shows where each selected subset lies along the whole
+          genome, with the input sets (<em>Show the input sets</em>) and any ticked bundled reference sets (ClinVar,
+          GWAS Catalog, cCREs, enhancers, CpG islands, problematic regions) as context rows: a density strip per row
+          (regions per Mb, by region midpoint; opacity relative to the row's densest Mb) above one row of regions per
+          row. It follows the selection made in UpSet, Venn or Table. Ctrl/⌘ + scroll zooms from the whole genome to
+          single regions, drag pans. Clicking a region shows it in the genome browser below; clicking a density bin
+          zooms to that Mb in both. <em>Shift + drag</em> selects an interval and counts each row's regions in it;
+          within one chromosome the genome browser follows. The red box in the chromosome strip is the genome
+          browser's current locus. Exports as SVG or PNG. Rows of more than 500,000 regions are shown by density only.
+          Fold the overview away with its header to give the genome browser the room. Public tracks are shown in the
+          genome browser only.
         </p>
 
         <h3 id="enrichment">Enrichment of selected subsets</h3>
@@ -404,7 +413,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           . Bundled reference data keeps its providers' terms, listed with each source above. The genome browser is
           igv.js 3.8.10 (Robinson JT, Thorvaldsdóttir H, Turner D, Mesirov JP. igv.js: an embeddable JavaScript
           implementation of the Integrative Genomics Viewer (IGV). <em>Bioinformatics</em> 2023;39:btac830), MIT
-          licence, Copyright (c) 2014-2025 Broad Institute of MIT and Harvard, Regents of the University of California. The genome-wide location view is GenomeSpy 1.3.0 (Lavikka K, et al. Deciphering cancer genomes with GenomeSpy: a
+          licence, Copyright (c) 2014-2025 Broad Institute of MIT and Harvard, Regents of the University of California. The genome-wide overview is GenomeSpy 1.3.0 (Lavikka K, et al. Deciphering cancer genomes with GenomeSpy: a
           grammar-based visualization toolkit. <em>GigaScience</em> 2024;13:giae040), MIT licence.
           Intervene is developed by
           the{" "}

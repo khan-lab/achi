@@ -164,7 +164,7 @@ describe("genomeSpec", () => {
     const g = (spec.genomes as Record<string, { contigs: unknown[] }>)[spec.assembly as string];
     expect(g.contigs).toHaveLength(Object.keys(SIZES).length);
     const names = JSON.stringify(spec).match(/"data":\{"name":"[a-z]+"\}/g);
-    expect(names?.sort()).toEqual(['"data":{"name":"density"}', '"data":{"name":"regions"}']);
+    expect(names?.sort()).toEqual(['"data":{"name":"density"}', '"data":{"name":"regions"}', '"data":{"name":"viewport"}']);
   });
 
   it("one row per track, in order, coloured like the rest of the app; zoomable x shared by all views", () => {
@@ -184,7 +184,25 @@ describe("genomeSpec", () => {
   });
 
   it("declares the named datasets empty at the top level; rows are set at runtime (api.datasets.set)", () => {
-    expect(spec.datasets).toEqual({ density: [], regions: [] });
+    expect(spec.datasets).toEqual({ density: [], regions: [], viewport: [] });
+  });
+
+  it("marks the genome browser's current locus in the chromosome strip, visible even at whole-genome scale", () => {
+    const strip = (spec.vconcat as { name: string; layer?: unknown[] }[]).find((v) => v.name === "chromosomes")!;
+    const marker = (strip.layer as { name?: string; data?: unknown; mark?: { type: string; minWidth?: number }; encoding?: Record<string, unknown> }[]).find(
+      (l) => l.name === "viewport",
+    )!;
+    expect(marker.data).toEqual({ name: "viewport" });
+    expect(marker.mark?.type).toBe("rect");
+    expect(marker.mark?.minWidth).toBeGreaterThanOrEqual(2); // a 100 kb locus is under a pixel at genome scale
+    expect(marker.encoding).toMatchObject({ x: { chrom: "chrom", pos: "start", type: "locus" }, x2: { chrom: "chrom", pos: "end" } });
+  });
+
+  it("can draw shorter rows (overview above the genome browser)", () => {
+    const rows = (sp: object) => (sp as { vconcat: { name: string; height: number }[] }).vconcat.find((v) => v.name === "regions")!.height;
+    const many: GenomeTrack[] = Array.from({ length: 6 }, (_, i) => ({ key: `t${i}`, name: `T${i}`, color: "#000", regions: [] }));
+    expect(rows(genomeSpec({ contigs: contigsFromSizes(SIZES), tracks: many }))).toBe(6 * 22);
+    expect(rows(genomeSpec({ contigs: contigsFromSizes(SIZES), tracks: many, rowHeight: 14 }))).toBe(6 * 14);
   });
 });
 

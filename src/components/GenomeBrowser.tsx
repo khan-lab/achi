@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Browser } from "igv";
 import { useStore } from "../state/store";
 import {
@@ -20,13 +20,17 @@ import { remoteTrackConfig, type RemoteTrack } from "../lib/remoteTracks";
 import { loadGeneModels as loadGeneModelsFor, type GeneModels } from "../lib/geneModelsLoader";
 import { downloadPngFromSvgText, downloadSvgText, svgDimensions } from "../lib/exportImage";
 import { PublicTracksPanel } from "./PublicTracksPanel";
+import { GenomeView } from "./GenomeView";
 
 /**
- * Genome browser view (igv.js, MIT; loaded only when this tab is first
- * opened). Shows the user's sets, the selected subsets, GENCODE gene models
- * and, on request, the bundled reference sets. Nothing leaves the page:
- * see lib/browserTracks.ts for how the igv configuration is kept to the
- * app's own data, and the tests that enforce it.
+ * The Browser tab: a genome-wide overview (GenomeView, GenomeSpy) above a
+ * genome browser (igv.js, MIT; loaded only when this tab is first opened).
+ * Both show the user's sets (optional), the selected subsets and the ticked
+ * bundled reference sets, from one set of controls; igv adds GENCODE gene
+ * models and, after consent, public tracks. Clicking or brushing in the
+ * overview moves igv; igv's locus is marked in the overview. Nothing leaves
+ * the page without consent: see lib/browserTracks.ts for how the igv
+ * configuration is kept to the app's own data, and the tests that enforce it.
  */
 
 const BASE = `${window.location.origin}${import.meta.env.BASE_URL}`;
@@ -36,8 +40,14 @@ const loadGeneModels = (assembly: string) => loadGeneModelsFor(assembly, BASE);
 let igvModule: Promise<typeof import("igv")> | null = null;
 const loadIgv = () => (igvModule ??= import("igv"));
 
-/** Kept across tab switches (page session only): reference sets and public tracks shown, and where the browser was. */
-const saved: { refs: Set<string>; locus: Record<string, string>; remote: Record<string, RemoteTrack[]> } = { refs: new Set(), locus: {}, remote: {} };
+/** Kept across tab switches (page session only): what is shown, where the browser was, and whether the overview is open. */
+const saved: { refs: Set<string>; locus: Record<string, string>; remote: Record<string, RemoteTrack[]>; showSets: boolean; overview: boolean } = {
+  refs: new Set(),
+  locus: {},
+  remote: {},
+  showSets: true,
+  overview: true,
+};
 
 interface TrackSpec {
   key: string;
@@ -66,6 +76,9 @@ export function GenomeBrowser() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [refs, setRefs] = useState<Set<string>>(() => new Set(saved.refs));
+  const [showSets, setShowSets] = useState(saved.showSets);
+  const [overview, setOverview] = useState(saved.overview);
+  const [locus, setLocus] = useState<Locus | null>(null);
   const [remote, setRemote] = useState<RemoteTrack[]>(() => saved.remote[assembly] ?? []);
   useEffect(() => setRemote(saved.remote[assembly] ?? []), [assembly]);
   const changeRemote = (tracks: RemoteTrack[]) => {
@@ -82,13 +95,14 @@ export function GenomeBrowser() {
   const specs = useMemo<TrackSpec[]>(() => {
     const out: TrackSpec[] = [];
     if (genes) out.push({ key: "genes", sig: assembly, config: () => ({ ...geneTrack(genes.features), order: 0 }) });
-    included.forEach((s, i) =>
-      out.push({
-        key: `set:${s.id}`,
-        sig: `${s.name}|${s.color}|${s.nRegions}|${s.regions.length}`,
-        config: () => ({ ...regionTrack(s.name, s.color, s.regions), order: 10 + i }),
-      }),
-    );
+    if (showSets)
+      included.forEach((s, i) =>
+        out.push({
+          key: `set:${s.id}`,
+          sig: `${s.name}|${s.color}|${s.nRegions}|${s.regions.length}`,
+          config: () => ({ ...regionTrack(s.name, s.color, s.regions), order: 10 + i }),
+        }),
+      );
     chosen.forEach((s, i) => {
       const color = subsetTrackColor(s, sets);
       out.push({
@@ -103,7 +117,7 @@ export function GenomeBrowser() {
     // Public tracks: only ever present after the user agreed (PublicTracksPanel).
     remote.forEach((t, i) => out.push({ key: `remote:${t.id}`, sig: t.url, config: () => ({ ...remoteTrackConfig(t), order: 300 + i }) }));
     return out;
-  }, [genes, assembly, included, chosen, sets, refOptions, refs, remote]);
+  }, [genes, assembly, included, chosen, sets, refOptions, refs, remote, showSets]);
 
   // Create the browser for this assembly (genome = bundled chrom.sizes).
   useEffect(() => {
@@ -130,11 +144,13 @@ export function GenomeBrowser() {
         browser.on("locuschange", () => {
           const l = currentLocus(browser);
           if (l) {
-            saved.locus[assembly] = l;
-            setQuery(l);
+            saved.locus[assembly] = formatLocus(l);
+            setQuery(formatLocus(l));
+            setLocus(l);
           }
         });
         setQuery(formatLocus(at));
+        setLocus(at);
         setGenes(models);
         setReady(true);
       })
@@ -148,6 +164,26 @@ export function GenomeBrowser() {
     // The first locus is read once per browser; later changes navigate instead.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assembly, sizes]);
+
+  // igv only re-lays out on window resize; the middle column also changes
+  // width when the "Selected subsets" column is hidden or shown.
+  useEffect(() => {
+    const div = host.current;
+    if (!ready || !div) return;
+    let width = div.clientWidth;
+    let frame = 0;
+    const ro = new ResizeObserver(() => {
+      if (div.clientWidth === width) return;
+      width = div.clientWidth;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => void browserRef.current?.visibilityChange());
+    });
+    ro.observe(div);
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [ready]);
 
   // Keep igv's tracks in step with sets, selection and reference toggles.
   useEffect(() => {
@@ -182,6 +218,19 @@ export function GenomeBrowser() {
     if (r && sizes) return formatLocus(padLocus(r, sizes));
     return "GAPDH";
   }
+
+  /** From the overview: move igv to a region (padded for a single region) and bring it into view. */
+  const navigate = useCallback(
+    (l: Locus, pad: boolean) => {
+      const browser = browserRef.current;
+      if (!browser || !sizes) return;
+      const at = pad ? padLocus(l, sizes) : l;
+      setError(null);
+      browser.search(`${at.chrom}:${at.start + 1}-${at.end}`);
+      host.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    },
+    [sizes],
+  );
 
   function go(q: string, pad: boolean) {
     const browser = browserRef.current;
@@ -227,6 +276,59 @@ export function GenomeBrowser() {
 
   return (
     <div className="genomebrowser">
+      <div className="gb-shared">
+        <label className="gb-ref gv-toggle">
+          <input
+            type="checkbox"
+            checked={showSets}
+            onChange={(e) => {
+              saved.showSets = e.target.checked;
+              setShowSets(e.target.checked);
+            }}
+          />{" "}
+          Show the input sets
+        </label>
+        {refOptions.length > 0 && (
+          <details className="gb-refs">
+            <summary>
+              Reference sets <span className="railcount">{refs.size ? `${refs.size} shown` : `${refOptions.length} available`}</span>
+            </summary>
+            <div className="gb-refgrid">
+              {refOptions.map((r) => (
+                <label key={r.id} className="gb-ref">
+                  <input type="checkbox" checked={refs.has(r.id)} onChange={() => toggleRef(r.id)} /> {r.name}
+                </label>
+              ))}
+            </div>
+          </details>
+        )}
+        <PublicTracksPanel assembly={assembly} chosen={remote} onChange={changeRemote} />
+      </div>
+
+      {/* A button, not <details>: GenomeSpy watches attribute changes on its ancestors and would
+          read styles from the hidden content before React removes it. */}
+      <div className="gb-overview">
+        <button
+          type="button"
+          className="gb-overview-hd"
+          aria-expanded={overview}
+          onClick={() => {
+            saved.overview = !overview;
+            setOverview(!overview);
+          }}
+        >
+          <span className="caret" aria-hidden="true">
+            {overview ? "▾" : "▸"}
+          </span>
+          <span className="gb-sub">Genome-wide overview</span>
+          <span className="hint">GenomeSpy · every row along the whole genome</span>
+        </button>
+        {overview && <GenomeView showSets={showSets} refIds={refs} locus={locus} onNavigate={navigate} />}
+      </div>
+
+      <div className="gb-sub gb-sub-igv">
+        Genome browser <span className="hint">igv.js · genes, your rows and public tracks at base-pair resolution</span>
+      </div>
       <form
         className="gb-toolbar"
         onSubmit={(e) => {
@@ -253,23 +355,6 @@ export function GenomeBrowser() {
         </button>
       </form>
 
-      {refOptions.length > 0 && (
-        <details className="gb-refs">
-          <summary>
-            Reference sets <span className="railcount">{refs.size ? `${refs.size} shown` : `${refOptions.length} available`}</span>
-          </summary>
-          <div className="gb-refgrid">
-            {refOptions.map((r) => (
-              <label key={r.id} className="gb-ref">
-                <input type="checkbox" checked={refs.has(r.id)} onChange={() => toggleRef(r.id)} /> {r.name}
-              </label>
-            ))}
-          </div>
-        </details>
-      )}
-
-      <PublicTracksPanel assembly={assembly} chosen={remote} onChange={changeRemote} />
-
       {error && <div className="hint error">{error}</div>}
       {!sets.length && <div className="hint">Load your files or the example data to see them here. Genes are shown already.</div>}
       {!ready && !error && <div className="hint">Starting the genome browser…</div>}
@@ -295,9 +380,8 @@ export function GenomeBrowser() {
   );
 }
 
-function currentLocus(browser: Browser): string | null {
+function currentLocus(browser: Browser): Locus | null {
   const loci = browser.currentLoci();
   const l = Array.isArray(loci) ? loci[0] : loci;
-  const at = l ? fromIgvLocus(l) : null;
-  return at ? formatLocus(at) : null;
+  return l ? fromIgvLocus(l) : null;
 }

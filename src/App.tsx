@@ -14,7 +14,6 @@ import { SubsetChips } from "./components/SubsetChips";
 import { SubsetRegionsTable } from "./components/SubsetRegionsTable";
 import { HelpPage } from "./components/HelpPage";
 import { GenomeBrowser } from "./components/GenomeBrowser";
-import { GenomeView } from "./components/GenomeView";
 import { ComputeStatus } from "./components/ComputeStatus";
 import { COPYRIGHT_YEAR, LAB_NAME, LAB_URL, LICENSE_URL, SOURCE_CODE_URL } from "./siteLinks";
 import { useStore, type View } from "./state/store";
@@ -73,6 +72,9 @@ function App() {
   // confirm success — cleared after a short timeout, not tied to any
   // store state since it's purely transient UI feedback.
   const [copiedMask, setCopiedMask] = useState<number | null>(null);
+  // The "Selected subsets" column can be folded to a thin strip to give the
+  // middle column its width. Kept for the page session (in memory only).
+  const [asideOpen, setAsideOpen] = useState(true);
 
   const copySubsetToClipboard = useCallback(async (subset: Subset) => {
     try {
@@ -171,7 +173,7 @@ function App() {
       {view === "help" ? (
         <HelpPage onBack={() => setView(lastWorkspaceView.current)} />
       ) : (
-      <main className="work">
+      <main className={asideOpen ? "work" : "work aside-closed"}>
         <SetRail />
 
         <section className="col mid" aria-label="Intersections">
@@ -201,7 +203,7 @@ function App() {
                 {view === "summary"
                   ? "Summary — per-set interval statistics (bedtools summary)"
                   : view === "browser"
-                    ? "Genome browser — your sets, selected subsets, genes and reference sets"
+                    ? "Genome Browser — genome-wide overview (GenomeSpy) linked to igv.js"
                     : "Intersections — click a bar to select a subset"}
               </div>
             </div>
@@ -246,15 +248,6 @@ function App() {
           {view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
-                <div className="eyebrow">Genome-wide location of selected subsets (GenomeSpy)</div>
-              </div>
-              <GenomeView />
-            </div>
-          )}
-
-          {view !== "summary" && selectedSubsets.length > 0 && (
-            <div className="card">
-              <div className="hd">
                 <div className="eyebrow">Region annotation of selected subsets — bedtools intersect/closest vs. GENCODE</div>
               </div>
               <RegionAnnotationPlot items={selectedSubsetSummaryItems} />
@@ -293,9 +286,34 @@ function App() {
           )}
         </section>
 
-        <section className="col" aria-label="Selected subset details">
-          <div className="eyebrow" style={{ marginBottom: 10 }}>
-            Selected subsets
+        {!asideOpen ? (
+          <section className="col asidestrip" aria-label="Selected subset details (hidden)">
+            <button
+              className="asidetab"
+              onClick={() => setAsideOpen(true)}
+              aria-expanded={false}
+              aria-controls="selected-subsets"
+              title="Show the selected subsets column"
+            >
+              <Icon name="panelOpen" />
+              <span className="asidetab-label">Selected subsets</span>
+              {selectedSubsets.length > 0 && <span className="asidetab-count">{selectedSubsets.length}</span>}
+            </button>
+          </section>
+        ) : (
+        <section className="col" id="selected-subsets" aria-label="Selected subset details">
+          <div className="asidehd">
+            <div className="eyebrow">Selected subsets</div>
+            <button
+              className="iconbtn"
+              onClick={() => setAsideOpen(false)}
+              aria-expanded={true}
+              aria-controls="selected-subsets"
+              aria-label="Hide the selected subsets column"
+              title="Hide this column (widens the middle column)"
+            >
+              <Icon name="panelClose" />
+            </button>
           </div>
           {!selectedSubsets.length && (
             <div className="placeholder">
@@ -337,6 +355,7 @@ function App() {
             </div>
           ))}
         </section>
+        )}
       </main>
       )}
 
