@@ -2,7 +2,7 @@
 
 `reference_hg38_bp.json` holds values computed by the **original code** on
 the real ENCODE fixtures in `../encode/`, for
-`frontend/src/lib/cistromeGo.test.ts` and `frontend/src/lib/xlmhg.test.ts`.
+`src/lib/cistromeGo.test.ts` and `src/lib/xlmhg.test.ts`.
 Made 2026-11-13 by `make_reference.py` (in this directory, exactly as run):
 
 ```

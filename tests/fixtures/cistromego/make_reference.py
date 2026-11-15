@@ -1,5 +1,5 @@
 """
-Reference values for frontend/src/lib/cistromeGo.test.ts and xlmhg.test.ts,
+Reference values for src/lib/cistromeGo.test.ts and xlmhg.test.ts,
 computed with the ORIGINAL code:
   - Cistrome-GO rpscore.py / corelib.py / file_check.py at commit 6b7f003
     (minimal Python 3 syntax port in ./cistromego_py3, diff in README of

@@ -1,8 +1,8 @@
 <p align="left">
-  <img src="frontend/public/logo.png" alt="Intervene logo" width="220">
+  <img src="public/logo.png" alt="Intervene logo" width="220">
 </p>
 
-> ### A secure platform for in-browser genomic intersections, annotation and enrichment without data upload
+> ### A secure platform for in-browser genomic intersections, annotation and enrichment
 
 [![Deploy](https://github.com/khan-lab/intervene-secure/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/khan-lab/intervene-secure/actions/workflows/deploy.yml)
 [![Web app](https://img.shields.io/website?url=https%3A%2F%2Fkhan-lab.github.io%2Fintervene-secure%2F&label=web%20app&up_message=online&down_message=offline)](https://khan-lab.github.io/intervene-secure/)
@@ -13,12 +13,7 @@
 
 **Available: <https://khan-lab.github.io/intervene-secure/>**
 
-Intervene Secure intersects 2–8 BED, narrowPeak or VCF files with
-[bedtools 2.31](https://bedtools.readthedocs.io/) compiled to WebAssembly,
-then annotates the input sets and their intersection subsets and tests them
-for enrichment. Everything runs in your browser tab: no file is uploaded,
-so it can be used for patient variants, clinical sequencing calls and other
-restricted data.
+**Intervene Secure** performs genomic interval intersections, annotation and enrichment analysis entirely in your browser. It supports 2–8 input files in BED, narrowPeak or VCF format and uses bedtools compiled to WebAssembly to compute intersections. Both the input sets and their intersection subsets can be annotated and tested for enrichment. All processing happens locally within your browser tab, with no files uploaded to a server, helping keep sensitive genomic data under your control.
 
 ## Built for patient and sensitive data
 
@@ -73,7 +68,7 @@ Requires [Node.js](https://nodejs.org/) 20.19+ or 22.12+.
 
 ```sh
 git clone https://github.com/khan-lab/intervene-secure.git
-cd intervene-secure/frontend
+cd intervene-secure
 npm ci
 npm run dev        # http://localhost:5173/intervene-secure/
 ```

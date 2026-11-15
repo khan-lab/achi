@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 391.53 192.31">
+  <!-- Generator: Adobe Illustrator 31.0.0, SVG Export Plug-In . SVG Version: 2.1.5 Build 84)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #f4b400;
+      }
+
+      .st0, .st1, .st2, .st3 {
+        isolation: isolate;
+      }
+
+      .st0, .st2 {
+        opacity: .8;
+      }
+
+      .st4, .st3 {
+        fill: #327eab;
+      }
+
+      .st5 {
+        fill: #fff;
+      }
+
+      .st2, .st6 {
+        fill: #f05a28;
+      }
+
+      .st6 {
+        font-family: Seravek-Italic, Seravek;
+        font-size: 60px;
+        font-style: italic;
+      }
+
+      .st3 {
+        font-family: Seravek-Bold, Seravek;
+        font-size: 80px;
+        font-weight: 700;
+      }
+    </style>
+  </defs>
+  <g class="st1">
+    <g class="st1">
+      <text class="st3" transform="translate(47.86 189.53)"><tspan x="0" y="0">intervene</tspan></text>
+    </g>
+  </g>
+  <circle class="st0" cx="82.48" cy="57.24" r="55"/>
+  <circle class="st4" cx="59.12" cy="95.57" r="55"/>
+  <circle class="st2" cx="107.55" cy="82.09" r="55"/>
+  <path class="st5" d="M134.01,38c4.89,14.98-30.09,34.09-56.52,77.18-3.25,5.29-5.61,9.72-6.97,12.37-3.38,1.33-13.48,4.9-19.38,0-1.27-1.06-2.3-3.08-4.32-7.07-1.57-3.11-3.81-7.88-7.1-17.02-2.37-6.57-3.26-9.83-3.81-13.69-.76-5.39-.16-7.13.28-8.08,2.12-4.55,7.59-6.02,10.12-6.7,2.8-.76,5.59-1.5,8.44-.3,2.06.86,4.12,2.73,7.1,10.2,4.06,10.12,3.2,14.01,4.66,14.48,5.31,1.76,37.72-83.33,52.28-79.99,1.83.42,3.72,2.32,6.63,5.25C130.97,30.24,133.47,36.34,134.01,38Z"/>
+  <text class="st6" transform="translate(237.15 137.09)"><tspan x="0" y="0">secure</tspan></text>
+</svg>

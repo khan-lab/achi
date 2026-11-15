@@ -1,22 +1,41 @@
+# Node / Vite
 node_modules/
 dist/
 dist-ssr/
 *.local
-.DS_Store
+
+# Logs
+logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor and OS files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
 # refdata is fetched by refdata/Makefile, not checked in
-refdata/*
-!refdata/Makefile
+/refdata/*
+!/refdata/Makefile
 
-design/
-docs/
-# Raw GENCODE GTFs under frontend/public/refdata/ are one-time inputs to
+/design/
+/docs/
+# Raw GENCODE GTFs under public/refdata/ are one-time inputs to
 # build_peak_annotation.py / build_external_annotations.py — nothing at
 # runtime reads them (only the small derived anno/*.bed, external/*.bed,
 # and *.chrom.sizes files they produce are fetched by the app). hg38's
 # alone is ~119MB, over GitHub's 100MB hard per-file push limit. See
 # docs/provenance.md for the source URLs to re-fetch them if you ever
 # need to re-run the derivation scripts.
-frontend/public/refdata/**/*.gtf.gz
-frontend/public/refdata/**/__pycache__/
+public/refdata/**/*.gtf.gz
+public/refdata/**/__pycache__/
