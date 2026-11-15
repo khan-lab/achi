@@ -30,6 +30,7 @@ const associationsCache = new Map<string, RegionGeneAssociation[]>(); // cacheKe
  */
 export function GeneListPanel({ items }: { items: SummaryItem[] }) {
   const assembly = useStore((s) => s.assembly);
+  const showInBrowser = useStore((s) => s.showInBrowser);
   const geneTssPathRef = useRef(geneTssPathCache);
   const [associationsState, setAssociationsState] = useState<Map<string, RegionGeneAssociation[]>>(
     () => new Map(associationsCache)
@@ -142,7 +143,11 @@ export function GeneListPanel({ items }: { items: SummaryItem[] }) {
                   <div className="regions-scroll" style={{ maxHeight: 160 }}>
                     <div className="mono" style={{ padding: "6px 8px", fontSize: 11.5, lineHeight: 1.7 }}>
                       {genes.map((g) => (
-                        <div key={g}>{g}</div>
+                        <div key={g}>
+                          <button className="linkbtn genelink" title={`Show ${g} in the genome browser`} onClick={() => showInBrowser(g)}>
+                            {g}
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>

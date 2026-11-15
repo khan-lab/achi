@@ -24,6 +24,7 @@ function EmptyHint({ view, hasSubsets }: { view: View; hasSubsets: boolean }) {
         Nothing selected yet. Select one or more intersection subsets to annotate, test for enrichment and export them.
       </div>
       {view === "pairwise" && <div>The pairwise heatmap compares whole sets; switch to UpSet, Venn or Table to select subsets.</div>}
+      {view === "browser" && <div>The genome browser shows selected subsets as tracks; switch to UpSet, Venn or Table to select them.</div>}
       <ul>
         {ordered.map((h) => (
           <li key={h.view} className={h.view === view ? "here" : undefined}>

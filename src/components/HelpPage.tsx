@@ -193,10 +193,33 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
             GENCODE protein-coding genes (promoter, UTR, exon, intron, downstream, distal) and its distance to the
             nearest TSS.
           </li>
+          <li>
+            <strong>Browser</strong>: a genome browser (igv.js) with one track per input set and per selected subset,
+            GENCODE genes (one transcript per gene) and, on request, any of the bundled reference sets. Type a locus
+            (<code>chr1:1,000,000-1,100,000</code>) or a gene name, or click <em>view</em> next to a region of a
+            selected subset, or a gene in a gene list, to go there. Sets with more than 50,000 regions are drawn when
+            zoomed in. <em>Public tracks</em> (optional, after you agree) adds SCREEN merged signal (DNase, ATAC,
+            H3K4me3, H3K27ac, CTCF), the ENCODE cCRE registry, ENCODE signal and cell-type cCREs for the example cell
+            lines, phyloP conservation (UCSC), JASPAR 2024 binding sites (shown below 20 kb, shaded by score), any
+            ENCODE bigWig/bigBed found by search or accession, or a bigWig/bigBed URL. <em>SVG</em> and{" "}
+            <em>PNG</em> export the current view, every track included, named after the locus.
+          </li>
         </ul>
         <p>
           Plots export as SVG or PNG. The page address records the current view and selected subsets, so a bookmarked
           link reopens the same view once you load the same files again. It never contains your data.
+        </p>
+
+        <h3 id="genome-location">Genome-wide location of selected subsets</h3>
+        <p>
+          Below the summary of the selected subsets, a GenomeSpy view shows where each selected subset lies along the
+          whole genome, optionally with the input sets and any bundled reference sets (ClinVar, GWAS Catalog, cCREs,
+          enhancers, CpG islands, problematic regions) as context rows: a density strip per track (regions per Mb, by
+          region midpoint; opacity relative to the track's densest Mb) above one row of regions per track. It follows
+          the selection made in UpSet, Venn or Table. Ctrl/⌘ + scroll zooms from the whole genome to single regions,
+          drag pans. <em>Shift + drag</em> selects an interval and counts each track's regions in it; clicking a region
+          opens it in the Browser tab, clicking a density bin zooms to it. Exports as SVG or PNG. Tracks of more than
+          500,000 regions are shown by density only. The view is loaded only when the card scrolls into view.
         </p>
 
         <h3 id="enrichment">Enrichment of selected subsets</h3>
@@ -282,7 +305,14 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           Files are read by your browser and processed by bedtools running inside it. Nothing you load is sent anywhere.
           The only network requests are for this site's own static files: the application, the bedtools WebAssembly
           binary, example data and reference annotation. There is no login, no account and no server-side storage. Links
-          out (GO terms to AmiGO) open only when you click them and send only the term id.
+          out (GO terms to AmiGO) open only when you click them and send only the term id. The genome browser shows
+          only your files and data bundled with Intervene: its genome is the bundled chromosome sizes, gene search runs
+          here, and igv.js's own genome list and search service are switched off. The one exception is{" "}
+          <em>Public tracks</em> in the genome browser, off until you agree: the servers named in that notice
+          (www.encodeproject.org, encode-public.s3.amazonaws.com, downloads.wenglab.org, hgdownload.soe.ucsc.edu, or
+          the host of a URL you paste)
+          then see which regions you view, and ENCODE sees the words you search for. Your files are never sent. The
+          agreement lasts until you reload the page or press <em>Stop public tracks</em>.
         </p>
 
         <h3 id="offline">Offline use</h3>
@@ -294,7 +324,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           ones for the selected assembly are listed.
         </p>
         <ul>
-          <li>Chromosome sizes and CpG islands: UCSC Genome Browser.</li>
+          <li>Chromosome sizes, chromosome bands and CpG islands: UCSC Genome Browser.</li>
           <li>
             Gene Ontology (ontology release 2026-07-26, human and mouse annotations 2026-05-21): The Gene Ontology
             Consortium. <em>Genetics</em> 2023;224:iyad031. GREAT regulatory domains: McLean CY, et al.{" "}
@@ -312,6 +342,11 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
             identification of problematic regions of the genome. <em>Sci Rep</em> 2019;9:9354.
           </li>
           <li>Gene annotation: GENCODE v50 (hg38), v19 (hg19), vM25 (mm10), vM1 (mm9), protein-coding genes only.</li>
+          <li>
+            Genome browser genes: the same GENCODE releases, all genes, one transcript per gene: the Ensembl canonical
+            transcript where GENCODE marks it (hg38; for hg19 through the hg38 transcript IDs), otherwise the basic
+            transcript with the best APPRIS and support level, then the longest coding sequence.
+          </li>
           <li>
             ENCODE candidate cis-regulatory elements, V4 registry, all cell types (hg38, mm10): promoter-like, proximal
             enhancer-like and CTCF-bound classes. Registry: Moore JE, et al. <em>Nature</em> 2020;583:699–710. Distal
@@ -366,7 +401,12 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           <a href={LICENSE_URL} target="_blank" rel="noreferrer">
             MIT licence
           </a>
-          . Bundled reference data keeps its providers' terms, listed with each source above. Intervene is developed by
+          . Bundled reference data keeps its providers' terms, listed with each source above. The genome browser is
+          igv.js 3.8.10 (Robinson JT, Thorvaldsdóttir H, Turner D, Mesirov JP. igv.js: an embeddable JavaScript
+          implementation of the Integrative Genomics Viewer (IGV). <em>Bioinformatics</em> 2023;39:btac830), MIT
+          licence, Copyright (c) 2014-2025 Broad Institute of MIT and Harvard, Regents of the University of California. The genome-wide location view is GenomeSpy 1.3.0 (Lavikka K, et al. Deciphering cancer genomes with GenomeSpy: a
+          grammar-based visualization toolkit. <em>GigaScience</em> 2024;13:giae040), MIT licence.
+          Intervene is developed by
           the{" "}
           <a href={LAB_URL} target="_blank" rel="noreferrer">
             {LAB_NAME}

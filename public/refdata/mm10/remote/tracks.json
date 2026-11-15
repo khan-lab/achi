@@ -1,0 +1,102 @@
+{
+ "built": "2026-11-15",
+ "assembly": "mm10",
+ "hosts": [
+  "downloads.wenglab.org",
+  "encode-public.s3.amazonaws.com",
+  "hgdownload.soe.ucsc.edu"
+ ],
+ "tracks": [
+  {
+   "id": "screen-mm10-dnase",
+   "group": "SCREEN aggregate signal (all ENCODE experiments)",
+   "name": "SCREEN DNase (merged)",
+   "kind": "bigwig",
+   "url": "https://downloads.wenglab.org/DNase_MM10_ENCODE_DEC2024_merged_nanrm.bigWig",
+   "size": 7821237375,
+   "lastModified": "Mon, 13 Apr 2026 16:40:12 GMT",
+   "source": "https://github.com/weng-lab/SCREEN2.0/blob/4782951a696df57552e6d1bfaa3661e5cfeea939/screen2.0/src/app/search/_gbview/SearchBrowserView.tsx",
+   "description": "DNase signal merged across ENCODE experiments, as shown in SCREEN's genome browser."
+  },
+  {
+   "id": "screen-mm10-atac",
+   "group": "SCREEN aggregate signal (all ENCODE experiments)",
+   "name": "SCREEN ATAC (merged)",
+   "kind": "bigwig",
+   "url": "https://downloads.wenglab.org/ATAC_MM10_ENCODE_DEC2024_merged_nanrm.bigWig",
+   "size": 14623728671,
+   "lastModified": "Mon, 13 Apr 2026 16:37:51 GMT",
+   "source": "https://github.com/weng-lab/SCREEN2.0/blob/4782951a696df57552e6d1bfaa3661e5cfeea939/screen2.0/src/app/search/_gbview/SearchBrowserView.tsx",
+   "description": "ATAC signal merged across ENCODE experiments, as shown in SCREEN's genome browser."
+  },
+  {
+   "id": "screen-mm10-h3k4me3",
+   "group": "SCREEN aggregate signal (all ENCODE experiments)",
+   "name": "SCREEN H3K4me3 (merged)",
+   "kind": "bigwig",
+   "url": "https://downloads.wenglab.org/H3K4me3_MM10_ENCODE_DEC2024_merged_nanrm.bigWig",
+   "size": 15512099594,
+   "lastModified": "Mon, 13 Apr 2026 16:43:18 GMT",
+   "source": "https://github.com/weng-lab/SCREEN2.0/blob/4782951a696df57552e6d1bfaa3661e5cfeea939/screen2.0/src/app/search/_gbview/SearchBrowserView.tsx",
+   "description": "H3K4me3 signal merged across ENCODE experiments, as shown in SCREEN's genome browser."
+  },
+  {
+   "id": "screen-mm10-h3k27ac",
+   "group": "SCREEN aggregate signal (all ENCODE experiments)",
+   "name": "SCREEN H3K27ac (merged)",
+   "kind": "bigwig",
+   "url": "https://downloads.wenglab.org/H3K27ac_MM10_ENCODE_DEC2024_merged_nanrm.bigWig",
+   "size": 15543482255,
+   "lastModified": "Mon, 13 Apr 2026 16:42:11 GMT",
+   "source": "https://github.com/weng-lab/SCREEN2.0/blob/4782951a696df57552e6d1bfaa3661e5cfeea939/screen2.0/src/app/search/_gbview/SearchBrowserView.tsx",
+   "description": "H3K27ac signal merged across ENCODE experiments, as shown in SCREEN's genome browser."
+  },
+  {
+   "id": "screen-mm10-ctcf",
+   "group": "SCREEN aggregate signal (all ENCODE experiments)",
+   "name": "SCREEN CTCF (merged)",
+   "kind": "bigwig",
+   "url": "https://downloads.wenglab.org/CTCF_MM10_ENCODE_DEC2024_merged_nanrm.bigWig",
+   "size": 12812939131,
+   "lastModified": "Mon, 13 Apr 2026 16:39:04 GMT",
+   "source": "https://github.com/weng-lab/SCREEN2.0/blob/4782951a696df57552e6d1bfaa3661e5cfeea939/screen2.0/src/app/search/_gbview/SearchBrowserView.tsx",
+   "description": "CTCF signal merged across ENCODE experiments, as shown in SCREEN's genome browser."
+  },
+  {
+   "id": "ENCFF145RXB",
+   "group": "ENCODE cCRE registry (SCREEN)",
+   "name": "ENCODE cCREs V4, all cell types",
+   "kind": "bigbed",
+   "url": "https://encode-public.s3.amazonaws.com/2023/02/28/a63ac185-99a9-4a50-8344-ec2c7a8627c1/ENCFF145RXB.bigBed",
+   "size": 24264759,
+   "md5": "a2e2561c31a68d7977bd574acc84f6e0",
+   "source": "https://www.encodeproject.org/files/ENCFF145RXB/",
+   "description": "agnostic candidate Cis-Regulatory Elements for mm10 (ENCSR412JPD)."
+  },
+  {
+   "id": "ucsc-mm10-mm10.60way.phyloP60way.bw",
+   "group": "Conservation (UCSC)",
+   "name": "phyloP, 60 vertebrates",
+   "kind": "bigwig",
+   "url": "https://hgdownload.soe.ucsc.edu/goldenPath/mm10/phyloP60way/mm10.60way.phyloP60way.bw",
+   "size": 5928108111,
+   "lastModified": "Fri, 18 Apr 2014 17:54:35 GMT",
+   "source": "https://hgdownload.soe.ucsc.edu/goldenPath/mm10/phyloP60way/",
+   "description": "Conservation scores (phyloP, 60 vertebrates), UCSC Genome Browser.",
+   "md5": "de2a52f7ec805a87bc677c6dc423e68a"
+  },
+  {
+   "id": "jaspar2024-mm10",
+   "group": "TF binding sites (JASPAR 2024, UCSC)",
+   "name": "JASPAR 2024 TFBS",
+   "kind": "bigbed",
+   "url": "https://hgdownload.soe.ucsc.edu/gbdb/mm10/jaspar/JASPAR2024.bb",
+   "size": 146985923955,
+   "lastModified": "Fri, 09 Feb 2024 09:50:01 GMT",
+   "visibilityWindow": 20000,
+   "scored": true,
+   "source": "https://genome.ucsc.edu/cgi-bin/hgTrackUi?db=mm10&g=jaspar",
+   "description": "JASPAR 2024 predicted transcription factor binding sites, the UCSC Genome Browser track file (JASPAR data: CC BY 4.0). Drawn below 20 kb."
+  }
+ ]
+}

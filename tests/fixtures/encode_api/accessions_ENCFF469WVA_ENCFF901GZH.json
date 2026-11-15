@@ -1,0 +1,52 @@
+{
+ "@graph": [
+  {
+   "@id": "/files/ENCFF469WVA/",
+   "@type": [
+    "File",
+    "Item"
+   ],
+   "accession": "ENCFF469WVA",
+   "assay_title": "Histone ChIP-seq",
+   "assembly": "GRCh38",
+   "biosample_ontology": {
+    "term_name": "GM12878"
+   },
+   "cloud_metadata": {
+    "url": "https://encode-public.s3.amazonaws.com/2020/09/30/7ae35df2-f211-4f5a-90e2-1bce9a864622/ENCFF469WVA.bigWig"
+   },
+   "dataset": "/experiments/ENCSR000AKC/",
+   "file_format": "bigWig",
+   "file_size": 189946414,
+   "md5sum": "8dd4ff50d61a6901aa31453a26a31ccd",
+   "output_type": "fold change over control",
+   "status": "released",
+   "target": {
+    "label": "H3K27ac"
+   }
+  },
+  {
+   "@id": "/files/ENCFF901GZH/",
+   "@type": [
+    "File",
+    "Item"
+   ],
+   "accession": "ENCFF901GZH",
+   "assay_title": "DNase-seq",
+   "assembly": "hg19",
+   "biosample_ontology": {
+    "term_name": "GM12878"
+   },
+   "cloud_metadata": {
+    "url": "https://encode-public.s3.amazonaws.com/2017/09/06/e2259e48-add5-4b57-bc75-e27b290b954f/ENCFF901GZH.bigWig"
+   },
+   "dataset": "/experiments/ENCSR000EMT/",
+   "file_format": "bigWig",
+   "file_size": 609532390,
+   "md5sum": "6310cf9f0e3e9570fcfda1bf9b367acc",
+   "output_type": "read-depth normalized signal",
+   "status": "released"
+  }
+ ],
+ "total": 2
+}

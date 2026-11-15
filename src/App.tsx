@@ -13,6 +13,8 @@ import { OfflineBadge } from "./components/OfflineStatus";
 import { SubsetChips } from "./components/SubsetChips";
 import { SubsetRegionsTable } from "./components/SubsetRegionsTable";
 import { HelpPage } from "./components/HelpPage";
+import { GenomeBrowser } from "./components/GenomeBrowser";
+import { GenomeView } from "./components/GenomeView";
 import { ComputeStatus } from "./components/ComputeStatus";
 import { COPYRIGHT_YEAR, LAB_NAME, LAB_URL, LICENSE_URL, SOURCE_CODE_URL } from "./siteLinks";
 import { useStore, type View } from "./state/store";
@@ -27,6 +29,7 @@ const VIEWS: { id: View; label: string }[] = [
   { id: "venn", label: "Venn" },
   { id: "pairwise", label: "Pairwise" },
   { id: "table", label: "Table" },
+   { id: "browser", label: "Genome Browser" },
   { id: "summary", label: "Set Summary" },
 ];
 
@@ -197,7 +200,9 @@ function App() {
               <div className="eyebrow">
                 {view === "summary"
                   ? "Summary — per-set interval statistics (bedtools summary)"
-                  : "Intersections — click a bar to select a subset"}
+                  : view === "browser"
+                    ? "Genome browser — your sets, selected subsets, genes and reference sets"
+                    : "Intersections — click a bar to select a subset"}
               </div>
             </div>
             {view === "upset" && <UpSetPlot />}
@@ -205,6 +210,7 @@ function App() {
             {view === "pairwise" && <PairwiseHeatmap />}
             {view === "table" && <SubsetTable />}
             {view === "summary" && <SummaryPlot items={setSummaryItems} />}
+            {view === "browser" && <GenomeBrowser />}
           </div>
 
           {view === "summary" && (
@@ -234,6 +240,15 @@ function App() {
                 <div className="eyebrow">Summary of selected subsets (bedtools summary)</div>
               </div>
               <SummaryPlot items={selectedSubsetSummaryItems} />
+            </div>
+          )}
+
+          {view !== "summary" && selectedSubsets.length > 0 && (
+            <div className="card">
+              <div className="hd">
+                <div className="eyebrow">Genome-wide location of selected subsets (GenomeSpy)</div>
+              </div>
+              <GenomeView />
             </div>
           )}
 

@@ -15,7 +15,14 @@ import {
   type InputFormat,
 } from "../lib/inputValidation";
 
-export type View = "upset" | "venn" | "pairwise" | "table" | "summary" | "help";
+export type View = "upset" | "venn" | "pairwise" | "table" | "summary" | "browser" | "help";
+
+/** Where the genome browser should go next: a locus ("chr1:1,001-2,000") or gene symbol, optionally with margin. `n` makes repeated jumps to the same place distinct. */
+export interface BrowserTarget {
+  query: string;
+  pad: boolean;
+  n: number;
+}
 export type ComputeStatus = "idle" | "loading-worker" | "running" | "done" | "error";
 /** Matches the Intervene CLI's own `intervene pairwise --compute {jaccard,fisher,reldist}`. */
 export type PairwiseStat = "jaccard" | "fisher" | "reldist";
@@ -46,6 +53,8 @@ interface StoreState {
   subsets: Subset[];
   selected: Set<number>;
   view: View;
+  /** Pending jump for the genome browser (set by "view" links); null once there or never set. */
+  browserTarget: BrowserTarget | null;
   status: ComputeStatus;
   error: string | null;
   /** What the app is doing right now, for the progress indicator; null when idle. `total` is 0 for steps without a count (reading a file). */
@@ -83,6 +92,8 @@ interface StoreState {
   toggleSelected: (mask: number) => void;
   clearSelected: () => void;
   setView: (view: View) => void;
+  /** Open the genome browser at a locus or gene symbol (from a region row or gene list). */
+  showInBrowser: (query: string, pad?: boolean) => void;
   loadExample: () => Promise<void>;
   addExternalAnnotation: (annotation: ExternalAnnotation) => Promise<void>;
   exportSelectedBedZip: () => Promise<void>;
@@ -310,6 +321,7 @@ export const useStore = create<StoreState>((set, get) => {
   subsets: [],
   selected: new Set(),
   view: "upset",
+  browserTarget: null,
   status: "idle",
   error: null,
   progress: null,
@@ -521,6 +533,7 @@ export const useStore = create<StoreState>((set, get) => {
   clearSelected: () => set({ selected: new Set() }),
 
   setView: (view) => set({ view }),
+  showInBrowser: (query, pad = true) => set((state) => ({ view: "browser", browserTarget: { query, pad, n: (state.browserTarget?.n ?? 0) + 1 } })),
 
   loadExample: async () => {
     set({ status: "loading-worker", error: null });

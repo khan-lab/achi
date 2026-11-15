@@ -20,8 +20,27 @@ function triggerDownload(blob: Blob, filename: string): void {
 }
 
 export function downloadSvg(svg: SVGSVGElement, filename: string): void {
-  const str = svgToStandaloneString(svg);
-  triggerDownload(new Blob([str], { type: "image/svg+xml" }), filename);
+  downloadSvgText(svgToStandaloneString(svg), filename);
+}
+
+/** Download SVG markup as a file (e.g. igv.js's `browser.toSVG()`). */
+export function downloadSvgText(svgText: string, filename: string): void {
+  triggerDownload(new Blob([svgText], { type: "image/svg+xml" }), filename);
+}
+
+/** Root width/height of SVG markup, from its width/height attributes or else its viewBox; null if neither. */
+export function svgDimensions(svgText: string): { width: number; height: number } | null {
+  const root = /<svg\b[^>]*>/i.exec(svgText)?.[0];
+  if (!root) return null;
+  const attr = (name: string) => {
+    const m = new RegExp(`\\s${name}="([\\d.]+)(px)?"`, "i").exec(root);
+    return m ? Number(m[1]) : NaN;
+  };
+  const w = attr("width");
+  const h = attr("height");
+  if (w > 0 && h > 0) return { width: w, height: h };
+  const vb = /\sviewBox="\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)\s*"/i.exec(root);
+  return vb ? { width: Number(vb[1]), height: Number(vb[2]) } : null;
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -36,7 +55,11 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 export async function downloadPng(svg: SVGSVGElement, filename: string, scale = 2): Promise<void> {
   const width = Number(svg.getAttribute("width")) || svg.clientWidth;
   const height = Number(svg.getAttribute("height")) || svg.clientHeight;
-  const str = svgToStandaloneString(svg);
+  await downloadPngFromSvgText(svgToStandaloneString(svg), width, height, filename, scale);
+}
+
+/** Rasterize SVG markup to a PNG download at `scale` × its size, on a white background. */
+export async function downloadPngFromSvgText(str: string, width: number, height: number, filename: string, scale = 2): Promise<void> {
   const svgBlob = new Blob([str], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(svgBlob);
   try {

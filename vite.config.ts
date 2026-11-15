@@ -52,4 +52,7 @@ export default defineConfig({
   // through import.meta.env.BASE_URL, so this is the only config needed
   // for a GitHub Pages project-site deployment.
   base: '/intervene-secure/',
+  // igv.js (genome browser) is one 1.5 MB chunk, loaded only when the
+  // Browser tab opens; the main bundle stays ~400 kB.
+  build: { chunkSizeWarningLimit: 1600 },
 })

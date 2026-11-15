@@ -1,0 +1,321 @@
+{
+ "built": "2026-11-15",
+ "assembly": "hg19",
+ "hosts": [
+  "encode-public.s3.amazonaws.com",
+  "hgdownload.soe.ucsc.edu"
+ ],
+ "tracks": [
+  {
+   "id": "ENCFF658MYW",
+   "group": "ENCODE cCRE registry (SCREEN)",
+   "name": "ENCODE cCREs V1, all cell types",
+   "kind": "bigbed",
+   "url": "https://encode-public.s3.amazonaws.com/2017/07/10/d12f6324-b318-401d-abcb-d65f27eab039/ENCFF658MYW.bigBed",
+   "size": 40340983,
+   "md5": "7df17746a5a7099488e5cc87b3802b62",
+   "source": "https://www.encodeproject.org/files/ENCFF658MYW/",
+   "description": "candidate regulatory regions for hg19 (ENCSR911QEI)."
+  },
+  {
+   "id": "ucsc-hg19-hg19.100way.phyloP100way.bw",
+   "group": "Conservation (UCSC)",
+   "name": "phyloP, 100 vertebrates",
+   "kind": "bigwig",
+   "url": "https://hgdownload.soe.ucsc.edu/goldenPath/hg19/phyloP100way/hg19.100way.phyloP100way.bw",
+   "size": 9558040733,
+   "lastModified": "Tue, 11 Feb 2014 18:16:46 GMT",
+   "source": "https://hgdownload.soe.ucsc.edu/goldenPath/hg19/phyloP100way/",
+   "description": "Conservation scores (phyloP, 100 vertebrates), UCSC Genome Browser.",
+   "md5": "3cd23310337c407d584e844eae777c94"
+  },
+  {
+   "id": "jaspar2024-hg19",
+   "group": "TF binding sites (JASPAR 2024, UCSC)",
+   "name": "JASPAR 2024 TFBS",
+   "kind": "bigbed",
+   "url": "https://hgdownload.soe.ucsc.edu/gbdb/hg19/jaspar/JASPAR2024.bb",
+   "size": 169831646264,
+   "lastModified": "Fri, 09 Feb 2024 07:56:05 GMT",
+   "visibilityWindow": 20000,
+   "scored": true,
+   "source": "https://genome.ucsc.edu/cgi-bin/hgTrackUi?db=hg19&g=jaspar",
+   "description": "JASPAR 2024 predicted transcription factor binding sites, the UCSC Genome Browser track file (JASPAR data: CC BY 4.0). Drawn below 20 kb."
+  },
+  {
+   "id": "ENCFF901GZH",
+   "group": "ENCODE: GM12878",
+   "name": "GM12878 DNase",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/09/06/e2259e48-add5-4b57-bc75-e27b290b954f/ENCFF901GZH.bigWig",
+   "size": 609532390,
+   "md5": "6310cf9f0e3e9570fcfda1bf9b367acc",
+   "source": "https://www.encodeproject.org/files/ENCFF901GZH/",
+   "description": "DNase-seq read-depth normalized signal, experiment ENCSR000EMT, replicates [2]."
+  },
+  {
+   "id": "ENCFF180LKW",
+   "group": "ENCODE: GM12878",
+   "name": "GM12878 H3K27ac",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/01/06/f5dfae39-6b3d-4d4e-8d5d-cac343f5f2d1/ENCFF180LKW.bigWig",
+   "size": 177723272,
+   "md5": "77b12ce8d3cda51872ba13885d58c5c5",
+   "source": "https://www.encodeproject.org/files/ENCFF180LKW/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR000AKC, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF674QZB",
+   "group": "ENCODE: GM12878",
+   "name": "GM12878 H3K4me3",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/10/27/c51ed0e4-027b-42a0-abfd-83a8ac31ee45/ENCFF674QZB.bigWig",
+   "size": 291909377,
+   "md5": "e354f1dc494eb575f247b3d3189666ee",
+   "source": "https://www.encodeproject.org/files/ENCFF674QZB/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR000DRY, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF312KXX",
+   "group": "ENCODE: GM12878",
+   "name": "GM12878 CTCF",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/03/24/a04bf1ae-566a-4c58-b232-cc281208e0ae/ENCFF312KXX.bigWig",
+   "size": 331288517,
+   "md5": "617cd794ff920e9813488171ab2859d4",
+   "source": "https://www.encodeproject.org/files/ENCFF312KXX/",
+   "description": "TF ChIP-seq fold change over control, experiment ENCSR000DZN, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF895ZSL",
+   "group": "ENCODE: GM12878",
+   "name": "GM12878 cCREs",
+   "kind": "bigbed",
+   "url": "https://encode-public.s3.amazonaws.com/2017/08/21/89cf1bd3-5fde-4606-91b1-f016215a0dd4/ENCFF895ZSL.bigBed",
+   "size": 40373052,
+   "md5": "6816010ffea79eb0951c1ba13aad787a",
+   "source": "https://www.encodeproject.org/files/ENCFF895ZSL/",
+   "description": "Cell-type-specific cCREs (ENCODE v1), annotation ENCSR480YCS: GM12878."
+  },
+  {
+   "id": "ENCFF867UYB",
+   "group": "ENCODE: HepG2",
+   "name": "HepG2 DNase",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/10/03/eaf3ae49-45c1-428f-8ae5-a90f7588b6f8/ENCFF867UYB.bigWig",
+   "size": 615417405,
+   "md5": "5a290eb8aa09b3f60c8727d7ade45db8",
+   "source": "https://www.encodeproject.org/files/ENCFF867UYB/",
+   "description": "DNase-seq read-depth normalized signal, experiment ENCSR000EJV, replicates [1]."
+  },
+  {
+   "id": "ENCFF149IFW",
+   "group": "ENCODE: HepG2",
+   "name": "HepG2 H3K27ac",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/02/14/d9a9c703-0d33-455b-9279-12c676e4e368/ENCFF149IFW.bigWig",
+   "size": 407131799,
+   "md5": "be02ae1e613997c1a094cabd1c36c869",
+   "source": "https://www.encodeproject.org/files/ENCFF149IFW/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR000AMO, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF171BSH",
+   "group": "ENCODE: HepG2",
+   "name": "HepG2 H3K4me3",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/10/27/9a291db4-49c5-46f6-9aeb-990da7926df3/ENCFF171BSH.bigWig",
+   "size": 231894046,
+   "md5": "827f69581f9a3dca438d77616ac92c59",
+   "source": "https://www.encodeproject.org/files/ENCFF171BSH/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR000DUF, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF804LNZ",
+   "group": "ENCODE: HepG2",
+   "name": "HepG2 CTCF",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/04/11/67ae48b4-9893-4f1c-aac5-dc2d81709726/ENCFF804LNZ.bigWig",
+   "size": 655488472,
+   "md5": "e72db7d1e524708211fb9d77cb4e9635",
+   "source": "https://www.encodeproject.org/files/ENCFF804LNZ/",
+   "description": "TF ChIP-seq fold change over control, experiment ENCSR000BIE, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF592KZG",
+   "group": "ENCODE: HepG2",
+   "name": "HepG2 cCREs",
+   "kind": "bigbed",
+   "url": "https://encode-public.s3.amazonaws.com/2017/08/21/e69f58e0-077f-4be0-9693-7717c4da4673/ENCFF592KZG.bigBed",
+   "size": 40382182,
+   "md5": "0d9a7448642b1c207df49f6bdf6a6646",
+   "source": "https://www.encodeproject.org/files/ENCFF592KZG/",
+   "description": "Cell-type-specific cCREs (ENCODE v1), annotation ENCSR735LGA: HepG2."
+  },
+  {
+   "id": "ENCFF526LYS",
+   "group": "ENCODE: K562",
+   "name": "K562 DNase",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/10/06/acb735b9-cd0c-4426-a699-733f8e9a0ddd/ENCFF526LYS.bigWig",
+   "size": 805845585,
+   "md5": "596cb68d64b41fed594078f08c96affc",
+   "source": "https://www.encodeproject.org/files/ENCFF526LYS/",
+   "description": "DNase-seq read-depth normalized signal, experiment ENCSR000EKN, replicates [1]."
+  },
+  {
+   "id": "ENCFF010PHG",
+   "group": "ENCODE: K562",
+   "name": "K562 H3K27ac",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/04/05/4f2ad910-1edf-4c5c-afec-24042a7c4c00/ENCFF010PHG.bigWig",
+   "size": 238413798,
+   "md5": "e638d5c7db2e4bfa8d222a16221bcf0c",
+   "source": "https://www.encodeproject.org/files/ENCFF010PHG/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR000AKP, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF291SWG",
+   "group": "ENCODE: K562",
+   "name": "K562 H3K4me3",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/10/27/d2ee4679-5667-4be4-ab7c-7365791df0ae/ENCFF291SWG.bigWig",
+   "size": 295544864,
+   "md5": "b5309fc629766b7112d574cd4af36895",
+   "source": "https://www.encodeproject.org/files/ENCFF291SWG/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR000DWD, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF014YLT",
+   "group": "ENCODE: K562",
+   "name": "K562 CTCF",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/12/19/62c01236-5094-4893-b6d4-de076a3b3016/ENCFF014YLT.bigWig",
+   "size": 519344103,
+   "md5": "2fcde3af1d9e9f5cba762c9a77b787d4",
+   "source": "https://www.encodeproject.org/files/ENCFF014YLT/",
+   "description": "TF ChIP-seq fold change over control, experiment ENCSR000BPJ, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF095YVI",
+   "group": "ENCODE: K562",
+   "name": "K562 cCREs",
+   "kind": "bigbed",
+   "url": "https://encode-public.s3.amazonaws.com/2017/07/10/cfd313b0-4f7b-44da-8d8d-2763935bfb47/ENCFF095YVI.bigBed",
+   "size": 40418425,
+   "md5": "6776c9fa46cc6250e456eda2c6a46145",
+   "source": "https://www.encodeproject.org/files/ENCFF095YVI/",
+   "description": "Cell-type-specific cCREs (ENCODE v1), annotation ENCSR502KJC: K562."
+  },
+  {
+   "id": "ENCFF293MHQ",
+   "group": "ENCODE: MCF-7",
+   "name": "MCF-7 DNase",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/10/06/a96c20b5-c656-4cd5-9021-26ce6037aa39/ENCFF293MHQ.bigWig",
+   "size": 662636326,
+   "md5": "832774b9b35bd8bd6943c6b5d59840e1",
+   "source": "https://www.encodeproject.org/files/ENCFF293MHQ/",
+   "description": "DNase-seq read-depth normalized signal, experiment ENCSR000EKY, replicates [1]."
+  },
+  {
+   "id": "ENCFF249SMB",
+   "group": "ENCODE: MCF-7",
+   "name": "MCF-7 H3K27ac",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/04/11/d452ba15-ae26-4d85-b13a-4c07c62daa6a/ENCFF249SMB.bigWig",
+   "size": 747746794,
+   "md5": "45b841aa664bcd7720f5f9ae5841ca26",
+   "source": "https://www.encodeproject.org/files/ENCFF249SMB/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR000EWR, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF205OYE",
+   "group": "ENCODE: MCF-7",
+   "name": "MCF-7 H3K4me3",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/04/06/0dca49ff-0a2a-47ef-a992-927fda137aed/ENCFF205OYE.bigWig",
+   "size": 568812415,
+   "md5": "737489d5900ddb12f62cb4e7d5831e1b",
+   "source": "https://www.encodeproject.org/files/ENCFF205OYE/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR000DWJ, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF761KGM",
+   "group": "ENCODE: MCF-7",
+   "name": "MCF-7 CTCF",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/12/09/c85baad0-b89e-4098-a15c-ceda277e3c7a/ENCFF761KGM.bigWig",
+   "size": 823943531,
+   "md5": "acad8f98f493a8cbe5ddf5753dba52ba",
+   "source": "https://www.encodeproject.org/files/ENCFF761KGM/",
+   "description": "TF ChIP-seq fold change over control, experiment ENCSR000DMR, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF446ZBB",
+   "group": "ENCODE: MCF-7",
+   "name": "MCF-7 cCREs",
+   "kind": "bigbed",
+   "url": "https://encode-public.s3.amazonaws.com/2017/08/22/75a7c927-b4b6-4a40-ad0f-ce0728b6b952/ENCFF446ZBB.bigBed",
+   "size": 40426942,
+   "md5": "0155792e57fd75f8d08fa909d805a1d0",
+   "source": "https://www.encodeproject.org/files/ENCFF446ZBB/",
+   "description": "Cell-type-specific cCREs (ENCODE v1), annotation ENCSR948QJH: MCF-7."
+  },
+  {
+   "id": "ENCFF233CHA",
+   "group": "ENCODE: H1",
+   "name": "H1 DNase",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/10/03/f1ec172f-bdf7-4309-947f-26520962f28e/ENCFF233CHA.bigWig",
+   "size": 632984749,
+   "md5": "7e5f44c5dfae1c9dbfffd45aa5a10f35",
+   "source": "https://www.encodeproject.org/files/ENCFF233CHA/",
+   "description": "DNase-seq read-depth normalized signal, experiment ENCSR000EJN, replicates [1]."
+  },
+  {
+   "id": "ENCFF809EWV",
+   "group": "ENCODE: H1",
+   "name": "H1 H3K27ac",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/04/05/8b3b9a0c-f761-43a5-91a3-9a3ba30b4bb8/ENCFF809EWV.bigWig",
+   "size": 1578992844,
+   "md5": "653dd1f79ce65d506c3f1dec2fe431ca",
+   "source": "https://www.encodeproject.org/files/ENCFF809EWV/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR000ANP, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF168UGH",
+   "group": "ENCODE: H1",
+   "name": "H1 H3K4me3",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/12/07/9bce8027-f2f7-4799-88b6-3fa704fdd8bb/ENCFF168UGH.bigWig",
+   "size": 131573142,
+   "md5": "4d1daa6cf882f24fe5e9b70cc18c4e86",
+   "source": "https://www.encodeproject.org/files/ENCFF168UGH/",
+   "description": "Histone ChIP-seq fold change over control, experiment ENCSR003SSR, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF024EAO",
+   "group": "ENCODE: H1",
+   "name": "H1 CTCF",
+   "kind": "bigwig",
+   "url": "https://encode-public.s3.amazonaws.com/2017/12/08/80c0763d-c44d-4779-9710-8d81785aed03/ENCFF024EAO.bigWig",
+   "size": 882050502,
+   "md5": "40f210e764f1a6c729ac4b2743edbb7f",
+   "source": "https://www.encodeproject.org/files/ENCFF024EAO/",
+   "description": "TF ChIP-seq fold change over control, experiment ENCSR000BNH, replicates [1, 2]."
+  },
+  {
+   "id": "ENCFF051OUV",
+   "group": "ENCODE: H1",
+   "name": "H1 cCREs",
+   "kind": "bigbed",
+   "url": "https://encode-public.s3.amazonaws.com/2017/08/21/8de140e9-af11-41a6-b263-65f93b9ecbfe/ENCFF051OUV.bigBed",
+   "size": 40382124,
+   "md5": "99b357ef9a40feb347d11759a17faa32",
+   "source": "https://www.encodeproject.org/files/ENCFF051OUV/",
+   "description": "Cell-type-specific cCREs (ENCODE v1), annotation ENCSR441JBK: H1-hESC."
+  }
+ ]
+}

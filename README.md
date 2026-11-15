@@ -20,8 +20,8 @@
 - **Files are never uploaded.** The site is static files; there is no
   application server to receive them.
 - **No login, no account, no server-side storage.**
-- **Works offline** once the app (4.4 MB) and an assembly's reference data
-  (27–76 MB) are cached.
+- **Works offline** once the app (6 MB) and an assembly's reference data
+  (33–86 MB) are cached.
 
 
 ## Features
@@ -45,6 +45,22 @@
   with editable settings:
   - **GREAT-like:** regulatory domains; genome or input-set background;
   - **Cistrome-GO-like:** regulatory-potential ranking and XL-mHG test.
+
+**Genome-wide location** of selected subsets (GenomeSpy)
+- Where each selected subset lies along the whole genome, with the input
+  sets as optional context: density per Mb and every region, zoomable from
+  genome to region; follows the UpSet selection.
+- Shift + drag to count each track's regions in an interval; click a region
+  to open it in the genome browser.
+
+**Genome browser** (igv.js)
+- Input sets, selected subsets, GENCODE genes and any bundled reference set
+  as tracks; go to a locus or gene, or jump from a region or gene list.
+- Uses only your files and bundled data: no request leaves the page.
+- Optional public tracks, only after you agree: SCREEN merged signal, the
+  ENCODE cCRE registry, ENCODE signal and cell-type cCREs for the example
+  cell lines, phyloP conservation, JASPAR 2024 binding sites, ENCODE search
+  or accession, or any bigWig/bigBed URL.
 
 **Downloads:** subsets as BED or ZIP, gene lists, every plot as SVG/PNG,
 and enrichment results as TSV.
@@ -103,6 +119,20 @@ For GO enrichment, please also cite the method you ran:
 > server for functional enrichment analysis of transcription factor ChIP-seq
 > peaks. *Nucleic Acids Res*. 2019;47(W1):W206–W211.
 > [doi:10.1093/nar/gkz332](https://doi.org/10.1093/nar/gkz332)
+
+The genome-wide location view is GenomeSpy:
+
+> Lavikka K, Oikkonen J, Li Y, et al. Deciphering cancer genomes with
+> GenomeSpy: a grammar-based visualization toolkit. *GigaScience*.
+> 2024;13:giae040.
+> [doi:10.1093/gigascience/giae040](https://doi.org/10.1093/gigascience/giae040)
+
+The genome browser is igv.js:
+
+> Robinson JT, Thorvaldsdóttir H, Turner D, Mesirov JP. igv.js: an embeddable
+> JavaScript implementation of the Integrative Genomics Viewer (IGV).
+> *Bioinformatics*. 2023;39(1):btac830.
+> [doi:10.1093/bioinformatics/btac830](https://doi.org/10.1093/bioinformatics/btac830)
 
 
 > Intervene Secure is developed and maintained by the [CBCRG Lab](https://khanlab.bio).

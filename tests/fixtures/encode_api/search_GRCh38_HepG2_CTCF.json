@@ -1,0 +1,126 @@
+{
+ "@graph": [
+  {
+   "@id": "/files/ENCFF182JHI/",
+   "@type": [
+    "File",
+    "Item"
+   ],
+   "accession": "ENCFF182JHI",
+   "assay_title": "ChIA-PET",
+   "assembly": "GRCh38",
+   "biosample_ontology": {
+    "term_name": "HepG2"
+   },
+   "cloud_metadata": {
+    "url": "https://encode-public.s3.amazonaws.com/2020/10/15/dcd028aa-f1bc-4614-bec7-31e58d193c1d/ENCFF182JHI.bigWig"
+   },
+   "dataset": "/experiments/ENCSR411IVB/",
+   "file_format": "bigWig",
+   "file_size": 946365278,
+   "md5sum": "76f8a0f9c10b5d64da96e29b5b389227",
+   "output_type": "signal of unique reads",
+   "status": "released",
+   "target": {
+    "label": "CTCF"
+   }
+  },
+  {
+   "@id": "/files/ENCFF729HWA/",
+   "@type": [
+    "File",
+    "Item"
+   ],
+   "accession": "ENCFF729HWA",
+   "assay_title": "ChIA-PET",
+   "assembly": "GRCh38",
+   "biosample_ontology": {
+    "term_name": "HepG2"
+   },
+   "cloud_metadata": {
+    "url": "https://encode-public.s3.amazonaws.com/2020/10/15/6ead4fc3-fd35-46d9-b2b7-fcd5af714ee8/ENCFF729HWA.bigBed"
+   },
+   "dataset": "/experiments/ENCSR411IVB/",
+   "file_format": "bigBed",
+   "file_size": 637611,
+   "md5sum": "4511a42df0a7aff6c60f02bd156059d8",
+   "output_type": "peaks",
+   "status": "released",
+   "target": {
+    "label": "CTCF"
+   }
+  },
+  {
+   "@id": "/files/ENCFF594WHD/",
+   "@type": [
+    "File",
+    "Item"
+   ],
+   "accession": "ENCFF594WHD",
+   "assay_title": "ChIA-PET",
+   "assembly": "GRCh38",
+   "biosample_ontology": {
+    "term_name": "HepG2"
+   },
+   "cloud_metadata": {
+    "url": "https://encode-public.s3.amazonaws.com/2020/10/10/255cf07c-fb46-4dee-a73e-c5ddd2ea92de/ENCFF594WHD.bigWig"
+   },
+   "dataset": "/experiments/ENCSR411IVB/",
+   "file_format": "bigWig",
+   "file_size": 557936202,
+   "md5sum": "b64daa3f64f55091a175214d937a79b6",
+   "output_type": "signal of unique reads",
+   "status": "released",
+   "target": {
+    "label": "CTCF"
+   }
+  },
+  {
+   "@id": "/files/ENCFF368KSI/",
+   "@type": [
+    "File",
+    "Item"
+   ],
+   "accession": "ENCFF368KSI",
+   "assay_title": "ChIA-PET",
+   "assembly": "GRCh38",
+   "biosample_ontology": {
+    "term_name": "HepG2"
+   },
+   "cloud_metadata": {
+    "url": "https://encode-public.s3.amazonaws.com/2020/10/10/a2ca1386-656e-40e7-888e-6e085ed1c1ec/ENCFF368KSI.bigBed"
+   },
+   "dataset": "/experiments/ENCSR411IVB/",
+   "file_format": "bigBed",
+   "file_size": 1135557,
+   "md5sum": "164e634930e60570d2d1bf50f33d3069",
+   "output_type": "peaks",
+   "status": "released",
+   "target": {
+    "label": "CTCF"
+   }
+  },
+  {
+   "@id": "/files/ENCFF192WPH/",
+   "@type": [
+    "File",
+    "Item"
+   ],
+   "accession": "ENCFF192WPH",
+   "assembly": "GRCh38",
+   "biosample_ontology": {
+    "term_name": "HepG2"
+   },
+   "cloud_metadata": {
+    "url": "https://encode-public.s3.amazonaws.com/2020/01/12/9cedfaef-2227-4350-afc6-f00d7e773d35/ENCFF192WPH.bigWig"
+   },
+   "dataset": "/annotations/ENCSR577ZBS/",
+   "file_format": "bigWig",
+   "file_size": 601232118,
+   "md5sum": "a7359cee49958c3246c108e2fef655c9",
+   "output_type": "signal p-value",
+   "status": "released"
+  }
+ ],
+ "total": 147
+}

@@ -26,3 +26,10 @@ Third-party components and data
 
 The MIT licence above covers this project's own source code. Files bundled
 from other projects keep their original licences and terms. Please check the original sources.
+
+- igv.js 3.8.10 (genome browser, bundled from npm `igv`): MIT licence,
+  Copyright (c) 2014-2025 Broad Institute of MIT and Harvard, Regents of the
+  University of California. https://github.com/igvteam/igv.js
+- GenomeSpy 1.3.0 (genome view, bundled from npm `@genome-spy/core`): MIT licence,
+  Kari Lavikka and contributors. https://github.com/genome-spy/genome-spy
+  (its dependencies bundled with it are MIT, BSD-3-Clause or ISC).

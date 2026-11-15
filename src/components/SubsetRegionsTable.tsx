@@ -1,4 +1,6 @@
 import type { Subset } from "../types";
+import { useStore } from "../state/store";
+import { formatLocus } from "../lib/browserTracks";
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -6,6 +8,7 @@ function fmt(n: number): string {
 
 /** Scrollable table of a subset's actual genomic regions (chrom/start/end/length), for the Selected subsets detail panel. */
 export function SubsetRegionsTable({ subset }: { subset: Subset }) {
+  const showInBrowser = useStore((s) => s.showInBrowser);
   return (
     <div className="regions-scroll">
       <table className="subtable">
@@ -15,6 +18,7 @@ export function SubsetRegionsTable({ subset }: { subset: Subset }) {
             <th>Start</th>
             <th>End</th>
             <th>Length</th>
+            <th aria-label="Genome browser" />
           </tr>
         </thead>
         <tbody>
@@ -24,6 +28,11 @@ export function SubsetRegionsTable({ subset }: { subset: Subset }) {
               <td className="mono">{fmt(r.start)}</td>
               <td className="mono">{fmt(r.end)}</td>
               <td className="mono">{fmt(r.end - r.start)}</td>
+              <td>
+                <button className="linkbtn" title={`Show ${formatLocus(r)} in the genome browser`} onClick={() => showInBrowser(formatLocus(r))}>
+                  view
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>

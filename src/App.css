@@ -851,6 +851,169 @@ footer .free .dot {
   cursor: pointer;
 }
 
+.linkbtn.genelink {
+  color: var(--ink);
+  text-decoration: none;
+}
+.linkbtn.genelink:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+
+/* ---------- genome view (components/GenomeView.tsx) ---------- */
+.genomeview {
+  padding: 0 14px 14px;
+  min-width: 0;
+}
+.gv-toggle {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+.gv-host {
+  min-height: 120px;
+  margin: 4px 0 8px;
+  position: relative;
+}
+.gv-brush {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel-2);
+  padding: 8px 10px;
+  font-size: 12.5px;
+  margin-bottom: 8px;
+}
+.gv-brush-hd {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.gv-brush .swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+
+/* ---------- genome browser (components/GenomeBrowser.tsx) ---------- */
+.genomebrowser {
+  padding: 0 14px 14px;
+  min-width: 0;
+}
+.gb-toolbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.gb-locus {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  background: var(--panel);
+  color: var(--ink);
+}
+.gb-toolbar .ghost {
+  flex: none;
+  min-width: 34px;
+}
+.gb-refs {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+.gb-refs summary {
+  cursor: pointer;
+  color: var(--ink-2);
+}
+.gb-refgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 4px 12px;
+  padding: 8px 2px 2px;
+}
+.gb-ref {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--ink-2);
+}
+.gb-public {
+  margin-bottom: 8px;
+  font-size: 12.5px;
+}
+.gb-consent {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  background: var(--panel-2);
+  padding: 10px 12px;
+  color: var(--ink-2);
+  margin: 6px 0;
+}
+.gb-consent p {
+  margin: 0 0 6px;
+}
+.gb-consent ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+}
+.gb-consent-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.gb-group {
+  margin-top: 8px;
+}
+.gb-group-hd {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.gb-matrix {
+  border-collapse: collapse;
+  margin-top: 4px;
+}
+.gb-matrix th,
+.gb-matrix td {
+  padding: 2px 10px 2px 0;
+  text-align: center;
+  font-weight: 400;
+  color: var(--ink-2);
+}
+.gb-matrix th[scope="row"] {
+  text-align: left;
+}
+.gb-results {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  margin-top: 6px;
+}
+.gb-result {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.gb-result:last-child {
+  border-bottom: 0;
+}
+.gb-host {
+  min-height: 120px;
+  margin: 4px 0 8px;
+}
+
 /* ---------- keyboard focus on plot marks ----------
    SVG elements don't take a reliable CSS outline, so focus restyles the
    mark itself. CSS overrides the inline presentation attributes; exported

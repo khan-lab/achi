@@ -15,6 +15,7 @@ describe("classifyOfflineFile", () => {
     ["index.html", "shell"],
     ["assets/index-3f9a2c1b.js", "shell"],
     ["assets/index-77aa01.css", "shell"],
+    ["assets/Lato-Regular-1a2b3c.webp", "shell"], // GenomeSpy's font atlas (genome view text)
     ["wasm/bedtools/bedtools.wasm", "shell"],
     ["wasm/bedtools/bedtools.data", "shell"],
     ["wasm/aioli/aioli.js", "shell"],
@@ -35,6 +36,12 @@ describe("classifyOfflineFile", () => {
     ["refdata/hg38/go/go.json", "data"],
     ["refdata/mm9/go/gaps.bed", "data"],
     ["refdata/hg19/cistromego/rp_model.json", "data"],
+    ["refdata/mm10/genes/gene_models.bed", "data"],
+    ["refdata/hg38/remote/tracks.json", "data"],
+    ["refdata/mm9/cytoband.txt", "data"],
+    ["refdata/build_cytobands.py", null],
+    ["refdata/build_remote_tracks.py", null],
+    ["refdata/build_gene_models.py", null],
     ["refdata/build_cistromego.py", null],
     ["refdata/build_go.py", null],
     ["refdata/hg38/gencode.v50.annotation.gtf.gz", null],
@@ -75,6 +82,7 @@ describe("the real public/ directory", () => {
       expect(data).toContain(`refdata/${asm}/go/go.json`);
       expect(data).toContain(`refdata/${asm}/go/gaps.bed`);
       expect(data).toContain(`refdata/${asm}/cistromego/rp_model.json`);
+      expect(data).toContain(`refdata/${asm}/genes/gene_models.bed`);
     }
   });
 

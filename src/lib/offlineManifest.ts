@@ -20,7 +20,7 @@ export type OfflineKind = "shell" | "data" | null;
 const ASSEMBLY = "(hg38|hg19|mm10|mm9)";
 const SHELL: RegExp[] = [
   /^index\.html$/,
-  /^assets\/[^/]+\.(js|css|svg|png|woff2?)$/,
+  /^assets\/[^/]+\.(js|css|svg|png|webp|woff2?)$/,
   /^wasm\/(bedtools|aioli)\/[^/]+$/,
   /^(favicon|icons|logo|apple-touch-icon|intervene-icon-[a-z]+)\.(svg|png)$/,
   /^manifest\.webmanifest$/,
@@ -34,6 +34,10 @@ const DATA: RegExp[] = [
   new RegExp(`^refdata/${ASSEMBLY}/external/[^/]+\\.bed$`),
   new RegExp(`^refdata/${ASSEMBLY}/go/(go\\.json|gaps\\.bed)$`),
   new RegExp(`^refdata/${ASSEMBLY}/cistromego/rp_model\\.json$`),
+  new RegExp(`^refdata/${ASSEMBLY}/genes/gene_models\\.bed$`),
+  new RegExp(`^refdata/${ASSEMBLY}/cytoband\\.txt$`),
+  // The list of public tracks only; the tracks themselves are remote and need the network.
+  new RegExp(`^refdata/${ASSEMBLY}/remote/tracks\\.json$`),
 ];
 
 export function classifyOfflineFile(path: string): OfflineKind {
