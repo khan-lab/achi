@@ -39,3 +39,7 @@ lerna-debug.log*
 # need to re-run the derivation scripts.
 public/refdata/**/*.gtf.gz
 public/refdata/**/__pycache__/
+
+CHANGELOG.md
+CLAUDE.md
+PLAN.md

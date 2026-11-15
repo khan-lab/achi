@@ -94,6 +94,10 @@ npm run dev        # http://localhost:5173/intervene-secure/
 static site to `dist/`, deployable on any static host. Pushes to `main`
 deploy to GitHub Pages.
 
+## Use of AI assistance
+
+Most of the code has been written with the assistance of AI tools, mostly Claude Code and Copilot. The initial architecture and the overall design of this platform is non-AI. The overlap output are reproduced by the published version of the Intervene CLI.
+
 ## Citation
 
 If you use Intervene for your work, please cite:

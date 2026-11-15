@@ -1,7 +1,0 @@
-- Write the test before the implementation for anything in `core/` or `modules/`. Statistics code without tests is not acceptable in this repo.
-- Real data in fixtures, not synthetic — small subsampled ENCODE peak files checked into `tests/fixtures/`.
-- No new dependency without stating its licence. Anything more restrictive than the "free and open to all users" statement cannot be a default code path; add it behind a flag and note it in `docs/licences.md`.
-- Never invent reference file URLs. If a download in `refdata/Makefile` fails, stop and ask rather than substituting a different source.
-- Keep `design/reference.html` in sync conceptually: if you change an interaction, say so explicitly in the commit message so I can update the design file.
-- Ask before restructuring anything across more than three files.
-- Every module you add must also add a row to `docs/methods.md` describing its null model in the exact terms as one could describe in a draft.
