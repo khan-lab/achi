@@ -17,6 +17,7 @@ import {
   REGION_ROW_LIMIT,
   type GenomeTrack,
 } from "./genomeView";
+import { LOCAL_TRACK_COLOR } from "./localTracks";
 import type { Interval } from "../types";
 
 /**
@@ -78,6 +79,20 @@ describe("genomeTracks", () => {
       ["subset:1", "Subset: Heart only", "#2B6FE0", 5],
       ["ref:vista", "Ref: VISTA enhancers", REF_TRACK_COLOR, vista.length],
     ]);
+  });
+  it("adds local interval files last, after the reference sets, in the local-track colour", () => {
+    const lung = fixture("lung_h3k27ac_ENCFF314QTE.subsample.bed");
+    const t = genomeTracks(sets, subsets, new Set([1]), {
+      includeSets: false,
+      refs: [{ key: "vista", name: "VISTA enhancers", regions: HEART }],
+      locals: [{ key: "l1", name: "my_peaks.bed", regions: lung }],
+    });
+    expect(t.map((x) => [x.key, x.name, x.color])).toEqual([
+      ["subset:1", "Subset: Heart only", "#2B6FE0"],
+      ["ref:vista", "Ref: VISTA enhancers", REF_TRACK_COLOR],
+      ["local:l1", "Local: my_peaks.bed", LOCAL_TRACK_COLOR],
+    ]);
+    expect(t[2].regions).toBe(lung);
   });
   it("writes ∩ as & in track names: GenomeSpy's built-in font has no ∩ glyph (it draws '?')", () => {
     expect(genomeTracks(sets, subsets, new Set([3])).map((t) => t.name).join()).not.toContain("∩");

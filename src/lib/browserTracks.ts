@@ -149,15 +149,21 @@ export interface IgvFeature {
 }
 
 export interface IgvTrack {
-  type: "annotation" | "wig";
+  type: "annotation" | "wig" | "variant" | "alignment";
   name: string;
   color?: string;
   displayMode?: "COLLAPSED" | "EXPANDED" | "SQUISHED";
   height?: number;
   visibilityWindow?: number;
   features?: IgvFeature[];
-  url?: string;
-  format?: "bed" | "bigbed" | "bigwig";
+  /** A URL on the app's origin or a consented host, or a local File (lib/localTracks.ts). */
+  url?: string | File;
+  format?: "bed" | "bigbed" | "bigwig" | "narrowpeak" | "broadpeak" | "bedgraph" | "vcf" | "bam" | "cram";
+  /** BAM/CRAM: the local .bai / .crai. */
+  indexURL?: File;
+  /** CRAM: reference bases from the user's local FASTA (lib/localTracks.ts makeSeqFetch). */
+  seqFetch?: (this: never, seqId: number, start: number, end: number) => Promise<string>;
+  checkSequenceMD5?: boolean;
   indexed?: false;
   autoscale?: boolean;
   useScore?: boolean;

@@ -207,7 +207,14 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
             zoomed in. <em>Public tracks</em> (optional, after you agree) adds SCREEN merged signal (DNase, ATAC,
             H3K4me3, H3K27ac, CTCF), the ENCODE cCRE registry, ENCODE signal and cell-type cCREs for the example cell
             lines, phyloP conservation (UCSC), JASPAR 2024 binding sites (shown below 20 kb, shaded by score), any
-            ENCODE bigWig/bigBed found by search or accession, or a bigWig/bigBed URL. <em>SVG</em> and{" "}
+            ENCODE bigWig/bigBed found by search or accession, or a bigWig/bigBed URL. <em>Add local tracks</em> (or dropping files on
+            the genome browser) shows files from your own disk: bigWig and bigBed of any size, and BED, narrowPeak,
+            broadPeak, bedGraph or VCF (plain or .gz, up to 100 MB), BAM with its .bai, and CRAM with its .crai plus
+            the reference FASTA it was made with (.fa with its .fai; it must match the assembly's chromosome
+            lengths). With a reference loaded, reads show mismatches and the base sequence appears when zoomed in.
+            They are read in the page only, never uploaded,
+            and are for viewing: they are not part of the intersections. Interval files also appear as rows of the
+            overview; chromosome names 1, 2, … are read as chr1, chr2, …. <em>SVG</em> and{" "}
             <em>PNG</em> export the current view, every track included, named after the locus.
           </li>
         </ul>

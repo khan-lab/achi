@@ -68,13 +68,17 @@ export interface GenomeViewProps {
   showSets: boolean;
   /** Bundled reference sets (ids from referenceOptions) to show as context rows. */
   refIds: ReadonlySet<string>;
+  /** Local interval files added in the genome browser (lib/localTracks.ts), as context rows. */
+  locals?: { key: string; name: string; regions: Interval[] }[];
   /** The genome browser's current locus, marked in the chromosome strip. */
   locus: Locus | null;
   /** Move the genome browser (pad: add context around a single region). */
   onNavigate: (l: Locus, pad: boolean) => void;
 }
 
-export function GenomeView({ showSets, refIds, locus, onNavigate }: GenomeViewProps) {
+const NO_LOCALS: NonNullable<GenomeViewProps["locals"]> = [];
+
+export function GenomeView({ showSets, refIds, locals = NO_LOCALS, locus, onNavigate }: GenomeViewProps) {
   const sets = useStore((s) => s.sets);
   const subsets = useStore((s) => s.subsets);
   const selected = useStore((s) => s.selected);
@@ -123,7 +127,7 @@ export function GenomeView({ showSets, refIds, locus, onNavigate }: GenomeViewPr
     () => refOptions.filter((r) => refIds.has(r.id) && refData[r.path]).map((r) => ({ key: r.id, name: r.name, regions: refData[r.path] })),
     [refOptions, refIds, refData],
   );
-  const tracks = useMemo(() => genomeTracks(sets, subsets, selected, { includeSets: showSets, refs }), [sets, subsets, selected, showSets, refs]);
+  const tracks = useMemo(() => genomeTracks(sets, subsets, selected, { includeSets: showSets, refs, locals }), [sets, subsets, selected, showSets, refs, locals]);
 
   const contigs = useMemo<Contig[]>(() => (sizes ? contigsFromSizes(sizes) : []), [sizes]);
   const data = useMemo(() => {

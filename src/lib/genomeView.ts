@@ -21,6 +21,7 @@
 import type { Interval } from "../types";
 import type { ChromSizes } from "./inputValidation";
 import { SHARED_SUBSET_COLOR, type Locus } from "./browserTracks";
+import { LOCAL_TRACK_COLOR } from "./localTracks";
 
 export interface Contig {
   name: string;
@@ -63,13 +64,18 @@ export function contigsFromSizes(sizes: ChromSizes): Contig[] {
 /**
  * Included sets in order (as context, unless `includeSets` is false), then
  * the selected subsets (set colour if single-set, UpSet grey if shared),
- * then any chosen bundled reference sets as context rows.
+ * then any chosen bundled reference sets as context rows, then local
+ * interval files added in the genome browser (lib/localTracks.ts).
  */
 export function genomeTracks(
   sets: { id: string; name: string; color: string; included: boolean; regions: Interval[] }[],
   subsets: { mask: number; label: string; memberIds: string[]; regions: Interval[] }[],
   selected: ReadonlySet<number>,
-  opts: { includeSets?: boolean; refs?: { key: string; name: string; regions: Interval[] }[] } = {},
+  opts: {
+    includeSets?: boolean;
+    refs?: { key: string; name: string; regions: Interval[] }[];
+    locals?: { key: string; name: string; regions: Interval[] }[];
+  } = {},
 ): GenomeTrack[] {
   const tracks: GenomeTrack[] =
     opts.includeSets === false ? [] : sets.filter((s) => s.included).map((s) => ({ key: `set:${s.id}`, name: s.name, color: s.color, regions: s.regions }));
@@ -80,6 +86,7 @@ export function genomeTracks(
     tracks.push({ key: `subset:${s.mask}`, name: `Subset: ${s.label.replaceAll("∩", "&")}`, color, regions: s.regions });
   }
   for (const r of opts.refs ?? []) tracks.push({ key: `ref:${r.key}`, name: `Ref: ${r.name}`, color: REF_TRACK_COLOR, regions: r.regions });
+  for (const l of opts.locals ?? []) tracks.push({ key: `local:${l.key}`, name: `Local: ${l.name}`, color: LOCAL_TRACK_COLOR, regions: l.regions });
   return tracks;
 }
 

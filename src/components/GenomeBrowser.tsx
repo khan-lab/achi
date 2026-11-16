@@ -20,6 +20,16 @@ import { remoteTrackConfig, type RemoteTrack } from "../lib/remoteTracks";
 import { loadGeneModels as loadGeneModelsFor, type GeneModels } from "../lib/geneModelsLoader";
 import { downloadPngFromSvgText, downloadSvgText, svgDimensions } from "../lib/exportImage";
 import { PublicTracksPanel } from "./PublicTracksPanel";
+import { LocalTracksPanel } from "./LocalTracksPanel";
+import {
+  localTrackConfig,
+  pairLocalFiles,
+  prepareLocalReference,
+  prepareLocalTrack,
+  readReferenceSequence,
+  type LocalReference,
+  type LocalTrack,
+} from "../lib/localTracks";
 import { GenomeView } from "./GenomeView";
 
 /**
@@ -27,7 +37,8 @@ import { GenomeView } from "./GenomeView";
  * genome browser (igv.js, MIT; loaded only when this tab is first opened).
  * Both show the user's sets (optional), the selected subsets and the ticked
  * bundled reference sets, from one set of controls; igv adds GENCODE gene
- * models and, after consent, public tracks. Clicking or brushing in the
+ * models, local track files from the user's disk (read in the page only;
+ * lib/localTracks.ts) and, after consent, public tracks. Clicking or brushing in the
  * overview moves igv; igv's locus is marked in the overview. Nothing leaves
  * the page without consent: see lib/browserTracks.ts for how the igv
  * configuration is kept to the app's own data, and the tests that enforce it.
@@ -41,13 +52,25 @@ let igvModule: Promise<typeof import("igv")> | null = null;
 const loadIgv = () => (igvModule ??= import("igv"));
 
 /** Kept across tab switches (page session only): what is shown, where the browser was, and whether the overview is open. */
-const saved: { refs: Set<string>; locus: Record<string, string>; remote: Record<string, RemoteTrack[]>; showSets: boolean; overview: boolean } = {
+const saved: {
+  refs: Set<string>;
+  locus: Record<string, string>;
+  remote: Record<string, RemoteTrack[]>;
+  local: Record<string, LocalTrack[]>;
+  reference: Record<string, LocalReference | null>;
+  showSets: boolean;
+  overview: boolean;
+} = {
   refs: new Set(),
   locus: {},
   remote: {},
+  local: {},
+  reference: {},
   showSets: true,
   overview: true,
 };
+
+let localIds = 0;
 
 interface TrackSpec {
   key: string;
@@ -85,7 +108,58 @@ export function GenomeBrowser() {
     saved.remote[assembly] = tracks;
     setRemote(tracks);
   };
+  const [local, setLocal] = useState<LocalTrack[]>(() => saved.local[assembly] ?? []);
+  useEffect(() => setLocal(saved.local[assembly] ?? []), [assembly]);
+  const [reference, setReference] = useState<LocalReference | null>(() => saved.reference[assembly] ?? null);
+  useEffect(() => setReference(saved.reference[assembly] ?? null), [assembly]);
+  const changeReference = (r: LocalReference | null) => {
+    saved.reference[assembly] = r;
+    setReference(r);
+  };
+  const [localBusy, setLocalBusy] = useState(false);
+  const [localErrors, setLocalErrors] = useState<string[]>([]);
+  const [dropping, setDropping] = useState(false);
+  const changeLocal = (tracks: LocalTrack[]) => {
+    saved.local[assembly] = tracks;
+    setLocal(tracks);
+  };
+  /**
+   * Checks the files in the page and adds the ones that can be shown
+   * (lib/localTracks.ts): BAM/CRAM with their indexes, a reference FASTA
+   * with its .fai (needed by CRAM tracks), and single-file tracks.
+   */
+  async function addLocalFiles(files: File[]) {
+    setLocalBusy(true);
+    const paired = pairLocalFiles(files);
+    const messages = [...paired.errors];
+    let ref = saved.reference[assembly] ?? null;
+    if (paired.reference) {
+      const r = await prepareLocalReference(paired.reference.fasta, paired.reference.fai, sizes, `ref-${++localIds}`);
+      if ("error" in r) messages.push(r.error);
+      else {
+        ref = r;
+        changeReference(r);
+      }
+    }
+    const results = await Promise.all(
+      paired.items.map(({ file, index }) =>
+        /\.cram$/i.test(file.name) && !ref
+          ? { error: `${file.name} needs the reference FASTA it was made with: select the .fa and its .fai together with the CRAM.` }
+          : prepareLocalTrack(file, sizes, `local-${++localIds}`, { index }),
+      ),
+    );
+    setLocalBusy(false);
+    setLocalErrors([...messages, ...results.flatMap((r) => ("error" in r ? [r.error] : []))]);
+    const added = results.filter((r): r is LocalTrack => !("error" in r));
+    if (added.length) changeLocal([...(saved.local[assembly] ?? []), ...added]);
+  }
+  const localRows = useMemo(() => local.filter((t) => t.regions).map((t) => ({ key: t.id, name: t.name, regions: t.regions! })), [local]);
   const lastTarget = useRef(0);
+  // Read by the genome's sequence lookup (below), which outlives renders.
+  const referenceRef = useRef(reference);
+  useEffect(() => {
+    referenceRef.current = reference;
+  }, [reference]);
 
   const included = useMemo(() => sets.filter((s) => s.included), [sets]);
   const chosen = useMemo(() => subsets.filter((s) => selected.has(s.mask)), [subsets, selected]);
@@ -114,10 +188,18 @@ export function GenomeBrowser() {
     refOptions
       .filter((r) => refs.has(r.id))
       .forEach((r, i) => out.push({ key: `ref:${r.id}`, sig: r.path, config: () => ({ ...referenceTrack(r, BASE), order: 200 + i }) }));
+    // Local files: File objects read in the page, never a URL (localTracks.test.ts).
+    // A CRAM track reads its reference from the local FASTA: reloaded when the reference changes.
+    local.forEach((t, i) => {
+      if (t.format === "cram" && !reference) return;
+      // Alignments are reloaded when the reference changes: CRAM decodes from it, both colour mismatches with it.
+      const sig = t.kind === "alignment" ? `${t.id}|${reference?.id}` : t.id;
+      out.push({ key: `local:${t.id}`, sig, config: () => ({ ...localTrackConfig(t, reference), order: 250 + i }) });
+    });
     // Public tracks: only ever present after the user agreed (PublicTracksPanel).
     remote.forEach((t, i) => out.push({ key: `remote:${t.id}`, sig: t.url, config: () => ({ ...remoteTrackConfig(t), order: 300 + i }) }));
     return out;
-  }, [genes, assembly, included, chosen, sets, refOptions, refs, remote, showSets]);
+  }, [genes, assembly, included, chosen, sets, refOptions, refs, local, reference, remote, showSets]);
 
   // Create the browser for this assembly (genome = bundled chrom.sizes).
   useEffect(() => {
@@ -141,6 +223,15 @@ export function GenomeBrowser() {
           return;
         }
         browserRef.current = browser;
+        // The genome has chromosome sizes only, no sequence. When the user has loaded a
+        // reference FASTA, igv's own sequence lookups (mismatch colours in BAM and CRAM
+        // reads) are answered from that local file; otherwise from igv as before.
+        const g = (browser as unknown as { genome: { getSequence(chr: string, start: number, end: number): Promise<string | null | undefined> } }).genome;
+        const own = g.getSequence.bind(g);
+        g.getSequence = async (chr, start, end) => {
+          const r = referenceRef.current;
+          return (r && (await readReferenceSequence(r, chr, start, end))) || own(chr, start, end);
+        };
         browser.on("locuschange", () => {
           const l = currentLocus(browser);
           if (l) {
@@ -275,7 +366,23 @@ export function GenomeBrowser() {
   }
 
   return (
-    <div className="genomebrowser">
+    <div
+      className={dropping ? "genomebrowser gb-dropping" : "genomebrowser"}
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes("Files")) return;
+        e.preventDefault();
+        setDropping(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropping(false);
+      }}
+      onDrop={(e) => {
+        if (!e.dataTransfer.files.length) return;
+        e.preventDefault();
+        setDropping(false);
+        void addLocalFiles([...e.dataTransfer.files]);
+      }}
+    >
       <div className="gb-shared">
         <label className="gb-ref gv-toggle">
           <input
@@ -302,6 +409,19 @@ export function GenomeBrowser() {
             </div>
           </details>
         )}
+        <LocalTracksPanel
+          tracks={local}
+          reference={reference}
+          busy={localBusy}
+          errors={localErrors}
+          onFiles={(f) => void addLocalFiles(f)}
+          onRemove={(id) => changeLocal(local.filter((t) => t.id !== id))}
+          onRemoveReference={() => {
+            // CRAM tracks cannot be read without it.
+            changeReference(null);
+            changeLocal(local.filter((t) => t.format !== "cram"));
+          }}
+        />
         <PublicTracksPanel assembly={assembly} chosen={remote} onChange={changeRemote} />
       </div>
 
@@ -323,7 +443,7 @@ export function GenomeBrowser() {
           <span className="gb-sub">Genome-wide overview</span>
           <span className="hint">GenomeSpy · every row along the whole genome</span>
         </button>
-        {overview && <GenomeView showSets={showSets} refIds={refs} locus={locus} onNavigate={navigate} />}
+        {overview && <GenomeView showSets={showSets} refIds={refs} locals={localRows} locus={locus} onNavigate={navigate} />}
       </div>
 
       <div className="gb-sub gb-sub-igv">
@@ -373,7 +493,7 @@ export function GenomeBrowser() {
       <div className="hint">
         {remote.length
           ? `Your files and bundled data stay in this page. Public tracks are read from ${[...new Set(remote.map((t) => new URL(t.url).hostname))].join(", ")}, which see the regions you view.`
-          : "Shown from your files and data bundled with Intervene; nothing is sent to other servers."}{" "}
+          : "Shown from your files (local tracks included) and data bundled with Intervene; nothing is sent to other servers."}{" "}
         Sets with more than 50,000 regions are drawn when zoomed in.
       </div>
     </div>
