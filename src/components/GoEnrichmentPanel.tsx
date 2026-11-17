@@ -1,4 +1,4 @@
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useStore, type LoadedSet } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
@@ -29,6 +29,8 @@ import type { Subset } from "../types";
 import { PALETTE } from "../types";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
+import { registerExport } from "../lib/exportRegistry";
+import { goMethods } from "../lib/analysisExport";
 
 type Method = "great" | "cistromego";
 type GoBackground = "inputs" | "genome";
@@ -64,6 +66,8 @@ interface Result {
   qThreshold: number;
   tsvHead: string[];
   subsets: SubsetResult[];
+  /** The settings it was run with, for the methods text of an analysis export. */
+  settings: GreatUi | CistromeGoSettings;
 }
 
 const INK = "#101826";
@@ -165,6 +169,8 @@ export function GoEnrichmentPanel() {
   const [activeMask, setActiveMask] = useState<number | null>(null);
   const [progress, setProgress] = useState<ComputeProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => registerExport("go", goExport), []);
 
   const setMethod = (m: Method) => {
     saved.method = m;
@@ -284,7 +290,7 @@ export function GoEnrichmentPanel() {
           out.push({ mask: s.mask, label: s.label, color: PALETTE[i % PALETTE.length], rows, summary });
         }
       }
-      const r: Result = { key, method, background, ns, qThreshold: q, tsvHead, subsets: out };
+      const r: Result = { key, method, background, ns, qThreshold: q, tsvHead, subsets: out, settings: { ...settings } };
       saved.results.set(method, r);
       setResult(r);
       if (!out.some((s) => s.mask === activeMask)) setActiveMask(out[0]?.mask ?? null);
@@ -350,10 +356,36 @@ export function GoEnrichmentPanel() {
   );
 }
 
+/** All subsets of a run (or one) as TSV: the download, and what the analysis export takes. */
+const goTsv = (r: Result, only?: SubsetResult) =>
+  [r.tsvHead.join("\t"), ...(only ? [only] : r.subsets).flatMap((s) => s.rows.map((row) => [s.label, ...row.tsv].join("\t")))].join("\n") + "\n";
+
+/** Every GO run kept this session (one per method) goes into "Export analysis". */
+function goExport() {
+  const runs = [...saved.results.values()];
+  if (!runs.length) return null;
+  return {
+    files: runs.map((r) => ({ path: `tables/${fileStem(r)}.tsv`, content: goTsv(r) })),
+    methods: {
+      methods: runs
+        .map(
+          (r) =>
+            goMethods({
+              method: r.method,
+              background: r.background,
+              namespace: nsLabel(r.ns),
+              ...(r.method === "great" ? { great: r.settings as GreatUi } : { cgo: r.settings as CistromeGoSettings }),
+            }).methods,
+        )
+        .join("\n\n"),
+      references: runs.flatMap((r) => goMethods({ method: r.method, background: r.background, namespace: "", great: r.settings as GreatUi, cgo: r.settings as CistromeGoSettings }).references),
+    },
+  };
+}
+
 const fileStem = (r: Result) => `intervene-go-${r.ns}-${r.method === "great" ? `greatlike-${r.background}` : "cistromegolike"}`;
 const exportTsv = (r: Result, only?: SubsetResult) => {
-  const lines = (only ? [only] : r.subsets).flatMap((s) => s.rows.map((row) => [s.label, ...row.tsv].join("\t")));
-  const blob = new Blob([[r.tsvHead.join("\t"), ...lines].join("\n") + "\n"], { type: "text/tab-separated-values" });
+  const blob = new Blob([goTsv(r, only)], { type: "text/tab-separated-values" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

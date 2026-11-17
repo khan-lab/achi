@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { color as d3color, interpolateLab } from "d3";
 import { useStore } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
@@ -13,6 +13,8 @@ import {
 import type { ExternalAnnotation } from "../lib/externalAnnotations";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
+import { registerExport } from "../lib/exportRegistry";
+import { enrichmentMethods } from "../lib/analysisExport";
 
 // Concrete colours so exported SVG/PNG render without this page's CSS.
 const INK = "#101826";
@@ -115,16 +117,38 @@ export function SubsetEnrichmentPanel() {
   const cellOf = (mask: number, id: string) => shown?.cells.find((c) => c.mask === mask && c.annotationId === id);
   const subsetOf = (mask: number) => subsets.find((s) => s.mask === mask);
 
-  const exportTsv = () => {
-    if (!shown) return;
+  /** The run as a TSV: also what the analysis export takes (lib/exportRegistry.ts). */
+  const tsvText = (r: RunResult) => {
     const head = ["subset", "subset_code", "reference_set", "background", "test", "subset_hit", "subset_no_hit", "rest_hit", "rest_no_hit", "odds_ratio", "p", "q"];
-    const test = shown.adjust ? "CMH (5 length strata)" : "Fisher exact";
-    const rows = shown.cells.map((c) => {
+    const test = r.adjust ? "CMH (5 length strata)" : "Fisher exact";
+    const rows = r.cells.map((c) => {
       const s = subsetOf(c.mask);
-      const a = shown.annotations.find((x) => x.id === c.annotationId);
+      const a = r.annotations.find((x) => x.id === c.annotationId);
       return [s?.label ?? c.mask, s?.code ?? "", a?.name ?? c.annotationId, "input sets", test, ...c.table, c.oddsRatio, c.p, c.q].join("\t");
     });
-    const blob = new Blob([[head.join("\t"), ...rows].join("\n") + "\n"], { type: "text/tab-separated-values" });
+    return [head.join("\t"), ...rows].join("\n") + "\n";
+  };
+  const tsvRef = useRef(tsvText);
+  useEffect(() => {
+    tsvRef.current = tsvText;
+  });
+  // Contributes the last run to "Export analysis" while this panel is shown.
+  useEffect(
+    () =>
+      registerExport("enrichment", () =>
+        lastResult
+          ? {
+              files: [{ path: "tables/enrichment_reference_sets.tsv", content: tsvRef.current(lastResult) }],
+              methods: enrichmentMethods({ adjust: lastResult.adjust, referenceNames: lastResult.annotations.map((a) => a.name) }),
+            }
+          : null,
+      ),
+    [],
+  );
+
+  const exportTsv = () => {
+    if (!shown) return;
+    const blob = new Blob([tsvText(shown)], { type: "text/tab-separated-values" });
     const url = URL.createObjectURL(blob);
     const el = document.createElement("a");
     el.href = url;

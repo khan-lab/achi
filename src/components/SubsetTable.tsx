@@ -15,11 +15,13 @@ export function SubsetTable() {
   const selected = useStore((s) => s.selected);
   const toggleSelected = useStore((s) => s.toggleSelected);
   const exportSubsetBed = useStore((s) => s.exportSubsetBed);
+  const listMode = useStore((s) => s.inputMode === "lists");
+  const ext = listMode ? "txt" : "bed";
 
   if (!subsets.length) {
     return (
       <div className="placeholder">
-        <div className="big">Load two or more region sets</div>
+        <div className="big">Load two or more {listMode ? "lists" : "region sets"}</div>
         <div className="sm">Every combination of overlap becomes a row here, with exact counts.</div>
       </div>
     );
@@ -33,8 +35,8 @@ export function SubsetTable() {
             <th>Subset</th>
             <th>Members</th>
             <th>Degree</th>
-            <th>Regions</th>
-            <th>bp</th>
+            <th>{listMode ? "Names" : "Regions"}</th>
+            {!listMode && <th>bp</th>}
             <th />
           </tr>
         </thead>
@@ -59,12 +61,12 @@ export function SubsetTable() {
               <td>{s.label}</td>
               <td className="mono">{s.degree}</td>
               <td className="mono">{fmt(s.nRegions)}</td>
-              <td className="mono">{bpfmt(s.nBp)}</td>
+              {!listMode && <td className="mono">{bpfmt(s.nBp)}</td>}
               <td>
                 <button
                   className="iconbtn"
-                  title={`Download ${s.code || s.mask}.bed`}
-                  aria-label={`Download ${s.label} as BED`}
+                  title={`Download ${s.code || s.mask}.${ext}`}
+                  aria-label={`Download ${s.label} as ${listMode ? "a list" : "BED"}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     exportSubsetBed(s.mask);

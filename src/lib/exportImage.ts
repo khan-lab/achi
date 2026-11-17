@@ -1,6 +1,6 @@
 /** Serialize an on-screen SVG element (with inline styles resolved) and offer it as a download, as SVG or rasterized PNG. */
 
-function svgToStandaloneString(svg: SVGSVGElement): string {
+export function svgToStandaloneString(svg: SVGSVGElement): string {
   const clone = svg.cloneNode(true) as SVGSVGElement;
   clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   if (!clone.getAttribute("width")) clone.setAttribute("width", String(svg.clientWidth));

@@ -28,6 +28,8 @@ export interface RegionSet {
   nBp: number;
   /** Whether this set is included in the current subset computation. */
   included: boolean;
+  /** List mode (lib/lists.ts): the list's names, unique, in file order; `regions` stays empty and `nRegions` counts names. */
+  items?: string[];
 }
 
 /** One combinatorial intersection subset, keyed by membership bitmask. */
@@ -41,6 +43,8 @@ export interface Subset {
   regions: Interval[];
   nRegions: number;
   nBp: number;
+  /** List mode: the names in this subset (instead of regions). */
+  items?: string[];
 }
 
 /** Most region sets that can be compared at once. */

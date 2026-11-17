@@ -624,6 +624,18 @@ header.top {
   gap: 10px;
   margin-bottom: 9px;
 }
+.modeswitch {
+  display: flex;
+  margin-bottom: 12px;
+}
+.modeswitch .tab {
+  flex: 1;
+}
+.rowsplit-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
 
 .selhint {
   font-size: 12.5px;
@@ -817,6 +829,13 @@ footer .free .dot {
   border: 1px solid var(--line);
   border-radius: 8px;
   margin-top: 8px;
+}
+.items-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.6;
 }
 .regions-scroll thead th {
   position: sticky;
@@ -1499,8 +1518,11 @@ svg text.selectable:focus-visible {
   .col.mid > .rowsplit > .tabs .tab {
     flex: none;
   }
-  .col.mid > .rowsplit > .ghost {
+  .col.mid > .rowsplit > .rowsplit-actions {
     width: 100%;
+  }
+  .col.mid > .rowsplit > .rowsplit-actions .ghost {
+    flex: 1;
   }
   /* Tables wider than the screen scroll inside their card. */
   .plotcard {

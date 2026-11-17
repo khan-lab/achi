@@ -38,6 +38,15 @@
   to the nearest TSS, from GENCODE.
 - Closest genes, ready to copy or download.
 
+**Lists of names**
+- Gene lists, SNP IDs or any identifiers (one per line), intersected by
+  exact match, with the same UpSet, Venn, Table, selection and exports.
+
+**Export and restore**
+- One ZIP per analysis: a generated methods paragraph with references,
+  every subset, tables, results, the plots on screen, and a settings file
+  (no data; file checksums) that restores the analysis.
+
 **Enrichment** (selected subsets)
 - Bundled reference sets (ENCODE cCREs, FANTOM5 and VISTA enhancers, CpG
   islands, ClinVar, GWAS Catalog): Fisher or length-stratified CMH test.
@@ -58,6 +67,9 @@
 - Input sets, selected subsets, GENCODE genes and any bundled reference set
   as tracks; go to a locus or gene, or jump from a region or gene list.
 - Uses only your files and bundled data: no request leaves the page.
+- Local tracks from your disk, for viewing: bigWig and bigBed of any size,
+  BED, narrowPeak, bedGraph, VCF, BAM and CRAM (with the reference FASTA);
+  read in the page, never uploaded.
 - Optional public tracks, only after you agree: SCREEN merged signal, the
   ENCODE cCRE registry, ENCODE signal and cell-type cCREs for the example
   cell lines, phyloP conservation, JASPAR 2024 binding sites, ENCODE search

@@ -14,6 +14,7 @@ const HOW: { view: View; text: ReactNode }[] = [
 ];
 
 function EmptyHint({ view, hasSubsets }: { view: View; hasSubsets: boolean }) {
+  const listMode = useStore((s) => s.inputMode === "lists");
   if (!hasSubsets) {
     return <div className="selhint">Nothing selected yet. Load your files or the example data; subsets can then be selected here.</div>;
   }
@@ -21,7 +22,7 @@ function EmptyHint({ view, hasSubsets }: { view: View; hasSubsets: boolean }) {
   return (
     <div className="selhint">
       <div className="selhint-lead">
-        Nothing selected yet. Select one or more intersection subsets to annotate, test for enrichment and export them.
+        Nothing selected yet. Select one or more intersection subsets to {listMode ? "see their names and export them" : "annotate, test for enrichment and export them"}.
       </div>
       {view === "pairwise" && <div>The pairwise heatmap compares whole sets; switch to UpSet, Venn or Table to select subsets.</div>}
       {view === "browser" && <div>The genome browser shows selected subsets as tracks; switch to UpSet, Venn or Table to select them.</div>}
@@ -58,8 +59,8 @@ export function SubsetChips({ view }: { view: View }) {
           {s.label} <span className="mono" style={{ fontSize: 11 }}>{fmt(s.nRegions)}</span>
           <button
             className="x"
-            aria-label={`Download ${s.code || s.mask}.bed`}
-            title={`Download ${s.code || s.mask}.bed`}
+            aria-label={`Download ${s.code || s.mask}.${s.items ? "txt" : "bed"}`}
+            title={`Download ${s.code || s.mask}.${s.items ? "txt" : "bed"}`}
             onClick={() => exportSubsetBed(s.mask)}
           >
             <Icon name="download" size={12} />
@@ -72,7 +73,7 @@ export function SubsetChips({ view }: { view: View }) {
       <button className="chip" onClick={clearSelected}>
         Clear all
       </button>
-      {view !== "browser" && (
+      {view !== "browser" && !chosen.some((c) => c.items) && (
         <div className="selhint-link">
           See where these subsets lie along the genome:{" "}
           <button className="linkbtn" onClick={() => setView("browser")}>

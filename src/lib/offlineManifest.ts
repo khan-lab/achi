@@ -25,6 +25,7 @@ const SHELL: RegExp[] = [
   /^(favicon|icons|logo|apple-touch-icon|intervene-icon-[a-z]+)\.(svg|png)$/,
   /^manifest\.webmanifest$/,
   /^examples\/[^/]+(\/[^/]+)?\.bed$/,
+  /^examples\/lists\/[^/]+\.txt$/,
   new RegExp(`^refdata/${ASSEMBLY}/\\1\\.chrom\\.sizes$`),
 ];
 const DATA: RegExp[] = [

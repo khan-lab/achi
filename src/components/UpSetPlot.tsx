@@ -46,6 +46,8 @@ const BAR_LABEL_FONT_SIZE = 11;
 
 export function UpSetPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | null> }) {
   const allSets = useStore((s) => s.sets);
+  const listMode = useStore((s) => s.inputMode === "lists");
+  const size = (n: number, bp: number) => (listMode ? `${fmt(n)} names` : `${fmt(n)} regions, ${bpfmt(bp)}`);
   const sets = allSets.filter((x) => x.included);
   const subsets = useStore((s) => s.subsets);
   const selected = useStore((s) => s.selected);
@@ -60,7 +62,7 @@ export function UpSetPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement |
   if (!subsets.length) {
     return (
       <div className="placeholder">
-        <div className="big">Load two or more region sets</div>
+        <div className="big">Load two or more region sets or lists</div>
         <div className="sm">Every combination of overlap becomes a bar. Click one to carry it into export.</div>
       </div>
     );
@@ -169,7 +171,7 @@ export function UpSetPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement |
         const barX = SET_BAR_RIGHT - barLen;
         return (
           <g key={set.id}>
-            <title>{`${set.name} — ${fmt(set.nRegions)} regions, ${bpfmt(set.nBp)}`}</title>
+            <title>{`${set.name} — ${size(set.nRegions, set.nBp)}`}</title>
             <rect x={barX} y={rowY - SET_BAR_H / 2} width={barLen} height={SET_BAR_H} rx={2} fill={set.color} opacity={0.75} />
             <text x={barX - 4} y={rowY + 4} textAnchor="end" fontSize={SET_NUM_FONT_SIZE} fontFamily="monospace" fill={INK_3}>
               {fmt(set.nRegions)}
@@ -212,7 +214,7 @@ export function UpSetPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement |
                   role="button"
                   tabIndex={0}
                   aria-pressed={isSel}
-                  aria-label={`${s.label}: ${fmt(s.nRegions)} regions, ${bpfmt(s.nBp)}`}
+                  aria-label={`${s.label}: ${size(s.nRegions, s.nBp)}`}
                   onClick={() => toggleSelected(s.mask)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") {
@@ -221,7 +223,7 @@ export function UpSetPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement |
                     }
                   }}
                 >
-                  <title>{`${s.label} — ${fmt(s.nRegions)} regions, ${bpfmt(s.nBp)}`}</title>
+                  <title>{`${s.label} — ${size(s.nRegions, s.nBp)}`}</title>
                   <text x={x + BAR_W / 2} y={baseline - h - 6} textAnchor="middle" fontSize={11} fontFamily="monospace" fill={INK}>
                     {fitCount(s.nRegions, BAR_W + GAP - 2, BAR_LABEL_FONT_SIZE)}
                   </text>

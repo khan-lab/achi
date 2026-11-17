@@ -8,6 +8,8 @@ import {
 } from "../lib/geneList";
 import type { SummaryItem } from "./SummaryPlot";
 import { Icon } from "./Icon";
+import { registerExport } from "../lib/exportRegistry";
+import { geneListMethods } from "../lib/analysisExport";
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -79,6 +81,26 @@ export function GeneListPanel({ items }: { items: SummaryItem[] }) {
     // computed?" checks only, see the same note in SummaryPlot.tsx's effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assembly, itemsKey]);
+
+  // The gene lists computed so far go into "Export analysis" while this panel is shown.
+  const exportItems = useRef({ items, assembly });
+  useEffect(() => {
+    exportItems.current = { items, assembly };
+  });
+  useEffect(
+    () =>
+      registerExport("genes", () => {
+        const { items: its, assembly: asm } = exportItems.current;
+        const files = its.flatMap((item) => {
+          const a = associationsCache.get(`${asm}::${item.id}::${item.version}`);
+          if (!a) return [];
+          const genes = uniqueGeneNames(a);
+          return [{ path: `genes/${item.name.replace(/[^A-Za-z0-9._-]+/g, "_")}.genes.txt`, content: genes.join("\n") + (genes.length ? "\n" : "") }];
+        });
+        return files.length ? { files, methods: geneListMethods(asm) } : null;
+      }),
+    [],
+  );
 
   if (items.length < 1) return null;
 

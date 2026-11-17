@@ -157,9 +157,21 @@ export function SetRail() {
   const progress = useStore((s) => s.progress);
   const dismissNotices = useStore((s) => s.dismissNotices);
   const chromSizes = useStore((s) => s.chromSizes);
+  const inputMode = useStore((s) => s.inputMode);
+  const listMode = inputMode === "lists";
+  const setInputMode = useStore((s) => s.setInputMode);
+  const loadExampleLists = useStore((s) => s.loadExampleLists);
+  const applySettings = useStore((s) => s.applySettings);
 
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const settingsInputRef = useRef<HTMLInputElement>(null);
+  /** Switching input type clears the loaded sets (they are of the other kind). */
+  const switchMode = (mode: "regions" | "lists") => {
+    if (mode === inputMode) return;
+    if (sets.length && !window.confirm(`Switching to ${mode === "lists" ? "lists" : "genomic regions"} removes the ${sets.length} loaded set${sets.length === 1 ? "" : "s"}. Continue?`)) return;
+    setInputMode(mode);
+  };
   // Local draft so typing doesn't trigger a bedtools recompute on every
   // keystroke; committed to the store (and recomputed) on blur/Enter.
   const [advancedDraft, setAdvancedDraft] = useState(advancedBedtoolsOptions);
@@ -209,8 +221,16 @@ export function SetRail() {
 
   return (
     <section className="col" aria-label="Data and parameters">
+      <div className="tabs modeswitch" role="tablist" aria-label="Input type">
+        <button className="tab" role="tab" aria-selected={!listMode} onClick={() => switchMode("regions")} title="Genomic regions: BED, narrowPeak or VCF files, intersected with bedtools">
+          Regions
+        </button>
+        <button className="tab" role="tab" aria-selected={listMode} onClick={() => switchMode("lists")} title="Lists of names (genes, SNP IDs, any identifiers), intersected by exact match">
+          Lists
+        </button>
+      </div>
       <div className="eyebrow" style={{ marginBottom: 10 }}>
-        Region sets
+        {listMode ? "Lists" : "Region sets"}
       </div>
 
       {!sets.length && <div className="hint">No sets loaded. Intersections need at least two.</div>}
@@ -258,15 +278,22 @@ export function SetRail() {
               </div>
             )}
             <div className="st">
-              <span className="mono">{fmt(s.nRegions)}</span> regions ·{" "}
-              <span className="mono">{bpfmt(s.nBp)}</span> · <span className="code">{s.code}</span>
+              {s.items ? (
+                <>
+                  <span className="mono">{fmt(s.nRegions)}</span> names · <span className="code">{s.code}</span>
+                </>
+              ) : (
+                <>
+                  <span className="mono">{fmt(s.nRegions)}</span> regions · <span className="mono">{bpfmt(s.nBp)}</span> · <span className="code">{s.code}</span>
+                </>
+              )}
             </div>
             {blacklistLine(s) && (
               <div className="setinfo" title="Regions overlapping the ENCODE problematic regions (v2, Amemiya et al. 2019) for this assembly by at least 1 bp: areas with anomalous signal in most sequencing experiments">
                 {blacklistLine(s)}
               </div>
             )}
-            {[...s.warnings, ...assemblyWarnings(s.extents, assembly, chromSizes)].map((w) => (
+            {[...s.warnings, ...(s.items ? [] : assemblyWarnings(s.extents, assembly, chromSizes))].map((w) => (
               <div className="setwarn" key={w}>
                 {w}
               </div>
@@ -312,23 +339,54 @@ export function SetRail() {
           }
         }}
       >
-        <div>
-          <b>Drop BED files</b> or click to browse
-        </div>
-        <div style={{ fontSize: 11.5, marginTop: 3 }}>.bed · .narrowPeak · .vcf · .gz · up to {MAX_SETS} sets · 100 MB each</div>
+        {listMode ? (
+          <>
+            <div>
+              <b>Drop list files</b> or click to browse
+            </div>
+            <div style={{ fontSize: 11.5, marginTop: 3 }}>one name per line · .txt · .tsv · .csv · up to {MAX_SETS} lists</div>
+          </>
+        ) : (
+          <>
+            <div>
+              <b>Drop BED files</b> or click to browse
+            </div>
+            <div style={{ fontSize: 11.5, marginTop: 3 }}>.bed · .narrowPeak · .vcf · .gz · up to {MAX_SETS} sets · 100 MB each</div>
+          </>
+        )}
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".bed,.txt,.vcf,.narrowPeak,.broadPeak,.gz"
+          accept={listMode ? ".txt,.tsv,.csv,.lst,.list,.gz" : ".bed,.txt,.vcf,.narrowPeak,.broadPeak,.gz"}
           hidden
           onChange={onFileInputChange}
         />
       </div>
 
-      <button className="ghost" style={{ width: "100%", marginTop: 8 }} onClick={() => void loadExample()}>
-        Load example data
+      <button className="ghost" style={{ width: "100%", marginTop: 8 }} onClick={() => void (listMode ? loadExampleLists() : loadExample())}>
+        {listMode ? "Load example gene lists" : "Load example data"}
       </button>
+      <button
+        className="ghost"
+        style={{ width: "100%", marginTop: 6 }}
+        title="Load a settings.json from an exported analysis: restores its parameters and, once the same files are loaded, its selection"
+        onClick={() => settingsInputRef.current?.click()}
+      >
+        Restore settings…
+      </button>
+      <input
+        ref={settingsInputRef}
+        type="file"
+        accept=".json,application/json"
+        hidden
+        aria-label="Settings file"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          e.target.value = "";
+          if (f) void f.text().then((t) => applySettings(t));
+        }}
+      />
 
       {notices.length > 0 && (
         <div className="notice" role="alert">
@@ -355,6 +413,9 @@ export function SetRail() {
         </p>
       )}
 
+      {/* Genome, reference-set and bedtools settings concern regions only. */}
+      {!listMode && (
+        <>
       <div className="eyebrow" style={{ margin: "20px 0 6px" }}>
         Genome Parameters
       </div>
@@ -504,6 +565,8 @@ export function SetRail() {
           </div>
         </div>
       </div>
+        </>
+      )}
     </section>
   );
 }

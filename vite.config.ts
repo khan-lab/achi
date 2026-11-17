@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
+import { execSync } from 'node:child_process'
 import { classifyOfflineFile, dataAssembly, type OfflineManifest } from './src/lib/offlineManifest.ts'
 
 /**
@@ -44,8 +45,22 @@ function offlineManifest(): Plugin {
   }
 }
 
+/** Which build this is, for the methods text and settings of an exported analysis: the commit (GitHub Actions' GITHUB_SHA, else git) and the build date. */
+function buildInfo(): { commit: string; date: string } {
+  let commit = process.env.GITHUB_SHA?.slice(0, 7) ?? ''
+  if (!commit) {
+    try {
+      commit = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
+    } catch {
+      commit = 'unknown'
+    }
+  }
+  return { commit, date: new Date().toISOString().slice(0, 10) }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: { __APP_BUILD__: JSON.stringify(buildInfo()) },
   plugins: [react(), offlineManifest()],
   // Served at https://khan-lab.github.io/intervene-secure/ — see
   // docs/deploy-github-pages.md. Every runtime asset fetch already goes

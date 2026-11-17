@@ -27,6 +27,7 @@ describe("classifyOfflineFile", () => {
     ["apple-touch-icon.png", "shell"],
     ["manifest.webmanifest", "shell"],
     ["examples/hg38_ses/MCF7.bed", "shell"],
+    ["examples/lists/HepG2_genes.txt", "shell"],
     ["refdata/hg38/hg38.chrom.sizes", "shell"],
     ["refdata/mm9/mm9.chrom.sizes", "shell"],
     ["refdata/hg38/anno/tss_points.bed", "data"],

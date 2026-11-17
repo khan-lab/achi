@@ -5,6 +5,23 @@ import { resolveOverlapFlags, type OverlapPreset } from "../lib/bedtoolsOptions"
 import { MAX_SETS, PALETTE, type Interval, type RegionSet, type Subset } from "../types";
 import type { ExternalAnnotation } from "../lib/externalAnnotations";
 import { blacklistHits, hasBlacklist, mountBlacklist, splitByBlacklistHits } from "../lib/blacklist";
+import { LIST_EXTENSION, computeListSubsets, listSetName, parseListText } from "../lib/lists";
+import {
+  buildSettings,
+  compareInputs,
+  methodsText,
+  parseSettings,
+  selectionFromSettings,
+  setsTsv,
+  sha256Hex,
+  subsetFilePath,
+  subsetsTsv,
+  type AnalysisSettings,
+  type InputMode,
+  type SavedSubset,
+} from "../lib/analysisExport";
+import { collectExports } from "../lib/exportRegistry";
+import { svgToStandaloneString } from "../lib/exportImage";
 import {
   InputValidationError,
   SUPPORTED_ASSEMBLIES,
@@ -41,7 +58,9 @@ export interface LoadedSet extends RegionSet {
   contentKey: string;
   /** Regions of `cleanFile` overlapping the selected assembly's ENCODE blacklist (≥ 1 bp); null when that assembly has none or the check failed. */
   blacklistHits: number | null;
-  format: InputFormat;
+  format: InputFormat | "list";
+  /** SHA-256 of the file as the user gave it (hex): recorded in exported settings, compared on restore. */
+  sha256: string;
   /** Max end coordinate per chromosome, for the assembly check. */
   extents: Record<string, number>;
   /** Non-fatal problems found while checking the file (skipped lines, conversions). */
@@ -49,6 +68,10 @@ export interface LoadedSet extends RegionSet {
 }
 
 interface StoreState {
+  /** Genomic regions (bedtools) or lists of names (lib/lists.ts, exact match). Switching clears the loaded sets. */
+  inputMode: InputMode;
+  /** Subsets to select once the matching sets are loaded (from a restored settings file). */
+  pendingSelection: SavedSubset[] | null;
   sets: LoadedSet[];
   subsets: Subset[];
   selected: Set<number>;
@@ -105,9 +128,17 @@ interface StoreState {
   setBlacklistFilter: (on: boolean) => void;
   setUpsetSort: (sort: "size" | "degree") => void;
   setUpsetMinSize: (size: number) => void;
+  setInputMode: (mode: InputMode) => void;
+  loadExampleLists: () => Promise<void>;
+  /** One ZIP: subsets, tables, figures on screen, methods text, settings (lib/analysisExport.ts). */
+  exportAnalysis: () => Promise<void>;
+  /** Restore an exported settings file: parameters now, the selection once its sets are loaded. */
+  applySettings: (text: string) => Promise<void>;
+  /** Select the pending subsets that exist now (called when subsets change). */
+  applyPendingSelection: () => void;
 }
 
-function labelSubsets(raw: { mask: number; memberIds: string[]; regions: Interval[]; nRegions: number; nBp: number }[], sets: LoadedSet[]): Subset[] {
+function labelSubsets(raw: { mask: number; memberIds: string[]; regions: Interval[]; nRegions: number; nBp: number; items?: string[] }[], sets: LoadedSet[]): Subset[] {
   const byId = new Map(sets.map((s) => [s.id, s]));
   return raw.map((s) => {
     const members = s.memberIds.map((id) => byId.get(id)).filter((s): s is LoadedSet => Boolean(s));
@@ -120,14 +151,32 @@ function labelSubsets(raw: { mask: number; memberIds: string[]; regions: Interva
       regions: s.regions,
       nRegions: s.nRegions,
       nBp: s.nBp,
+      ...(s.items ? { items: s.items } : {}),
     };
   });
+}
+
+/** A subset's file content: BED text, or one name per line in list mode. */
+export function subsetFileText(s: Subset): string {
+  return s.items ? s.items.join("\n") + (s.items.length ? "\n" : "") : subsetToBedText(s);
+}
+
+function download(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 /** Fill region counts for sets that have none yet (excluded sets, or sets whose content just changed). */
 function withCounts(sets: LoadedSet[]): Promise<LoadedSet[]> {
   return Promise.all(
     sets.map(async (s) => {
+      if (s.items) return { ...s, nRegions: s.items.length, nBp: 0 };
       if (s.nRegions > 0 || s.regions.length > 0) return s;
       const regions = intervals.sortIntervals(intervals.parseBed(await s.file.text()));
       return { ...s, regions, nRegions: regions.length, nBp: regions.reduce((bp, r) => bp + (r.end - r.start), 0) };
@@ -205,6 +254,13 @@ async function recompute(
   onProgress?: (p: PipelineProgress) => void
 ): Promise<{ sets: LoadedSet[]; subsets: Subset[]; usedFallback: boolean; fallbackOverlapUnsupported: boolean }> {
   const included = sets.filter((s) => s.included);
+
+  // List mode: exact name matching in the page (lib/lists.ts), no bedtools.
+  if (sets.some((s) => s.items)) {
+    const counted = await withCounts(sets);
+    const raw = computeListSubsets(included.map((s) => ({ id: s.id, items: s.items ?? [] })));
+    return { sets: counted, subsets: labelSubsets(raw, counted), usedFallback: false, fallbackOverlapUnsupported: false };
+  }
 
   if (included.length < 2) {
     // Still need per-set counts for the rail even with 0-1 active sets.
@@ -300,6 +356,30 @@ async function prepareUpload(
   }
 }
 
+/** List mode: read one name per line (lib/lists.ts). */
+async function prepareListUpload(
+  file: File
+): Promise<{ ok: true; file: File; format: "list"; items: string[]; extents: Record<string, number>; warnings: string[] } | { ok: false; message: string }> {
+  const tooBig = checkFileSize(file.size);
+  if (tooBig) return { ok: false, message: `${file.name} ${tooBig}` };
+  if (!LIST_EXTENSION.test(file.name)) return { ok: false, message: `${file.name}: list mode reads .txt, .tsv, .csv, .lst or .list files (one name per line).` };
+  let text: string;
+  try {
+    text = await readUploadText(file);
+  } catch {
+    return { ok: false, message: `${file.name} could not be read${/\.gz$/i.test(file.name) ? " — is it really gzip-compressed?" : "."}` };
+  }
+  try {
+    const p = parseListText(text);
+    const warnings: string[] = [];
+    if (p.nDuplicates) warnings.push(`${plural(p.nDuplicates, "repeated name")} counted once.`);
+    return { ok: true, file, format: "list", items: p.items, extents: {}, warnings };
+  } catch (err) {
+    if (err instanceof InputValidationError) return { ok: false, message: `${file.name} ${err.message}` };
+    throw err;
+  }
+}
+
 let nextId = 0;
 
 export const useStore = create<StoreState>((set, get) => {
@@ -317,6 +397,8 @@ export const useStore = create<StoreState>((set, get) => {
   };
 
   return {
+  inputMode: "regions",
+  pendingSelection: null,
   sets: [],
   subsets: [],
   selected: new Set(),
@@ -354,14 +436,16 @@ export const useStore = create<StoreState>((set, get) => {
     }
 
     const newSets: LoadedSet[] = [];
+    const lists = get().inputMode === "lists";
     for (const [i, file] of files.slice(0, room).entries()) {
       set({ progress: { done: 0, total: 0, label: `Checking ${file.name}` } });
-      const prepared = await prepareUpload(file);
+      const prepared = lists ? await prepareListUpload(file) : await prepareUpload(file);
       if (!prepared.ok) {
         notices.push(prepared.message);
         continue;
       }
-      const cleanName = meta?.[i]?.name ?? file.name.replace(EXTENSION, "");
+      const sha256 = await sha256Hex(file).catch(() => "");
+      const cleanName = meta?.[i]?.name ?? (lists ? listSetName(file.name) : file.name.replace(EXTENSION, ""));
       const defaultColor = PALETTE[(existing.length + newSets.length) % PALETTE.length];
       const id = `set-${nextId++}`;
       newSets.push({
@@ -381,8 +465,10 @@ export const useStore = create<StoreState>((set, get) => {
         contentKey: id,
         blacklistHits: null,
         format: prepared.format,
+        sha256,
         extents: prepared.extents,
         warnings: prepared.warnings,
+        ...("items" in prepared ? { items: prepared.items } : {}),
       });
     }
 
@@ -393,8 +479,9 @@ export const useStore = create<StoreState>((set, get) => {
     try {
       set({ status: "running", notices });
       const { assembly, blacklistFilter } = get();
-      const checked = await checkBlacklist(newSets, assembly, (p) => set({ progress: p }));
-      const merged = [...existing, ...(await applyBlacklistFilter(checked, blacklistFilter, assembly))];
+      const merged = lists
+        ? [...existing, ...newSets]
+        : [...existing, ...(await applyBlacklistFilter(await checkBlacklist(newSets, assembly, (p) => set({ progress: p })), blacklistFilter, assembly))];
       const flags = resolveOverlapFlags(get().overlapPreset, get().advancedBedtoolsOptions);
       const { sets, subsets, usedFallback, fallbackOverlapUnsupported } = await recompute(merged, flags, (p) => set({ progress: p }));
       set({ sets, subsets, usedFallback, fallbackOverlapUnsupported, status: "done", progress: null });
@@ -582,15 +669,17 @@ export const useStore = create<StoreState>((set, get) => {
     const { default: JSZip } = await import("jszip");
     const zip = new JSZip();
     const byId = new Map(sets.map((s) => [s.id, s]));
+    const ext = get().inputMode === "lists" ? "txt" : "bed";
     for (const s of chosen) {
-      zip.file(`${s.code || s.mask}.bed`, subsetToBedText(s));
+      zip.file(`${s.code || s.mask}.${ext}`, subsetFileText(s));
     }
     const memberNames = (ids: string[]) => ids.map((id) => byId.get(id)?.name ?? id).join(", ");
     const readme = [
       "# Intervene subset export",
       "",
-      "Each .bed file is one combinatorial intersection subset, computed client-side",
-      "with bedtools 2.31.0 (WASM) — see docs/provenance.md. No data left this browser.",
+      ...(get().inputMode === "lists"
+        ? ["Each .txt file is one combinatorial intersection subset of the lists (one name per line),", "computed in the browser by exact name matching. No data left this browser."]
+        : ["Each .bed file is one combinatorial intersection subset, computed client-side", "with bedtools 2.31.0 (WASM) — see docs/provenance.md. No data left this browser."]),
       ...(get().blacklistFilter && hasBlacklist(get().assembly)
         ? [
             "",
@@ -599,33 +688,163 @@ export const useStore = create<StoreState>((set, get) => {
           ]
         : []),
       "",
-      ...chosen.map((s) => `- ${s.code || s.mask}.bed — ${s.label} (${memberNames(s.memberIds)}): ${s.nRegions} regions, ${s.nBp} bp`),
+      ...chosen.map((s) =>
+        get().inputMode === "lists"
+          ? `- ${s.code || s.mask}.${ext} — ${s.label} (${memberNames(s.memberIds)}): ${s.nRegions} names`
+          : `- ${s.code || s.mask}.${ext} — ${s.label} (${memberNames(s.memberIds)}): ${s.nRegions} regions, ${s.nBp} bp`
+      ),
       "",
     ].join("\n");
     zip.file("README.md", readme);
-    const blob = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "intervene-subsets.zip";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    download(await zip.generateAsync({ type: "blob" }), "intervene-subsets.zip");
   },
 
   exportSubsetBed: (mask) => {
     const s = get().subsets.find((x) => x.mask === mask);
     if (!s) return;
-    const blob = new Blob([subsetToBedText(s)], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${s.code || s.mask}.bed`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    download(new Blob([subsetFileText(s)], { type: "text/plain" }), `${s.code || s.mask}.${s.items ? "txt" : "bed"}`);
+  },
+
+  setInputMode: (mode) => {
+    if (mode === get().inputMode) return;
+    for (const s of get().sets) {
+      forgetSet(s.id);
+      forgetBlacklist(s.id);
+    }
+    const view = get().view;
+    const keepView = mode === "regions" || view === "upset" || view === "venn" || view === "table" || view === "help";
+    set({ inputMode: mode, sets: [], subsets: [], selected: new Set(), notices: [], status: "idle", error: null, view: keepView ? view : "upset" });
+  },
+
+  loadExampleLists: async () => {
+    set({ status: "loading-worker", error: null });
+    try {
+      const base = `${window.location.origin}${import.meta.env.BASE_URL}examples/lists`;
+      const files = await Promise.all(
+        ["MCF7_genes.txt", "GM12878_genes.txt", "K562_genes.txt", "HepG2_genes.txt"].map(async (name) => {
+          const res = await fetch(`${base}/${name}`);
+          if (!res.ok) throw new Error(`Could not load example file ${name}`);
+          return new File([await res.blob()], name, { type: "text/plain" });
+        })
+      );
+      get().setInputMode("lists");
+      set({ sets: [], subsets: [], selected: new Set() });
+      // Named by cell line, like the region example they come from.
+      await get().addFiles(files, ["MCF7", "GM12878", "K562", "HepG2"].map((name) => ({ name, code: name.slice(0, 3).toUpperCase() })));
+    } catch (err) {
+      set({ error: err instanceof Error ? err.message : String(err), status: "error", progress: null });
+    }
+  },
+
+  exportAnalysis: async () => {
+    const st = get();
+    if (!st.sets.length) return;
+    set({ progress: { done: 0, total: 0, label: "Preparing the analysis export" } });
+    try {
+      const { default: JSZip } = await import("jszip");
+      const zip = new JSZip();
+      const mode = st.inputMode;
+      const byId = new Map(st.sets.map((x) => [x.id, x]));
+      const chosen = st.subsets.filter((x) => st.selected.has(x.mask));
+      const settings = buildSettings({
+        build: __APP_BUILD__,
+        created: new Date().toISOString(),
+        mode,
+        assembly: st.assembly,
+        overlapPreset: st.overlapPreset,
+        advancedBedtoolsOptions: st.advancedBedtoolsOptions,
+        overlapFlags: resolveOverlapFlags(st.overlapPreset, st.advancedBedtoolsOptions),
+        blacklistFilter: st.blacklistFilter && hasBlacklist(st.assembly),
+        upsetSort: st.upsetSort,
+        upsetMinSize: st.upsetMinSize,
+        pairwiseStat: st.pairwiseStat,
+        view: st.view,
+        sets: st.sets.map((x) => ({ name: x.name, fileName: x.fileName, code: x.code, color: x.color, included: x.included, n: x.nRegions, bp: x.nBp, sha256: x.sha256 })),
+        selected: chosen.map((x) => ({ label: x.label, memberNames: x.memberIds.map((id) => byId.get(id)?.name ?? id), n: x.nRegions })),
+      });
+      const extras = collectExports();
+      zip.file("settings.json", JSON.stringify(settings, null, 2) + "\n");
+      zip.file("methods.md", methodsText(settings, extras.flatMap((e) => (e.methods ? [e.methods] : []))));
+      zip.file("tables/sets.tsv", setsTsv(settings));
+      zip.file("tables/subsets.tsv", subsetsTsv(st.subsets, st.sets, mode, st.selected));
+      for (const x of st.subsets) zip.file(subsetFilePath(x, mode), subsetFileText(x));
+      for (const e of extras) for (const f of e.files) zip.file(f.path, f.content);
+      // Figures as drawn on screen now (the open view and the cards below it).
+      const figures: string[] = [];
+      const used = new Set<string>();
+      document.querySelectorAll<SVGSVGElement>(".col.mid svg[role='img'][aria-label]").forEach((svg) => {
+        const base = (svg.getAttribute("aria-label") ?? "figure").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase().slice(0, 60) || "figure";
+        let name = base;
+        for (let k = 2; used.has(name); k++) name = `${base}-${k}`;
+        used.add(name);
+        zip.file(`figures/${name}.svg`, svgToStandaloneString(svg));
+        figures.push(`figures/${name}.svg`);
+      });
+      const unit = mode === "lists" ? "names" : "regions";
+      const readme = [
+        "# Intervene Secure analysis export",
+        "",
+        `Exported ${settings.created} from ${settings.app.url} (build ${settings.app.commit}, ${settings.app.buildDate}).`,
+        "Everything was computed in the browser; no data were uploaded.",
+        "",
+        "- methods.md: a methods paragraph for this analysis, with references.",
+        "- settings.json: the parameters and the inputs' names, file names and SHA-256 checksums (no data).",
+        "  Load it with \"Restore settings…\" in Intervene Secure, then load the same files, to restore the analysis.",
+        "- tables/sets.tsv: the inputs.",
+        `- tables/subsets.tsv: every subset (${st.subsets.length}), its members, size in ${unit}, and whether it was selected.`,
+        `- subsets/: every subset as ${mode === "lists" ? ".txt (one name per line)" : ".bed"}.`,
+        ...extras.flatMap((e) => e.files.map((f) => `- ${f.path}`)),
+        ...(figures.length ? ["- figures/: the plots on screen at export time, as SVG:", ...figures.map((f) => `  - ${f}`)] : []),
+        "",
+      ].join("\n");
+      zip.file("README.md", readme);
+      download(await zip.generateAsync({ type: "blob" }), `intervene-analysis-${settings.created.slice(0, 10)}.zip`);
+    } finally {
+      set({ progress: null });
+    }
+  },
+
+  applySettings: async (text) => {
+    const parsed = parseSettings(text);
+    if ("error" in parsed) {
+      set({ notices: [parsed.error] });
+      return;
+    }
+    const s: AnalysisSettings = parsed;
+    if (s.mode !== get().inputMode) get().setInputMode(s.mode);
+    const notices = [`Settings restored from the analysis of ${s.created.slice(0, 10)}.`];
+    if (get().sets.length) notices.push(...compareInputs(s, get().sets));
+    else notices.push(`Now load the same files: ${s.sets.map((x) => x.fileName).join(", ")}.`);
+    const flagsChanged = s.overlap.preset !== get().overlapPreset || s.overlap.advanced !== get().advancedBedtoolsOptions;
+    const genomeChanged = s.assembly !== get().assembly || s.blacklistFilter !== get().blacklistFilter;
+    set({
+      overlapPreset: s.overlap.preset,
+      advancedBedtoolsOptions: s.overlap.advanced,
+      upsetSort: s.upset.sort,
+      upsetMinSize: s.upset.minSize,
+      pairwiseStat: s.pairwiseStat,
+      view: (["upset", "venn", "pairwise", "table", "summary", "browser"] as View[]).includes(s.view as View) ? (s.view as View) : get().view,
+      pendingSelection: s.selected,
+      notices,
+    });
+    if (s.mode === "regions" && genomeChanged) {
+      set({ assembly: s.assembly, blacklistFilter: s.blacklistFilter });
+      if (get().sets.length) {
+        const checked = await checkBlacklist(get().sets, s.assembly, (p) => set({ progress: p }));
+        await rerunWith(await applyBlacklistFilter(checked, s.blacklistFilter, s.assembly));
+      }
+    } else if (flagsChanged && get().sets.length) await rerunWith(get().sets);
+    get().applyPendingSelection();
+  },
+
+  applyPendingSelection: () => {
+    const pending = get().pendingSelection;
+    const included = get().sets.filter((x) => x.included);
+    if (!pending || included.length < 2 || !get().subsets.length) return;
+    // Matched by set names (lib/analysisExport.ts); re-applied as more files load, until every saved subset is found.
+    const { masks, missing } = selectionFromSettings({ selected: pending } as AnalysisSettings, included.map((x) => x.name));
+    const found = masks.filter((m) => get().subsets.some((x) => x.mask === m));
+    set({ selected: new Set(found), pendingSelection: missing.length ? pending : null });
   },
   };
 });

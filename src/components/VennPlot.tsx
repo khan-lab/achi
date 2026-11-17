@@ -47,7 +47,7 @@ export function VennPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | 
   if (sets.length < 2) {
     return (
       <div className="placeholder">
-        <div className="big">Load two or more region sets</div>
+        <div className="big">Load two or more region sets or lists</div>
         <div className="sm">A Venn diagram needs at least two included sets.</div>
       </div>
     );
@@ -170,7 +170,7 @@ export function VennPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | 
               role="button"
               tabIndex={0}
               aria-pressed={isSel}
-              aria-label={`${subset.label}: ${fmt(subset.nRegions)} regions`}
+              aria-label={`${subset.label}: ${fmt(subset.nRegions)} ${subset.items ? "names" : "regions"}`}
               onClick={() => toggleSelected(mask)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {

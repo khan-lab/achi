@@ -11,18 +11,20 @@ import { SubsetEnrichmentPanel } from "./components/SubsetEnrichmentPanel";
 import { GoEnrichmentPanel } from "./components/GoEnrichmentPanel";
 import { OfflineBadge } from "./components/OfflineStatus";
 import { SubsetChips } from "./components/SubsetChips";
-import { SubsetRegionsTable } from "./components/SubsetRegionsTable";
+import { SubsetItemsList, SubsetRegionsTable } from "./components/SubsetRegionsTable";
 import { HelpPage } from "./components/HelpPage";
 import { GenomeBrowser } from "./components/GenomeBrowser";
 import { ComputeStatus } from "./components/ComputeStatus";
 import { COPYRIGHT_YEAR, LAB_NAME, LAB_URL, LICENSE_URL, SOURCE_CODE_URL } from "./siteLinks";
-import { useStore, type View } from "./state/store";
+import { subsetFileText, useStore, type View } from "./state/store";
 import { subsetToBedText } from "./lib/pipeline";
 import { PALETTE, type Subset } from "./types";
 import "./styles/tokens.css";
 import "./App.css";
 import { Icon } from "./components/Icon";
 
+/** Views that work on lists of names (list mode): the rest need genomic regions. */
+const LIST_VIEWS: View[] = ["upset", "venn", "table"];
 const VIEWS: { id: View; label: string }[] = [
   { id: "upset", label: "UpSet" },
   { id: "venn", label: "Venn" },
@@ -61,6 +63,11 @@ function App() {
   const toggleSelected = useStore((s) => s.toggleSelected);
   const exportSelectedBedZip = useStore((s) => s.exportSelectedBedZip);
   const exportSubsetBed = useStore((s) => s.exportSubsetBed);
+  const exportAnalysis = useStore((s) => s.exportAnalysis);
+  const listMode = useStore((s) => s.inputMode === "lists");
+  const applyPendingSelection = useStore((s) => s.applyPendingSelection);
+  // A restored settings file's selection is applied once its sets are loaded.
+  useEffect(() => applyPendingSelection(), [subsets, applyPendingSelection]);
   const status = useStore((s) => s.status);
   const busy = status === "loading-worker" || status === "running";
 
@@ -78,7 +85,7 @@ function App() {
 
   const copySubsetToClipboard = useCallback(async (subset: Subset) => {
     try {
-      await navigator.clipboard.writeText(subsetToBedText(subset));
+      await navigator.clipboard.writeText(subsetFileText(subset));
       setCopiedMask(subset.mask);
       setTimeout(() => setCopiedMask((m) => (m === subset.mask ? null : m)), 1500);
     } catch (err) {
@@ -179,7 +186,7 @@ function App() {
         <section className="col mid" aria-label="Intersections">
           <div className="rowsplit">
             <div className="tabs" role="tablist">
-              {VIEWS.map((v) => (
+              {VIEWS.filter((v) => !listMode || LIST_VIEWS.includes(v.id)).map((v) => (
                 <button
                   key={v.id}
                   className="tab"
@@ -191,9 +198,19 @@ function App() {
                 </button>
               ))}
             </div>
-            <button className="ghost" disabled={!selected.size} onClick={() => void exportSelectedBedZip()}>
-              Export selected subsets
-            </button>
+            <div className="rowsplit-actions">
+              <button className="ghost" disabled={!selected.size} onClick={() => void exportSelectedBedZip()}>
+                Export selected subsets
+              </button>
+              <button
+                className="ghost"
+                disabled={!sets.length || busy}
+                title="One ZIP: every subset, tables, the plots on screen, a methods paragraph and a settings file to restore this analysis"
+                onClick={() => void exportAnalysis()}
+              >
+                Export analysis
+              </button>
+            </div>
           </div>
 
           <div className={`card plotcard${busy ? " busy" : ""}`} aria-busy={busy}>
@@ -236,7 +253,7 @@ function App() {
             </div>
           )}
 
-          {view !== "summary" && selectedSubsets.length > 0 && (
+          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
                 <div className="eyebrow">Summary of selected subsets (bedtools summary)</div>
@@ -245,7 +262,7 @@ function App() {
             </div>
           )}
 
-          {view !== "summary" && selectedSubsets.length > 0 && (
+          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
                 <div className="eyebrow">Region annotation of selected subsets — bedtools intersect/closest vs. GENCODE</div>
@@ -254,7 +271,7 @@ function App() {
             </div>
           )}
 
-          {view !== "summary" && selectedSubsets.length > 0 && (
+          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
                 <div className="eyebrow">Enrichment of selected subsets — reference region sets</div>
@@ -265,7 +282,7 @@ function App() {
             </div>
           )}
 
-          {view !== "summary" && selectedSubsets.length > 0 && (
+          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
                 <div className="eyebrow">GO enrichment of selected subsets — GREAT-like or Cistrome-GO-like</div>
@@ -276,7 +293,7 @@ function App() {
             </div>
           )}
 
-          {view !== "summary" && selectedSubsets.length > 0 && (
+          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
                 <div className="eyebrow">Genes near the selected subsets — nearest to TSS</div>
@@ -319,7 +336,7 @@ function App() {
             <div className="placeholder">
               <div className="big">Nothing selected</div>
               <div className="sm">
-                Click a bar or dot column in the UpSet plot, a number in the Venn diagram, or a row in the Table to see a subset's regions here.
+                Click a bar or dot column in the UpSet plot, a number in the Venn diagram, or a row in the Table to see a subset's {listMode ? "names" : "regions"} here.
               </div>
             </div>
           )}
@@ -333,13 +350,18 @@ function App() {
                   <div style={{ display: "flex", gap: 4 }}>
                     <button
                       className="iconbtn"
-                      title={copiedMask === s.mask ? "Copied!" : "Copy BED to clipboard"}
-                      aria-label={`Copy ${s.label} as BED`}
+                      title={copiedMask === s.mask ? "Copied!" : listMode ? "Copy names to clipboard" : "Copy BED to clipboard"}
+                      aria-label={`Copy ${s.label} as ${listMode ? "names" : "BED"}`}
                       onClick={() => void copySubsetToClipboard(s)}
                     >
                       <Icon name={copiedMask === s.mask ? "check" : "copy"} />
                     </button>
-                    <button className="iconbtn" title={`Download ${s.code || s.mask}.bed`} aria-label={`Download ${s.label} as BED`} onClick={() => exportSubsetBed(s.mask)}>
+                    <button
+                      className="iconbtn"
+                      title={`Download ${s.code || s.mask}.${listMode ? "txt" : "bed"}`}
+                      aria-label={`Download ${s.label} as ${listMode ? "a list" : "BED"}`}
+                      onClick={() => exportSubsetBed(s.mask)}
+                    >
                       <Icon name="download" />
                     </button>
                     <button className="iconbtn" title={`Close ${s.label}`} aria-label={`Deselect ${s.label}`} onClick={() => toggleSelected(s.mask)}>
@@ -348,9 +370,9 @@ function App() {
                   </div>
                 </div>
                 <div className="mono" style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 6 }}>
-                  {fmt(s.nRegions)} regions · {bpfmt(s.nBp)}
+                  {listMode ? `${fmt(s.nRegions)} names` : `${fmt(s.nRegions)} regions · ${bpfmt(s.nBp)}`}
                 </div>
-                <SubsetRegionsTable subset={s} />
+                {s.items ? <SubsetItemsList items={s.items} /> : <SubsetRegionsTable subset={s} />}
               </div>
             </div>
           ))}

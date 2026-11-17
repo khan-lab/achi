@@ -40,3 +40,16 @@ export function SubsetRegionsTable({ subset }: { subset: Subset }) {
     </div>
   );
 }
+
+/** List mode: a subset's names, scrollable, one per line (the Selected subsets panel). */
+export function SubsetItemsList({ items }: { items: string[] }) {
+  return (
+    <div className="regions-scroll">
+      <ul className="items-list mono">
+        {items.map((n) => (
+          <li key={n}>{n}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}

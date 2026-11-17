@@ -75,7 +75,8 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           </li>
           <li>
             Selected subsets get their own summary, nearest-gene list and region table below the plot. Download them
-            one at a time as BED, or all at once with <em>Export selected subsets</em>. Their region lists sit in the
+            one at a time as BED, or all at once with <em>Export selected subsets</em>. <em>Export analysis</em> saves
+            the whole analysis as one ZIP (see <a href="#export">below</a>). Their region lists sit in the
             right-hand <em>Selected subsets</em> column; hide it with the arrow in its header to give the plots more
             width, and click the thin strip on the right to show it again.
           </li>
@@ -170,6 +171,19 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           (reciprocal) to every intersect call. <em>Advanced bedtools options</em> takes the CLI's{" "}
           <code>--bedtools-options</code> syntax, such as <code>f=0.75,s=true</code>. If WebAssembly is unavailable,
           a JavaScript fallback computes the 1 bp default only.
+        </p>
+
+        <h3 id="lists">Lists of names (gene lists, IDs)</h3>
+        <p>
+          Switch the rail to <em>Lists</em> to compare lists of names instead of genomic regions: gene symbols, SNP IDs
+          or any identifiers, as in the Intervene command-line tool's list mode. Each file (.txt, .tsv, .csv) holds one
+          name per line; the first column is used, lines starting with # are skipped, and a name repeated in a list
+          counts once. Names are matched exactly, including case. Every name goes to the subset for exactly the lists
+          that contain it, and the UpSet plot, Venn diagram, Table, selection and exports work as for regions; a subset
+          downloads as a .txt list. The views that need genomic coordinates (Pairwise, Set Summary, Genome Browser,
+          annotation and enrichment) are not offered for lists. <em>Load example gene lists</em> loads, for each
+          example cell line, the protein-coding genes nearest to its peaks. Switching between regions and lists
+          removes the loaded sets.
         </p>
 
         <h3 id="views">Views</h3>
@@ -308,6 +322,18 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           q-values are Benjamini–Hochberg over all tested terms of a namespace, per subset. The chart shows the top 15
           enriched terms of the subset; the TSV downloads have every term. GO data: Gene Ontology Consortium (CC BY 4.0;
           ontology release 2026-07-26, annotations 2026-05-21).
+        </p>
+
+        <h3 id="export">Export and restore an analysis</h3>
+        <p>
+          <em>Export analysis</em> saves one ZIP, made in the page: <code>methods.md</code>, a methods paragraph for
+          the analysis with its references (the build of Intervene Secure, the inputs, assembly, overlap rule, filters,
+          the selected subsets and, if you ran them, the enrichment, GO and gene-list settings);{" "}
+          <code>settings.json</code>; every subset as BED (or .txt for lists); tables of the inputs and all subsets; the
+          enrichment and GO results and gene lists you computed; and the plots on screen at that moment as SVG.{" "}
+          <code>settings.json</code> holds no data: the parameters, and each input's name, file name, size and SHA-256
+          checksum. <em>Restore settings…</em> reads it back: the parameters apply at once, and the selected subsets
+          return once you load the same files (matched by set name; files whose checksum differs are named).
         </p>
 
         <h3 id="keyboard">Keyboard</h3>
