@@ -45,6 +45,8 @@ export interface Subset {
   nBp: number;
   /** List mode: the names in this subset (instead of regions). */
   items?: string[];
+  /** A whole input set selected as a group (lib/selection.ts): its own regions or names, keyed by a negative mask. */
+  whole?: boolean;
 }
 
 /** Most region sets that can be compared at once. */

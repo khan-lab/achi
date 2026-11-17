@@ -28,11 +28,12 @@ describe("parseLink", () => {
   });
 
   it("leaves mode unset and files empty when the link names no files (settings or view only)", () => {
-    const l = parseLink("#view=venn&sel=3,5");
+    const l = parseLink("#view=venn&sel=3,5,-4,-3,-512");
     expect(l.mode).toBeUndefined();
     expect(l.files).toEqual([]);
     expect(l.view).toBe("venn");
-    expect(l.sel).toEqual([3, 5]);
+    // -4: the whole third set (lib/selection.ts); -3 and -512 are not set keys.
+    expect(l.sel).toEqual([3, 5, -4]);
   });
 
   it("refuses anything but https, URLs with a user name or password, and unparsable URLs", () => {

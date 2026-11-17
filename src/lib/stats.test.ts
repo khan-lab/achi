@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { benjaminiHochberg, binomialUpper, fisherExact, hypergeometricUpper, mantelHaenszel, oddsRatio } from "./stats";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { benjaminiHochberg, binomialUpper, fisherExact, hypergeometricUpper, mannWhitneyU, mantelHaenszel, oddsRatio } from "./stats";
 
 /**
  * Expected values are R 4.6.1's own output (fisher.test, mantelhaen.test
@@ -119,4 +121,25 @@ describe("hypergeometricUpper: P(X >= j) drawing m of N with K successes, as R's
   ];
   for (const [j, N, K, m, expected] of cases) it(`j=${j} N=${N} K=${K} m=${m}`, () => close(hypergeometricUpper(j, N, K, m), expected, 1e-8));
   it("is 0 when j exceeds what is possible", () => expect(hypergeometricUpper(11, 100, 10, 50)).toBe(0));
+});
+
+describe("mannWhitneyU (two-sided, normal approximation with tie and continuity correction, as SciPy's asymptotic method)", () => {
+  // Real values: mean K562 H3K27ac signal over the chr21 super-enhancers vs
+  // GENCODE TSSs ± 1 kb (tests/fixtures/deeptools/expected_summary.json, SciPy 1.18.1).
+  const exp = JSON.parse(readFileSync(join(__dirname, "..", "..", "tests/fixtures/deeptools/expected_summary.json"), "utf8"));
+  it("matches SciPy on real data", () => {
+    const r = mannWhitneyU(exp.se_means, exp.tss_means);
+    expect(r.U).toBe(exp.mwu.U);
+    expect(r.p).toBeCloseTo(exp.mwu.p, 10);
+  });
+  it("matches SciPy with ties", () => {
+    const r = mannWhitneyU(exp.ties.x, exp.ties.y);
+    expect(r.U).toBe(exp.ties.U);
+    expect(r.p).toBeCloseTo(exp.ties.p, 10);
+  });
+  it("ignores NaN, and gives p = 1 when a group is empty or every value is tied", () => {
+    expect(mannWhitneyU([1, NaN, 2], [3, 4]).n1).toBe(2);
+    expect(mannWhitneyU([], [1, 2]).p).toBe(1);
+    expect(mannWhitneyU([1, 1], [1, 1]).p).toBe(1);
+  });
 });

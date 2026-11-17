@@ -3,6 +3,7 @@ import { EXTERNAL_ANNOTATIONS, type ExternalAnnotation } from "./externalAnnotat
 import { parseIntersectCounts } from "./pipeline";
 import { benjaminiHochberg, fisherExact, mantelHaenszel, oddsRatio } from "./stats";
 import type { Interval } from "../types";
+import { inGroup } from "./selection";
 
 /**
  * Subset enrichment for the built-in reference region sets — the null
@@ -83,12 +84,12 @@ export function lengthStrata(lengths: Int32Array, k = LENGTH_STRATA): Uint8Array
 
 type Table = [number, number, number, number];
 
-/** The 2×2 table for subset `mask` against one reference set's hit flags, and the same table per stratum when `strata` is given. */
+/** The 2×2 table for subset `mask` (or a whole set, by its negative key: lib/selection.ts) against one reference set's hit flags, and the same table per stratum when `strata` is given. */
 export function enrichmentCounts(owner: Int32Array, hits: Uint8Array, mask: number, strata?: Uint8Array): { table: Table; strata: Table[] } {
   const table: Table = [0, 0, 0, 0];
   const per: Table[] = [];
   for (let i = 0; i < owner.length; i++) {
-    const cell = (owner[i] === mask ? 0 : 2) + (hits[i] ? 0 : 1);
+    const cell = (inGroup(owner[i], mask) ? 0 : 2) + (hits[i] ? 0 : 1);
     table[cell]++;
     if (strata) {
       const s = strata[i];

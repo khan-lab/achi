@@ -636,6 +636,24 @@ header.top {
   gap: 6px;
   flex: none;
 }
+/* The view tabs never shrink or wrap their labels: when the column is too narrow for tabs and buttons on one line, the buttons move to the next line, right-aligned. */
+.col.mid > .rowsplit {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.col.mid > .rowsplit > .tabs {
+  flex: none;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.col.mid > .rowsplit > .tabs .tab {
+  flex: none;
+  white-space: nowrap;
+}
+.col.mid > .rowsplit > .rowsplit-actions {
+  margin-left: auto;
+}
 
 .selhint {
   font-size: 12.5px;
@@ -1609,4 +1627,119 @@ svg text.selectable:focus-visible {
   font-size: 12px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Signal profiles (components/SignalProfilePanel.tsx) */
+.sp-tracks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.sp-track {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  font-size: 12.5px;
+  max-width: 100%;
+}
+.sp-track-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.sp-track .iconbtn {
+  width: 22px;
+  height: 22px;
+}
+.sp-overlay .sp-cancel {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: calc(50% + 34px);
+  transform: translateX(-50%);
+}
+.sp-tip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  white-space: pre-line;
+  max-width: 320px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--panel);
+  font-size: 11.5px;
+  line-height: 1.4;
+  box-shadow: var(--shadow);
+}
+.sp-track-tag {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+.sp-picker {
+  margin: 0 0 10px;
+}
+.sp-picker-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 16px;
+  max-height: 260px;
+  overflow: auto;
+}
+.sp-picker-group {
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.sp-picker-group legend {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  padding: 0;
+  margin-bottom: 2px;
+}
+.sp-url {
+  width: min(420px, 100%);
+}
+.sp-exact {
+  margin: 0 0 10px;
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+.sp-exact ul {
+  margin: 0 0 8px;
+}
+.sp-pmark {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 4px;
+}
+.sp-pmark .param {
+  margin: 0;
+}
+/* Regions | Genes switch on each card of the "Selected subsets and sets" column. */
+.groupcard-tabs {
+  width: fit-content;
+  margin-top: 8px;
+}
+.groupcard-tabs .tab {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+.groupcard-tabs .tabcount {
+  margin-left: 4px;
 }

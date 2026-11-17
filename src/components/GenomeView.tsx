@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EmbedResult, IntervalSelectionApi } from "@genome-spy/core/minimal";
-import { useStore } from "../state/store";
+import { useChosenGroups, useStore } from "../state/store";
 import { formatLocus, referenceOptions, type Locus } from "../lib/browserTracks";
 import { normalizeRegionText } from "../lib/inputValidation";
 import { parseBed, sortIntervals } from "../lib/intervals";
@@ -80,8 +80,7 @@ const NO_LOCALS: NonNullable<GenomeViewProps["locals"]> = [];
 
 export function GenomeView({ showSets, refIds, locals = NO_LOCALS, locus, onNavigate }: GenomeViewProps) {
   const sets = useStore((s) => s.sets);
-  const subsets = useStore((s) => s.subsets);
-  const selected = useStore((s) => s.selected);
+  const chosen = useChosenGroups();
   const assembly = useStore((s) => s.assembly);
   const sizes = useStore((s) => s.chromSizes[s.assembly]);
 
@@ -127,7 +126,7 @@ export function GenomeView({ showSets, refIds, locals = NO_LOCALS, locus, onNavi
     () => refOptions.filter((r) => refIds.has(r.id) && refData[r.path]).map((r) => ({ key: r.id, name: r.name, regions: refData[r.path] })),
     [refOptions, refIds, refData],
   );
-  const tracks = useMemo(() => genomeTracks(sets, subsets, selected, { includeSets: showSets, refs, locals }), [sets, subsets, selected, showSets, refs, locals]);
+  const tracks = useMemo(() => genomeTracks(sets, chosen, new Set(chosen.map((c) => c.mask)), { includeSets: showSets, refs, locals }), [sets, chosen, showSets, refs, locals]);
 
   const contigs = useMemo<Contig[]>(() => (sizes ? contigsFromSizes(sizes) : []), [sizes]);
   const data = useMemo(() => {

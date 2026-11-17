@@ -59,6 +59,14 @@
   - **GREAT-like:** regulatory domains; genome or input-set background;
   - **Cistrome-GO-like:** regulatory-potential ranking and XL-mHG test.
 
+**Signal profiles** (selected subsets, deepTools-style)
+- Profiles (mean ± SE) and heatmaps of any bigWig from your computer over
+  and around each subset's regions: scale-regions or reference-point,
+  matching deepTools computeMatrix; sorting, k-means clusters, click a row
+  to open it in the genome browser.
+- Each region's mean signal per subset as box plots, with Mann–Whitney
+  tests between subsets. Example H3K27ac signal for the sample data.
+
 **Genome-wide overview** of selected subsets (GenomeSpy, Genome Browser tab)
 - Where each selected subset lies along the whole genome, with the input
   sets and reference sets as optional context: density per Mb and every

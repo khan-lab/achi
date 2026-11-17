@@ -196,6 +196,14 @@ describe.skipIf(!available("bedtools"))("GREAT on real data vs native bedtools",
     expect(row.table).toEqual([a, regions.filter((_, i) => owner[i] === 1).length - a, c, regions.filter((_, i) => owner[i] === 2).length - c]);
   });
 
+  it("input-sets background: a whole set (negative key) is every subset it is a member of", () => {
+    // Owners 1 (A only), 3 (A ∩ B), 2 (B only) in thirds; set A (key -1) = owners 1 and 3.
+    const owner = Int32Array.from(regions.map((_, i) => [1, 3, 2][i % 3]));
+    const asSet = inputsGoTest(prepared, regionGenes, owner, -1, "BP");
+    const merged = inputsGoTest(prepared, regionGenes, Int32Array.from(owner, (o) => (o & 1 ? 1 : 2)), 1, "BP");
+    expect(asSet).toEqual(merged);
+  });
+
   it("settings: term-size limits choose the terms tested (and so the BH family); significance uses q and fold cut-offs", () => {
     const narrow = greatTest(prepared, regionGenes, "BP", { ...GREAT_DEFAULTS, minGenes: 20, maxGenes: 200 });
     expect(narrow.every((r) => r.K >= 20 && r.K <= 200)).toBe(true);

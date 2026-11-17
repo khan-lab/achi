@@ -17,6 +17,7 @@ import type { OverlapPreset } from "./bedtoolsOptions";
 import { MAX_FILE_BYTES, SUPPORTED_ASSEMBLIES } from "./inputValidation";
 import { LIST_EXTENSION } from "./lists";
 import { MAX_SETS } from "../types";
+import { isSetKey } from "./selection";
 
 type PairwiseStat = "jaccard" | "fisher" | "reldist";
 
@@ -163,7 +164,8 @@ export function parseLink(hash: string, opts: { ownOrigin?: string } = {}): Pars
           .split(",")
           .filter(Boolean)
           .map(Number)
-          .filter((n) => Number.isInteger(n) && n > 0);
+          // Subset masks, or whole sets by their negative key (lib/selection.ts).
+          .filter((n) => Number.isInteger(n) && (n > 0 || isSetKey(n)));
         break;
       default:
         break; // unknown parameters (tracking tags, later versions) are ignored

@@ -15,6 +15,7 @@ import {
   type EllipseSpec,
 } from "../lib/venn";
 import { truncateToWidth } from "../lib/textMeasure";
+import { setKey } from "../lib/selection";
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -145,9 +146,35 @@ export function VennPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | 
           const [ux, uy] = dist > 1 ? [dx / dist, dy / dist] : [0, -1];
           const labelX = clamp(farPoint.x + ux * 14, 24, WIDTH - 24);
           const labelY = clamp(farPoint.y + uy * 14, 14, canvasHeight - 6);
+          // The set's name selects the whole set (lib/selection.ts): its own regions, next to any subsets.
+          const key = setKey(i);
+          const isSel = selected.has(key);
           return (
-            <text key={s.id} x={labelX} y={labelY} textAnchor="middle" fontSize={SET_LABEL_FONT_SIZE} fontFamily="monospace" fill={INK}>
-              <title>{s.name}</title>
+            <text
+              key={s.id}
+              x={labelX}
+              y={labelY}
+              textAnchor="middle"
+              fontSize={SET_LABEL_FONT_SIZE}
+              fontFamily="monospace"
+              fontWeight={isSel ? 700 : 400}
+              fill={isSel ? ACCENT_INK : INK}
+              textDecoration={isSel ? "underline" : undefined}
+              className="selectable"
+              style={{ cursor: "pointer" }}
+              role="button"
+              tabIndex={0}
+              aria-pressed={isSel}
+              aria-label={`All of ${s.name}: ${fmt(s.nRegions)} ${s.items ? "names" : "regions"}`}
+              onClick={() => toggleSelected(key)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleSelected(key);
+                }
+              }}
+            >
+              <title>{`${s.name}\nClick to ${isSel ? "deselect" : "select"} the whole set`}</title>
               {truncateToWidth(s.name, SET_LABEL_MAX_W, SET_LABEL_FONT_SIZE)}
             </text>
           );

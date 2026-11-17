@@ -10,7 +10,9 @@
  * paragraph per further analysis that was run (enrichment, GO), each with
  * its references.
  */
+import type { ProfileParams } from "./signalMatrix";
 import type { OverlapPreset } from "./bedtoolsOptions";
+import { setKey } from "./selection";
 
 export type InputMode = "regions" | "lists";
 
@@ -33,6 +35,8 @@ export interface SavedSubset {
   /** Names of the sets in this subset. */
   memberNames: string[];
   n: number;
+  /** A whole set selected as a group (lib/selection.ts): memberNames holds its one name. */
+  whole?: boolean;
 }
 
 export interface AnalysisSettings {
@@ -109,7 +113,7 @@ export function parseSettings(text: string): AnalysisSettings | { error: string 
 /**
  * The saved selection as subset masks of the loaded sets: bit i is the i-th
  * included set (lib/intervals.ts), matched by set name, so the loading order
- * does not matter. Subsets whose sets are not all loaded are listed.
+ * does not matter. A saved whole set becomes its set key (lib/selection.ts). Subsets whose sets are not all loaded are listed.
  */
 export function selectionFromSettings(s: AnalysisSettings, includedNames: string[]): { masks: number[]; missing: string[] } {
   const masks: number[] = [];
@@ -117,7 +121,7 @@ export function selectionFromSettings(s: AnalysisSettings, includedNames: string
   for (const sub of s.selected) {
     const bits = sub.memberNames.map((n) => includedNames.indexOf(n));
     if (bits.some((b) => b < 0)) missing.push(sub.label);
-    else masks.push(bits.reduce((m, b) => m | (1 << b), 0));
+    else masks.push(sub.whole ? setKey(bits[0]) : bits.reduce((m, b) => m | (1 << b), 0));
   }
   return { masks, missing };
 }
@@ -151,6 +155,7 @@ export interface MethodsExtra {
 }
 
 const REF = {
+  deeptools: "Ramírez F, Ryan DP, Grüning B, Bhardwaj V, Kilpert F, Richter AS, Heyne S, Dündar F, Manke T. deepTools2: a next generation web server for deep-sequencing data analysis. Nucleic Acids Res. 2016;44(W1):W160–W165. doi:10.1093/nar/gkw257",
   intervene: "Khan A, Mathelier A. Intervene: a tool for intersection and visualization of multiple gene or genomic region sets. BMC Bioinformatics. 2017;18:287. doi:10.1186/s12859-017-1708-7",
   bedtools: "Quinlan AR, Hall IM. BEDTools: a flexible suite of utilities for comparing genomic features. Bioinformatics. 2010;26(6):841–842. doi:10.1093/bioinformatics/btq033",
   blacklist: "Amemiya HM, Kundaje A, Boyle AP. The ENCODE Blacklist: identification of problematic regions of the genome. Sci Rep. 2019;9:9354. doi:10.1038/s41598-019-45839-z",
@@ -199,7 +204,10 @@ export function methodsText(s: AnalysisSettings, extras: MethodsExtra[]): string
     );
   }
   if (excluded.length) p[0] += ` ${excluded.length === 1 ? "One further input was" : `${excluded.length} further inputs were`} loaded but left out of the comparison: ${excluded.map((x) => x.name).join(", ")}.`;
-  if (s.selected.length) p.push(`The subsets selected for further analysis were ${s.selected.map((x) => `${x.label} (${fmt(x.n)} ${unit})`).join(", ")}.`);
+  if (s.selected.length)
+    p.push(
+      `The ${s.selected.some((x) => x.whole) ? "subsets and whole sets" : "subsets"} selected for further analysis were ${s.selected.map((x) => `${x.whole ? `all of ${x.memberNames[0]}` : x.label} (${fmt(x.n)} ${unit})`).join(", ")}.`
+    );
   for (const e of extras) p.push(e.methods);
 
   const refs = [REF.intervene, ...(lists ? [] : [REF.bedtools]), ...(!lists && s.blacklistFilter ? [REF.blacklist] : []), ...extras.flatMap((e) => e.references)];
@@ -268,6 +276,47 @@ export function enrichmentMethods(r: { adjust: boolean; referenceNames: string[]
   };
 }
 
+/** Signal profiles over the selected subsets (components/SignalProfilePanel.tsx), as run. */
+export function signalMethods(r: {
+  params: ProfileParams;
+  nRegions: number;
+  tracks: string[];
+  sort: "desc" | "asc" | "keep";
+  k: number;
+  nGroups: number;
+  /** Public bigWigs: `level` when read privately from a summary layer, absent when read exactly. */
+  public?: { name: string; host: string; level?: number }[];
+}): MethodsExtra {
+  const p = r.params;
+  const kb = (n: number) => (n >= 1000 ? `${+(n / 1000).toFixed(2)} kb` : `${n} bp`);
+  const point = { start: "start", center: "centre", end: "end" }[p.referencePoint];
+  const layout =
+    p.mode === "scale"
+      ? `in scale-regions mode (each region scaled to ${kb(p.body)}, with ${kb(p.upstream)} upstream and ${kb(p.downstream)} downstream, in ${p.binSize} bp bins)`
+      : `in reference-point mode, ${kb(p.upstream)} upstream and ${kb(p.downstream)} downstream of each region's ${point}, in ${p.binSize} bp bins`;
+  const sort = r.sort === "keep" ? "Rows are in file order." : `Rows were sorted by mean signal, ${r.sort === "desc" ? "highest" : "lowest"} mean signal first.`;
+  const kmeans = r.k > 1 ? ` Rows were clustered by k-means (k = ${r.k}; Euclidean distance over all tracks' bins, bins without data as 0; k-means++ initialisation with a fixed seed; Lloyd's iterations).` : "";
+  const test =
+    r.nGroups > 1
+      ? ` For each track, the mean signal over each region's own bases was compared between subsets with the two-sided Mann–Whitney U test (normal approximation with tie and continuity correction)${r.nGroups > 2 ? ", for every pair of subsets, with Benjamini–Hochberg adjustment across the pairs of each track" : ""}.`
+      : "";
+  const pub = (r.public ?? [])
+    .map((t) =>
+      t.level
+        ? ` ${t.name} was read from its ${t.level.toLocaleString("en-US")} bp summary (zoom) layer, downloaded for the whole genome from ${t.host} (no region-specific requests), each layer interval weighted by its length; its bins are therefore at ${t.level.toLocaleString("en-US")} bp resolution.`
+        : ` ${t.name} was read at base resolution by HTTP range requests to ${t.host}.`
+    )
+    .join("");
+  return {
+    methods:
+      `Signal profiles of ${r.nRegions.toLocaleString("en-US")} regions of the selected subsets were computed in the browser from the bigWig files ${r.tracks.join(", ")}, ` +
+      `with Intervene Secure's reimplementation of deepTools computeMatrix (Ramírez et al., 2016; checked against deepTools 4.0.0) ${layout}. ` +
+      `Each bin is the mean signal over its bases with data; bins without data were ${p.missingAsZero ? "counted as 0" : "treated as missing and left out of the averages"}. ` +
+      `Profiles show the mean ± standard error per bin for each subset.${pub} ${sort}${kmeans}${test}`,
+    references: [REF.deeptools],
+  };
+}
+
 export interface GoMethodsInput {
   method: "great" | "cistromego";
   background: "genome" | "inputs";
@@ -308,7 +357,7 @@ export function goMethods(g: GoMethodsInput): MethodsExtra {
 /** GENCODE release of the bundled gene annotation, per assembly (docs/provenance.md). */
 const GENCODE: Record<string, string> = { hg38: "v50", hg19: "v19", mm10: "vM25", mm9: "vM1" };
 
-/** "Genes near the selected subsets" (components/GeneListPanel.tsx). */
+/** Nearest genes of the selected subsets and sets (components/nearestGenes.ts, the Genes tab of each card in the right-hand column). */
 export function geneListMethods(assembly: string): MethodsExtra {
   return {
     methods:

@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useStore } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, fitCount, truncateToWidth } from "../lib/textMeasure";
+import { setKey } from "../lib/selection";
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -137,7 +138,9 @@ export function UpSetPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement |
   // overlay (.upset-pin, position: sticky) so it stays visible while the bars
   // scroll sideways. The overlay sits exactly on top of the original, so at
   // scrollLeft 0 the two coincide.
-  const leftBlock = (
+  // A set's size bar and name select the whole set (lib/selection.ts): its own regions, next to any subsets.
+  // Both copies take clicks (the pinned one sits on top); only the main one is in the tab order.
+  const leftBlock = (focusable: boolean) => (
     <>
       <text
         x={14}
@@ -169,14 +172,30 @@ export function UpSetPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement |
         const rowY = firstRowY + r * ROW_H;
         const barLen = (set.nRegions / maxSetSize) * SET_BAR_MAX_W;
         const barX = SET_BAR_RIGHT - barLen;
+        const key = setKey(r);
+        const isSel = selected.has(key);
         return (
-          <g key={set.id}>
-            <title>{`${set.name} — ${size(set.nRegions, set.nBp)}`}</title>
-            <rect x={barX} y={rowY - SET_BAR_H / 2} width={barLen} height={SET_BAR_H} rx={2} fill={set.color} opacity={0.75} />
-            <text x={barX - 4} y={rowY + 4} textAnchor="end" fontSize={SET_NUM_FONT_SIZE} fontFamily="monospace" fill={INK_3}>
+          <g
+            key={set.id}
+            className="selectable"
+            style={{ cursor: "pointer" }}
+            {...(focusable ? { role: "button", tabIndex: 0, "aria-pressed": isSel, "aria-label": `All of ${set.name}: ${size(set.nRegions, set.nBp)}` } : {})}
+            onClick={() => toggleSelected(key)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleSelected(key);
+              }
+            }}
+          >
+            <title>{`${set.name} — ${size(set.nRegions, set.nBp)}\nClick to ${isSel ? "deselect" : "select"} the whole set`}</title>
+            {/* hit area: the whole row of the left block */}
+            <rect x={4} y={rowY - ROW_H / 2} width={labelRight - 2} height={ROW_H} fill="transparent" />
+            <rect x={barX} y={rowY - SET_BAR_H / 2} width={barLen} height={SET_BAR_H} rx={2} fill={set.color} opacity={isSel ? 1 : 0.75} stroke={isSel ? INK : "none"} strokeWidth={isSel ? 1.5 : 0} />
+            <text x={barX - 4} y={rowY + 4} textAnchor="end" fontSize={SET_NUM_FONT_SIZE} fontFamily="monospace" fill={isSel ? INK : INK_3}>
               {fmt(set.nRegions)}
             </text>
-            <text x={labelRight} y={rowY + 4} textAnchor="end" fontSize={LABEL_FONT_SIZE} fill={INK_3}>
+            <text x={labelRight} y={rowY + 4} textAnchor="end" fontSize={LABEL_FONT_SIZE} fill={isSel ? INK : INK_3} fontWeight={isSel ? 600 : 400}>
               {truncateToWidth(set.name, labelW, LABEL_FONT_SIZE)}
             </text>
           </g>
@@ -194,12 +213,12 @@ export function UpSetPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement |
           <div className="upset-pin" aria-hidden="true">
             <svg width={leftMargin} height={height} viewBox={`0 0 ${leftMargin} ${height}`}>
               <rect x={0} y={0} width={leftMargin} height={height} fill={PAPER} />
-              {leftBlock}
+              {leftBlock(false)}
             </svg>
           </div>
           <svg ref={ref} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="UpSet plot">
             <rect x={0} y={0} width={width} height={height} fill={PAPER} />
-            {leftBlock}
+            {leftBlock(true)}
             <line x1={axisX} y1={baseline} x2={width - RIGHT_PAD} y2={baseline} stroke={LINE_STRONG} strokeWidth={1} />
             {shown.map((s, i) => {
               const isSel = selected.has(s.mask);

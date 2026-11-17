@@ -217,3 +217,39 @@ export function hypergeometricUpper(j: number, N: number, K: number, m: number):
   const lower = Math.exp(logTail(logPmf(j - 1), j - 1, lo, -1, (x) => 1 / up(x - 1)));
   return Math.min(1, Math.max(0, 1 - lower));
 }
+
+/**
+ * Two-sided Mann–Whitney U test (Wilcoxon rank-sum) of x against y, by the
+ * normal approximation with the tie correction and a 0.5 continuity
+ * correction: SciPy's `mannwhitneyu(x, y, alternative="two-sided",
+ * method="asymptotic", use_continuity=True)`. `U` is x's statistic,
+ * R₁ − n₁(n₁+1)/2. NaN values are dropped. Used for the per-region signal
+ * summary (components/SignalProfilePanel.tsx), where groups hold tens to
+ * thousands of regions, so the exact distribution is not needed.
+ */
+export function mannWhitneyU(xs: number[], ys: number[]): { U: number; p: number; n1: number; n2: number } {
+  const x = xs.filter((v) => !Number.isNaN(v));
+  const y = ys.filter((v) => !Number.isNaN(v));
+  const n1 = x.length;
+  const n2 = y.length;
+  if (!n1 || !n2) return { U: NaN, p: 1, n1, n2 };
+  const all = [...x.map((v) => ({ v, g: 0 })), ...y.map((v) => ({ v, g: 1 }))].sort((a, b) => a.v - b.v);
+  const n = n1 + n2;
+  let r1 = 0;
+  let tieSum = 0;
+  for (let i = 0; i < n; ) {
+    let j = i;
+    while (j + 1 < n && all[j + 1].v === all[i].v) j++;
+    const rank = (i + j + 2) / 2; // ranks are 1-based; ties share the average
+    const t = j - i + 1;
+    tieSum += t * t * t - t;
+    for (let k = i; k <= j; k++) if (all[k].g === 0) r1 += rank;
+    i = j + 1;
+  }
+  const U = r1 - (n1 * (n1 + 1)) / 2;
+  const mu = (n1 * n2) / 2;
+  const variance = ((n1 * n2) / 12) * (n + 1 - tieSum / (n * (n - 1)));
+  if (!(variance > 0)) return { U, p: 1, n1, n2 };
+  const z = (Math.max(U, n1 * n2 - U) - mu - 0.5) / Math.sqrt(variance);
+  return { U, p: z > 0 ? Math.min(1, chiSquare1Upper(z * z)) : 1, n1, n2 };
+}

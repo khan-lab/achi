@@ -69,6 +69,10 @@ describe("genomeTracks", () => {
       ["Subset: Heart & Liver", "#93989d", 4],
     ]);
   });
+  it("names a selected whole set as a set, in its own colour", () => {
+    const whole = { mask: -2, label: "Liver (all)", memberIds: ["b"], regions: LIVER, whole: true };
+    expect(genomeTracks(sets, [...subsets, whole], new Set([-2]), { includeSets: false }).map((t) => [t.key, t.name, t.color, t.regions.length])).toEqual([["subset:-2", "Set: Liver (all)", "#C2611A", LIVER.length]]);
+  });
   it("can leave the input sets out, showing only the selected subsets", () => {
     expect(genomeTracks(sets, subsets, new Set([1, 3]), { includeSets: false }).map((t) => t.name)).toEqual(["Subset: Heart only", "Subset: Heart & Liver"]);
   });

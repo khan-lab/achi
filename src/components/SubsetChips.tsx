@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useStore, type View } from "../state/store";
+import { useChosenGroups, useStore, type View } from "../state/store";
 import { Icon } from "./Icon";
 
 function fmt(n: number): string {
@@ -8,8 +8,8 @@ function fmt(n: number): string {
 
 /** How to select on each view; the current view's way is listed first. */
 const HOW: { view: View; text: ReactNode }[] = [
-  { view: "upset", text: <><b>UpSet:</b> click a bar or its column of dots.</> },
-  { view: "venn", text: <><b>Venn:</b> click a number inside the diagram.</> },
+  { view: "upset", text: <><b>UpSet:</b> click a bar or its column of dots; click a set's size bar or name for the whole set.</> },
+  { view: "venn", text: <><b>Venn:</b> click a number inside the diagram; click a set's name for the whole set.</> },
   { view: "table", text: <><b>Table:</b> click a row.</> },
 ];
 
@@ -22,10 +22,10 @@ function EmptyHint({ view, hasSubsets }: { view: View; hasSubsets: boolean }) {
   return (
     <div className="selhint">
       <div className="selhint-lead">
-        Nothing selected yet. Select one or more intersection subsets to {listMode ? "see their names and export them" : "annotate, test for enrichment and export them"}.
+        Nothing selected yet. Select one or more intersection subsets, or whole sets, to {listMode ? "see their names and export them" : "annotate, test for enrichment and export them"}.
       </div>
       {view === "pairwise" && <div>The pairwise heatmap compares whole sets; switch to UpSet, Venn or Table to select subsets.</div>}
-      {view === "browser" && <div>The genome browser shows selected subsets as tracks; switch to UpSet, Venn or Table to select them.</div>}
+      {view === "browser" && <div>The genome browser shows selected subsets and sets as tracks; switch to UpSet, Venn or Table to select them.</div>}
       <ul>
         {ordered.map((h) => (
           <li key={h.view} className={h.view === view ? "here" : undefined}>
@@ -33,7 +33,7 @@ function EmptyHint({ view, hasSubsets }: { view: View; hasSubsets: boolean }) {
           </li>
         ))}
       </ul>
-      <div>Click again to deselect; each click adds a subset, so several can be compared.</div>
+      <div>Click again to deselect; each click adds a subset or set, so several can be compared.</div>
     </div>
   );
 }
@@ -41,12 +41,11 @@ function EmptyHint({ view, hasSubsets }: { view: View; hasSubsets: boolean }) {
 export function SubsetChips({ view }: { view: View }) {
   const setView = useStore((s) => s.setView);
   const subsets = useStore((s) => s.subsets);
-  const selected = useStore((s) => s.selected);
   const toggleSelected = useStore((s) => s.toggleSelected);
   const clearSelected = useStore((s) => s.clearSelected);
   const exportSubsetBed = useStore((s) => s.exportSubsetBed);
 
-  const chosen = [...selected].map((m) => subsets.find((s) => s.mask === m)).filter((s) => s !== undefined);
+  const chosen = useChosenGroups();
 
   if (!chosen.length) {
     return <EmptyHint view={view} hasSubsets={subsets.length > 0} />;

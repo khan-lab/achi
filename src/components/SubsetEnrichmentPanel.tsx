@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { color as d3color, interpolateLab } from "d3";
-import { useStore } from "../state/store";
+import { useChosenGroups, useStore } from "../state/store";
+import { chosenGroups } from "../lib/selection";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
 import {
@@ -73,7 +74,6 @@ let lastResult: RunResult | null = null;
 
 export function SubsetEnrichmentPanel() {
   const subsets = useStore((s) => s.subsets);
-  const selected = useStore((s) => s.selected);
   const sets = useStore((s) => s.sets);
   const assembly = useStore((s) => s.assembly);
   const mainStatus = useStore((s) => s.status);
@@ -83,7 +83,7 @@ export function SubsetEnrichmentPanel() {
   const [error, setError] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
-  const chosen = subsets.filter((s) => selected.has(s.mask));
+  const chosen = useChosenGroups();
   const annotations = testableAnnotations(assembly, sets);
   // Reference sets left out because they are analysed input sets.
   const skipped = testableAnnotations(assembly, []).filter((a) => !annotations.includes(a)).map((a) => a.setName);
@@ -115,7 +115,8 @@ export function SubsetEnrichmentPanel() {
 
   const shown = result;
   const cellOf = (mask: number, id: string) => shown?.cells.find((c) => c.mask === mask && c.annotationId === id);
-  const subsetOf = (mask: number) => subsets.find((s) => s.mask === mask);
+  // A whole set (negative key) is tested as every subset it is a member of: lib/selection.ts inGroup.
+  const subsetOf = (mask: number) => chosenGroups([mask], subsets, sets.filter((s) => s.included))[0];
 
   /** The run as a TSV: also what the analysis export takes (lib/exportRegistry.ts). */
   const tsvText = (r: RunResult) => {
@@ -173,7 +174,7 @@ export function SubsetEnrichmentPanel() {
       </div>
 
       <div className="hint" style={{ margin: "0 0 10px" }}>
-        Compares each selected subset with all other regions of this analysis (the background): what sets the subset apart within
+        Compares each selected subset or set with all other regions of this analysis (the background): what sets it apart within
         your experiment.{" "}
         Tests {annotations.length} reference set{annotations.length === 1 ? "" : "s"} for{" "}
         {assembly}; the first run downloads them (cached afterwards). Nothing is uploaded.
@@ -270,7 +271,7 @@ function EnrichmentHeatmap({
                 if (!c) return null;
                 const fill = cellColor(c.oddsRatio);
                 const t = c.table;
-                const tip = `${subsetOf(m)?.label} × ${a.name}\nodds ratio ${fmtOr(c.oddsRatio)} · p ${fmtP(c.p)} · q ${fmtP(c.q)}\n${t[0].toLocaleString()} of ${(t[0] + t[1]).toLocaleString()} subset regions hit, vs ${t[2].toLocaleString()} of ${(t[2] + t[3]).toLocaleString()} other regions`;
+                const tip = `${subsetOf(m)?.label} × ${a.name}\nodds ratio ${fmtOr(c.oddsRatio)} · p ${fmtP(c.p)} · q ${fmtP(c.q)}\n${t[0].toLocaleString()} of ${(t[0] + t[1]).toLocaleString()} ${m < 0 ? "regions of the set's subsets" : "subset regions"} hit, vs ${t[2].toLocaleString()} of ${(t[2] + t[3]).toLocaleString()} other regions`;
                 return (
                   <g key={m}>
                     <title>{tip}</title>

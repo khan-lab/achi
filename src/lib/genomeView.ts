@@ -69,7 +69,7 @@ export function contigsFromSizes(sizes: ChromSizes): Contig[] {
  */
 export function genomeTracks(
   sets: { id: string; name: string; color: string; included: boolean; regions: Interval[] }[],
-  subsets: { mask: number; label: string; memberIds: string[]; regions: Interval[] }[],
+  subsets: { mask: number; label: string; memberIds: string[]; regions: Interval[]; whole?: boolean }[],
   selected: ReadonlySet<number>,
   opts: {
     includeSets?: boolean;
@@ -83,7 +83,7 @@ export function genomeTracks(
     if (!selected.has(s.mask)) continue;
     const color = s.memberIds.length === 1 ? (sets.find((x) => x.id === s.memberIds[0])?.color ?? SHARED_SUBSET_COLOR) : SHARED_SUBSET_COLOR;
     // "∩" -> "&": GenomeSpy's built-in font has no ∩ glyph and would draw "?".
-    tracks.push({ key: `subset:${s.mask}`, name: `Subset: ${s.label.replaceAll("∩", "&")}`, color, regions: s.regions });
+    tracks.push({ key: `subset:${s.mask}`, name: `${s.whole ? "Set" : "Subset"}: ${s.label.replaceAll("∩", "&")}`, color, regions: s.regions });
   }
   for (const r of opts.refs ?? []) tracks.push({ key: `ref:${r.key}`, name: `Ref: ${r.name}`, color: REF_TRACK_COLOR, regions: r.regions });
   for (const l of opts.locals ?? []) tracks.push({ key: `local:${l.key}`, name: `Local: ${l.name}`, color: LOCAL_TRACK_COLOR, regions: l.regions });

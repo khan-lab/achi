@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { useStore, type LoadedSet } from "../state/store";
+import { useChosenGroups, useStore, type LoadedSet } from "../state/store";
+import { inGroup } from "../lib/selection";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
 import { parseChromSizes } from "../lib/inputValidation";
@@ -157,7 +158,7 @@ const saved = {
 
 export function GoEnrichmentPanel() {
   const allSubsets = useStore((s) => s.subsets);
-  const selected = useStore((s) => s.selected);
+  const chosen = useChosenGroups();
   const assembly = useStore((s) => s.assembly);
   const sets = useStore((s) => s.sets);
   const mainStatus = useStore((s) => s.status);
@@ -182,7 +183,6 @@ export function GoEnrichmentPanel() {
   const background = great.background;
   const setCgo = (s: CistromeGoSettings) => setCgoState((saved.cgo = s));
 
-  const chosen = [...selected].map((m) => allSubsets.find((s) => s.mask === m)).filter((s) => s !== undefined);
   const universeSig = allSubsets.map((s) => `${s.mask}:${s.nRegions}:${s.nBp}`).join(",");
   const settings = method === "great" ? great : cgo;
   const key = [method, ns, assembly, chosen.map((s) => s.mask).join("|"), universeSig, JSON.stringify(settings), sets.map((s) => s.contentKey).join(",")].join("#");
@@ -256,7 +256,11 @@ export function GoEnrichmentPanel() {
           const summary =
             background === "genome"
               ? `${nSig} significant term${nSig === 1 ? "" : "s"} (binomial and hypergeometric q < ${q}, fold ≥ ${great.minFold}) · ${n.toLocaleString()} regions · domains ${rule}`
-              : `${nSig} significant term${nSig === 1 ? "" : "s"} (q < ${q}, enriched) · ${s.nRegions.toLocaleString()} subset regions vs ${(owner!.length - s.nRegions).toLocaleString()} others · domains ${rule}`;
+              : (() => {
+                  // A whole set is tested as the subsets it is a member of (each locus once): count those, not the set's own regions.
+                  const nS = owner!.reduce((k, o) => k + (inGroup(o, s.mask) ? 1 : 0), 0);
+                  return `${nSig} significant term${nSig === 1 ? "" : "s"} (q < ${q}, enriched) · ${nS.toLocaleString()} ${s.whole ? "regions of the set's subsets" : "subset regions"} vs ${(owner!.length - nS).toLocaleString()} others · domains ${rule}`;
+                })();
           out.push({ mask: s.mask, label: s.label, color: PALETTE[i % PALETTE.length], rows, summary });
         }
       } else {
@@ -492,7 +496,7 @@ const ResultView = memo(function ResultView({ result, active, stale, onSelect }:
 
 /* ---------- settings ---------- */
 
-function NumField(props: { label: string; value: number; def: number; scale?: number; unit?: string; min: number; max: number; step?: number; help?: string; onChange: (v: number) => void }) {
+export function NumField(props: { label: string; value: number; def: number; scale?: number; unit?: string; min: number; max: number; step?: number; help?: string; onChange: (v: number) => void }) {
   const { label, value, def, scale = 1, unit, min, max, step = 1, help, onChange } = props;
   const shown = String(+(value / scale).toPrecision(6));
   const [text, setText] = useState(shown);
@@ -537,7 +541,7 @@ function NumField(props: { label: string; value: number; def: number; scale?: nu
   );
 }
 
-function SettingsShell({ nChanged, onReset, children }: { nChanged: number; onReset: () => void; children: React.ReactNode }) {
+export function SettingsShell({ nChanged, onReset, children }: { nChanged: number; onReset: () => void; children: React.ReactNode }) {
   return (
     <details className="gosettings">
       <summary>

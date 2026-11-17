@@ -1,4 +1,5 @@
 import { benjaminiHochberg, binomialUpper, fisherExact, hypergeometricUpper, oddsRatio } from "./stats";
+import { inGroup } from "./selection";
 
 /**
  * GREAT-style GO enrichment, implemented exactly as specified in
@@ -382,7 +383,7 @@ export function inputsGoTest(
   let nS = 0;
   let nRest = 0;
   universeGenes.forEach((genes, r) => {
-    const mine = owner[r] === mask;
+    const mine = inGroup(owner[r], mask);
     if (mine) nS++;
     else nRest++;
     for (const g of genes ?? []) {

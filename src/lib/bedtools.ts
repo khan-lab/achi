@@ -85,7 +85,7 @@ export async function init(): Promise<AioliInstance> {
 // it means bedtools' own internal static/global option-parsing state is
 // never reset between commands. Confirmed by direct repro: a `bedtools
 // summary` call followed by an unrelated `bedtools closest -d -t all` call
-// (real sequence: SummaryPlot then GeneListPanel computing for the same
+// (real sequence: SummaryPlot then useNearestGenes (components/nearestGenes.ts) computing for the same
 // selected subset) makes the *second* command misparse its own argv —
 // bedtools prints its full usage text and a "-fu or -fd" flag error for
 // flags neither call ever passed. It's deterministic (not a race — calls

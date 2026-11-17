@@ -226,7 +226,7 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
           fill: PAPER,
           alpha: 0,
           main: "n/a",
-          title: `${row.name} → ${col.name} — bedtools fisher could not estimate this pair (its interval-count model breaks down when interval sizes differ greatly). Use Jaccard, or Enrichment of selected subsets.`,
+          title: `${row.name} → ${col.name} — bedtools fisher could not estimate this pair (its interval-count model breaks down when interval sizes differ greatly). Use Jaccard, or Enrichment of selected subsets and sets.`,
         };
       }
       const negLog = negLog10Clamped(r.twoTailP);

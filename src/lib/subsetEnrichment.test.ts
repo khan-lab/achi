@@ -55,6 +55,13 @@ describe("enrichmentCounts", () => {
       [1, 1, 0, 1],
     ]);
   });
+  it("a whole set (negative key, lib/selection.ts) is every subset it is a member of", () => {
+    // Subsets 1 (A only), 3 (A ∩ B), 2 (B only); set A is key -1: owners 1 and 3.
+    const owner = Int32Array.from([1, 3, 3, 2, 2]);
+    const hits = Uint8Array.from([1, 1, 0, 1, 0]);
+    expect(enrichmentCounts(owner, hits, -1).table).toEqual([2, 1, 1, 1]);
+    expect(enrichmentCounts(owner, hits, -2).table).toEqual([2, 2, 1, 0]);
+  });
 });
 
 describe("testableAnnotations", () => {

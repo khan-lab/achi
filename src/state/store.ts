@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useMemo } from "react";
 import * as intervals from "../lib/intervals";
 import { computeSubsetsViaBedtools, forgetSet, subsetToBedText, type PipelineProgress } from "../lib/pipeline";
 import { resolveOverlapFlags, type OverlapPreset } from "../lib/bedtoolsOptions";
@@ -21,8 +22,10 @@ import {
   type SavedSubset,
 } from "../lib/analysisExport";
 import { collectExports } from "../lib/exportRegistry";
+import { bigWigFor } from "../lib/bigwigSource";
 import { fetchFailureMessage, matchGzipName, type LinkSettings, type ParsedLink } from "../lib/shareLink";
 import { svgToStandaloneString } from "../lib/exportImage";
+import { chosenGroups, remapSelection, validSelection } from "../lib/selection";
 import {
   InputValidationError,
   SUPPORTED_ASSEMBLIES,
@@ -71,6 +74,17 @@ export interface LoadedSet extends RegionSet {
   sourceUrl?: string;
 }
 
+/** A bigWig for signal profiles (components/SignalProfilePanel.tsx): read in the page, never uploaded. */
+export interface SignalTrack {
+  id: string;
+  name: string;
+  /** A file on the user's computer (or the bundled example). */
+  file?: File;
+  /** A public https bigWig (lib/remoteSignal.ts): read privately (summary layer) or exactly. */
+  url?: string;
+  source: "local" | "example" | "public";
+}
+
 interface StoreState {
   /** Genomic regions (bedtools) or lists of names (lib/lists.ts, exact match). Switching clears the loaded sets. */
   inputMode: InputMode;
@@ -78,6 +92,8 @@ interface StoreState {
   pendingSelection: SavedSubset[] | null;
   /** Files named by the link this page was opened with, waiting for the user to agree to download them (components/LinkDialog.tsx). */
   linkRequest: ParsedLink | null;
+  /** bigWigs for signal profiles, kept for the page session. */
+  signalTracks: SignalTrack[];
   sets: LoadedSet[];
   subsets: Subset[];
   selected: Set<number>;
@@ -149,6 +165,13 @@ interface StoreState {
   /** The user agreed: download the link's files and compare them. */
   acceptLink: () => Promise<void>;
   declineLink: () => void;
+  /** Checks each file is a bigWig and adds it for signal profiles (names the ones that are not). */
+  addSignalFiles: (files: File[], source?: "local" | "example", names?: string[]) => Promise<void>;
+  removeSignalTrack: (id: string) => void;
+  /** Public bigWigs by URL (the genome browser's catalogue, or pasted); nothing is fetched until a profile is computed. */
+  addPublicSignal: (tracks: { name: string; url: string }[]) => void;
+  /** The example H3K27ac signal for the example cell lines (public/examples/signal). */
+  loadExampleSignal: () => Promise<void>;
 }
 
 function labelSubsets(raw: { mask: number; memberIds: string[]; regions: Interval[]; nRegions: number; nBp: number; items?: string[] }[], sets: LoadedSet[]): Subset[] {
@@ -397,12 +420,19 @@ let nextId = 0;
 
 export const useStore = create<StoreState>((set, get) => {
   /** Recompute subsets for `sets` and keep only selections that still exist. */
+  /** The selection after a recompute: subsets and whole sets follow their sets, by id, from `before`'s included sets to `sets`' (lib/selection.ts). */
+  const keepSelection = (before: RegionSet[], sets: RegionSet[], subsets: Subset[]) => {
+    const after = sets.filter((s) => s.included);
+    return validSelection(remapSelection(get().selected, before.filter((s) => s.included), after), subsets, after);
+  };
+
   const rerunWith = async (sets: LoadedSet[]) => {
+    const before = get().sets;
     try {
       set({ sets, status: "running" });
       const flags = resolveOverlapFlags(get().overlapPreset, get().advancedBedtoolsOptions);
       const result = await recompute(sets, flags, (p) => set({ progress: p }));
-      const stillValid = new Set([...get().selected].filter((m) => result.subsets.some((s) => s.mask === m)));
+      const stillValid = keepSelection(before, result.sets, result.subsets);
       set({ ...result, selected: stillValid, status: "done", progress: null });
     } catch (err) {
       set({ error: err instanceof Error ? err.message : String(err), status: "error", progress: null });
@@ -413,6 +443,7 @@ export const useStore = create<StoreState>((set, get) => {
   inputMode: "regions",
   pendingSelection: null,
   linkRequest: null,
+  signalTracks: [],
   sets: [],
   subsets: [],
   selected: new Set(),
@@ -526,13 +557,14 @@ export const useStore = create<StoreState>((set, get) => {
 
   removeSet: (id) => {
     void (async () => {
-      const remaining = get().sets.filter((s) => s.id !== id);
+      const before = get().sets;
+      const remaining = before.filter((s) => s.id !== id);
       forgetSet(id);
       forgetBlacklist(id);
       set({ status: "running" });
       const flags = resolveOverlapFlags(get().overlapPreset, get().advancedBedtoolsOptions);
       const { sets, subsets, usedFallback, fallbackOverlapUnsupported } = await recompute(remaining, flags, (p) => set({ progress: p }));
-      const stillValid = new Set([...get().selected].filter((m) => subsets.some((s) => s.mask === m)));
+      const stillValid = keepSelection(before, sets, subsets);
       set({ sets, subsets, usedFallback, fallbackOverlapUnsupported, selected: stillValid, status: "done", progress: null });
     })();
   },
@@ -562,11 +594,12 @@ export const useStore = create<StoreState>((set, get) => {
 
   toggleIncluded: (id) => {
     void (async () => {
-      const toggled = get().sets.map((s) => (s.id === id ? { ...s, included: !s.included } : s));
+      const before = get().sets;
+      const toggled = before.map((s) => (s.id === id ? { ...s, included: !s.included } : s));
       set({ sets: toggled, status: "running" });
       const flags = resolveOverlapFlags(get().overlapPreset, get().advancedBedtoolsOptions);
       const { sets, subsets, usedFallback, fallbackOverlapUnsupported } = await recompute(toggled, flags, (p) => set({ progress: p }));
-      const stillValid = new Set([...get().selected].filter((m) => subsets.some((s) => s.mask === m)));
+      const stillValid = keepSelection(before, sets, subsets);
       set({ sets, subsets, usedFallback, fallbackOverlapUnsupported, selected: stillValid, status: "done", progress: null });
     })();
   },
@@ -574,10 +607,11 @@ export const useStore = create<StoreState>((set, get) => {
   setOverlapPreset: (preset) => {
     set({ overlapPreset: preset });
     void (async () => {
+      const before = get().sets;
       set({ status: "running" });
       const flags = resolveOverlapFlags(preset, get().advancedBedtoolsOptions);
       const { sets, subsets, usedFallback, fallbackOverlapUnsupported } = await recompute(get().sets, flags, (p) => set({ progress: p }));
-      const stillValid = new Set([...get().selected].filter((m) => subsets.some((s) => s.mask === m)));
+      const stillValid = keepSelection(before, sets, subsets);
       set({ sets, subsets, usedFallback, fallbackOverlapUnsupported, selected: stillValid, status: "done", progress: null });
     })();
   },
@@ -585,10 +619,11 @@ export const useStore = create<StoreState>((set, get) => {
   setAdvancedBedtoolsOptions: (value) => {
     set({ advancedBedtoolsOptions: value });
     void (async () => {
+      const before = get().sets;
       set({ status: "running" });
       const flags = resolveOverlapFlags(get().overlapPreset, value);
       const { sets, subsets, usedFallback, fallbackOverlapUnsupported } = await recompute(get().sets, flags, (p) => set({ progress: p }));
-      const stillValid = new Set([...get().selected].filter((m) => subsets.some((s) => s.mask === m)));
+      const stillValid = keepSelection(before, sets, subsets);
       set({ sets, subsets, usedFallback, fallbackOverlapUnsupported, selected: stillValid, status: "done", progress: null });
     })();
   },
@@ -679,7 +714,7 @@ export const useStore = create<StoreState>((set, get) => {
 
   exportSelectedBedZip: async () => {
     const { subsets, selected, sets } = get();
-    const chosen = subsets.filter((s) => selected.has(s.mask));
+    const chosen = chosenGroups(selected, subsets, sets.filter((s) => s.included));
     if (!chosen.length) return;
     const { default: JSZip } = await import("jszip");
     const zip = new JSZip();
@@ -702,6 +737,7 @@ export const useStore = create<StoreState>((set, get) => {
             "were removed from every input set before intersecting (bedtools intersect -v).",
           ]
         : []),
+      ...(chosen.some((s) => s.whole) ? ["", `Files ending in -all.${ext} hold a whole input set, as loaded${get().blacklistFilter && hasBlacklist(get().assembly) ? " and filtered" : ""}, not a subset.`] : []),
       "",
       ...chosen.map((s) =>
         get().inputMode === "lists"
@@ -715,7 +751,7 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   exportSubsetBed: (mask) => {
-    const s = get().subsets.find((x) => x.mask === mask);
+    const s = chosenGroups([mask], get().subsets, get().sets.filter((x) => x.included))[0];
     if (!s) return;
     download(new Blob([subsetFileText(s)], { type: "text/plain" }), `${s.code || s.mask}.${s.items ? "txt" : "bed"}`);
   },
@@ -760,7 +796,7 @@ export const useStore = create<StoreState>((set, get) => {
       const zip = new JSZip();
       const mode = st.inputMode;
       const byId = new Map(st.sets.map((x) => [x.id, x]));
-      const chosen = st.subsets.filter((x) => st.selected.has(x.mask));
+      const chosen = chosenGroups(st.selected, st.subsets, st.sets.filter((x) => x.included));
       const settings = buildSettings({
         build: __APP_BUILD__,
         created: new Date().toISOString(),
@@ -775,7 +811,7 @@ export const useStore = create<StoreState>((set, get) => {
         pairwiseStat: st.pairwiseStat,
         view: st.view,
         sets: st.sets.map((x) => ({ name: x.name, fileName: x.fileName, code: x.code, color: x.color, included: x.included, n: x.nRegions, bp: x.nBp, sha256: x.sha256 })),
-        selected: chosen.map((x) => ({ label: x.label, memberNames: x.memberIds.map((id) => byId.get(id)?.name ?? id), n: x.nRegions })),
+        selected: chosen.map((x) => ({ label: x.label, memberNames: x.memberIds.map((id) => byId.get(id)?.name ?? id), n: x.nRegions, ...(x.whole ? { whole: true } : {}) })),
       });
       const extras = collectExports();
       zip.file("settings.json", JSON.stringify(settings, null, 2) + "\n");
@@ -858,7 +894,7 @@ export const useStore = create<StoreState>((set, get) => {
     if (!pending || included.length < 2 || !get().subsets.length) return;
     // Matched by set names (lib/analysisExport.ts); re-applied as more files load, until every saved subset is found.
     const { masks, missing } = selectionFromSettings({ selected: pending } as AnalysisSettings, included.map((x) => x.name));
-    const found = masks.filter((m) => get().subsets.some((x) => x.mask === m));
+    const found = [...validSelection(masks, get().subsets, included)];
     set({ selected: new Set(found), pendingSelection: missing.length ? pending : null });
   },
 
@@ -873,6 +909,46 @@ export const useStore = create<StoreState>((set, get) => {
       ...(s.upsetMinSize !== undefined ? { upsetMinSize: s.upsetMinSize } : {}),
       ...(s.pairwiseStat !== undefined ? { pairwiseStat: s.pairwiseStat } : {}),
     });
+  },
+
+  addSignalFiles: async (files, source = "local", names) => {
+    const added: SignalTrack[] = [];
+    const problems: string[] = [];
+    for (const [i, file] of files.entries()) {
+      if (get().signalTracks.some((t) => t.file && t.file.name === file.name && t.file.size === file.size)) continue;
+      try {
+        await bigWigFor(file);
+        added.push({ id: `signal-${nextId++}`, name: names?.[i] ?? file.name.replace(/\.(bw|bigwig)$/i, ""), file, source });
+      } catch (err) {
+        problems.push(err instanceof Error ? err.message : String(err));
+      }
+    }
+    set({ signalTracks: [...get().signalTracks, ...added], ...(problems.length ? { notices: [...get().notices, ...problems] } : {}) });
+  },
+
+  removeSignalTrack: (id) => set({ signalTracks: get().signalTracks.filter((t) => t.id !== id) }),
+
+  addPublicSignal: (tracks) => {
+    const have = new Set(get().signalTracks.map((t) => t.url));
+    const added = tracks.filter((t) => !have.has(t.url)).map((t): SignalTrack => ({ id: `signal-${nextId++}`, name: t.name, url: t.url, source: "public" }));
+    set({ signalTracks: [...get().signalTracks, ...added] });
+  },
+
+  loadExampleSignal: async () => {
+    const base = `${window.location.origin}${import.meta.env.BASE_URL}examples/signal`;
+    const cells = ["MCF7", "GM12878", "K562", "HepG2"];
+    try {
+      const files = await Promise.all(
+        cells.map(async (c) => {
+          const res = await fetch(`${base}/${c}_H3K27ac.example.bw`);
+          if (!res.ok) throw new Error(`Could not load the example signal for ${c}.`);
+          return new File([await res.blob()], `${c}_H3K27ac.example.bw`);
+        })
+      );
+      await get().addSignalFiles(files, "example", cells.map((c) => `${c} H3K27ac`));
+    } catch (err) {
+      set({ notices: [...get().notices, err instanceof Error ? err.message : String(err)] });
+    }
   },
 
   requestLink: (link) => set({ linkRequest: link.files.length ? link : null }),
@@ -925,3 +1001,11 @@ export const useStore = create<StoreState>((set, get) => {
   },
   };
 });
+
+/** The selected subsets and whole sets, in selection order (lib/selection.ts), for components. */
+export function useChosenGroups(): Subset[] {
+  const subsets = useStore((s) => s.subsets);
+  const selected = useStore((s) => s.selected);
+  const sets = useStore((s) => s.sets);
+  return useMemo(() => chosenGroups(selected, subsets, sets.filter((s) => s.included)), [selected, subsets, sets]);
+}

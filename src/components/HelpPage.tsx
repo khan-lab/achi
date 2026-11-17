@@ -80,14 +80,19 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           </li>
           <li>
             Read the result in the <em>UpSet</em>, <em>Venn</em>, <em>Pairwise</em> or <em>Table</em> tab. Click a bar,
-            a Venn count or a table row to select that subset.
+            a Venn count or a table row to select that subset. To analyse a whole input set, click its set-size bar or
+            name in the UpSet plot, or its name in the Venn diagram: it is added as, for example, <em>K562 (all)</em>,
+            with the set's own regions, and can sit next to subsets. A whole set and its own subsets share regions, so
+            tests that compare two groups directly are not run between them.
           </li>
           <li>
-            Selected subsets get their own summary, nearest-gene list and region table below the plot. Download them
-            one at a time as BED, or all at once with <em>Export selected subsets</em>. <em>Export analysis</em> saves
-            the whole analysis as one ZIP (see <a href="#export">below</a>). Their region lists sit in the
-            right-hand <em>Selected subsets</em> column; hide it with the arrow in its header to give the plots more
-            width, and click the thin strip on the right to show it again.
+            Selected subsets and sets get their own summary, annotation and enrichment below the plot. Each also has a
+            card in the right-hand <em>Selected subsets and sets</em> column with two tabs: <em>Regions</em> (shown
+            first) and <em>Genes</em>, the nearest protein-coding gene of each region. The card's copy and download
+            buttons act on the tab shown. Download everything at once with <em>Export selected</em>;{" "}
+            <em>Export analysis</em> saves the whole analysis as one ZIP (see <a href="#export">below</a>). Hide the
+            column with the arrow in its header to give the plots more width, and click the thin strip on the right to
+            show it again.
           </li>
           <li>
             The <em>Set Summary</em> tab describes each input set: interval statistics, where regions fall relative to
@@ -223,10 +228,10 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
             <a href="#genome-location">below</a>) above a genome browser (igv.js), linked: click a region in the
             overview, or Shift + drag within one chromosome, and the genome browser goes there; a red box in the
             overview marks where it is. One set of controls applies to both: <em>Show the input sets</em> and the
-            bundled <em>Reference sets</em>. The genome browser shows one track per input set and per selected subset,
+            bundled <em>Reference sets</em>. The genome browser shows one track per input set and per selected subset or set,
             GENCODE genes (one transcript per gene) and the ticked reference sets. Type a locus
             (<code>chr1:1,000,000-1,100,000</code>) or a gene name, or click <em>view</em> next to a region of a
-            selected subset, or a gene in a gene list, to go there. Sets with more than 50,000 regions are drawn when
+            selected subset, or a gene on a card's <em>Genes</em> tab, to go there. Sets with more than 50,000 regions are drawn when
             zoomed in. <em>Public tracks</em> (optional, after you agree) adds SCREEN merged signal (DNase, ATAC,
             H3K4me3, H3K27ac, CTCF), the ENCODE cCRE registry, ENCODE signal and cell-type cCREs for the example cell
             lines, phyloP conservation (UCSC), JASPAR 2024 binding sites (shown below 20 kb, shaded by score), any
@@ -242,13 +247,13 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           </li>
         </ul>
         <p>
-          Plots export as SVG or PNG. The page address records the current view and selected subsets, so a bookmarked
+          Plots export as SVG or PNG. The page address records the current view and the selected subsets and sets, so a bookmarked
           link reopens the same view once you load the same files again. It never contains your data.
         </p>
 
         <h3 id="genome-location">Genome-wide overview (Genome Browser tab)</h3>
         <p>
-          At the top of the Genome Browser tab, a GenomeSpy view shows where each selected subset lies along the whole
+          At the top of the Genome Browser tab, a GenomeSpy view shows where each selected subset or set lies along the whole
           genome, with the input sets (<em>Show the input sets</em>) and any ticked bundled reference sets (ClinVar,
           GWAS Catalog, cCREs, enhancers, CpG islands, problematic regions) as context rows: a density strip per row
           (regions per Mb, by region midpoint; opacity relative to the row's densest Mb) above one row of regions per
@@ -261,9 +266,9 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           genome browser only.
         </p>
 
-        <h3 id="enrichment">Enrichment of selected subsets</h3>
+        <h3 id="enrichment">Enrichment of selected subsets and sets</h3>
         <p>
-          <em>Run enrichment</em> (below the selected subsets) tests each selected subset against every built-in
+          <em>Run enrichment</em> (below the selected subsets and sets) tests each selected subset or set against every built-in
           reference set for the assembly: ENCODE cCREs, FANTOM5 and VISTA enhancers, CpG islands, ClinVar and GWAS
           Catalog variants. A region counts as a hit if it overlaps the reference set by at least 1 bp.
         </p>
@@ -282,9 +287,9 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           variants), which is also why some Pairwise → Fisher cells show "n/a".
         </p>
 
-        <h3 id="go-enrichment">GO enrichment of selected subsets</h3>
+        <h3 id="go-enrichment">GO enrichment of selected subsets and sets</h3>
         <p>
-          <em>Run GO enrichment</em> tests Gene Ontology terms for each selected subset, separately for biological
+          <em>Run GO enrichment</em> tests Gene Ontology terms for each selected subset or set, separately for biological
           process, molecular function and cellular component, with one of two methods. Results come as one tab per
           subset, each with its own chart, table and downloads; every GO id links to its page in AmiGO (opens in a new
           tab; only the GO id is sent). Both methods follow a published approach and are reimplemented here to run in
@@ -333,15 +338,44 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           ontology release 2026-07-26, annotations 2026-05-21).
         </p>
 
+        <h3 id="signal">Signal profiles and heatmaps</h3>
+        <p>
+          <em>Signal at the selected subsets and sets</em> shows a bigWig's signal (ChIP-seq, ATAC, DNase, conservation …) across
+          and around the regions of each selected subset or set, as deepTools <code>computeMatrix</code>,{" "}
+          <code>plotProfile</code> and <code>plotHeatmap</code> do; the numbers match deepTools 4.0.0. Add bigWigs from
+          your computer (any size: only the parts needed are read, here in the page; nothing is uploaded). bigWigs added
+          in the Genome Browser tab are offered too, and <em>Load example signal</em> adds ENCODE H3K27ac for the example
+          cell lines (cut to the example regions, 200 bp bins).
+        </p>
+        <p>
+          <em>Scale regions</em> stretches every region to the same length with flanks, for broad regions such as
+          super-enhancers or genes; <em>Reference point</em> takes a window around each region's centre, start or end,
+          for peaks. The card picks one from the median region length. Each bin is the mean signal over its bases with
+          data. The profile shows the mean ± standard error per subset; the heatmap shows every region, sorted by mean
+          signal (hover for values; click a row to show it in the genome browser). Optional k-means groups the rows into
+          clusters instead (download them as BED). Below, a box plot of each region's mean signal per subset, and a
+          two-sided Mann–Whitney U test between subsets (Benjamini–Hochberg across pairs when more than two are
+          selected), drawn as brackets over the boxes: by default the significant pairs (p or q ≤ 0.05) with their value; all pairs or significance stars can be chosen under the plot, as can a linear or symmetric-log y axis. Each region is a point, coloured by subset. Above
+          20,000 regions a fixed random sample of 20,000 is used.
+        </p>
+        <p>
+          <em>Public tracks…</em> adds the genome browser's ENCODE, SCREEN and UCSC bigWigs, or a pasted https URL, after
+          you agree to the hosts named. By default they are read <em>privately</em>: the card downloads a whole-genome
+          summary of each file (about 14 MB at ~3 kb for an ENCODE signal file), the same download whatever your regions,
+          so the server learns nothing about them; profiles are then at that resolution. <em>Exact</em> reads each region
+          at full resolution by range requests, which shows the server roughly where your regions are: the card asks
+          every time, with the size and time it expects, and reads at most 2,000 regions.
+        </p>
+
         <h3 id="export">Export and restore an analysis</h3>
         <p>
           <em>Export analysis</em> saves one ZIP, made in the page: <code>methods.md</code>, a methods paragraph for
           the analysis with its references (the build of Intervene Secure, the inputs, assembly, overlap rule, filters,
-          the selected subsets and, if you ran them, the enrichment, GO and gene-list settings);{" "}
+          the selected subsets and sets and, if you ran them, the enrichment, GO and gene-list settings);{" "}
           <code>settings.json</code>; every subset as BED (or .txt for lists); tables of the inputs and all subsets; the
           enrichment and GO results and gene lists you computed; and the plots on screen at that moment as SVG.{" "}
           <code>settings.json</code> holds no data: the parameters, and each input's name, file name, size and SHA-256
-          checksum. <em>Restore settings…</em> reads it back: the parameters apply at once, and the selected subsets
+          checksum. <em>Restore settings…</em> reads it back: the parameters apply at once, and the selected subsets and sets
           return once you load the same files (matched by set name; files whose checksum differs are named).
         </p>
 
@@ -360,7 +394,9 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           Optional settings: <code>assembly</code> (hg38, hg19, mm10, mm9), <code>overlap</code> (1bp, fraction50,
           reciprocal50), <code>bedtools</code> (the Advanced field, e.g. <code>f=0.25,r</code>),{" "}
           <code>blacklist=1</code>, <code>sort=degree</code>, <code>min</code> (smallest UpSet bar),{" "}
-          <code>stat</code> (jaccard, fisher, reldist), <code>view</code> and <code>sel</code> (selected subsets).
+          <code>stat</code> (jaccard, fisher, reldist), <code>view</code> and <code>sel</code> (selected subsets by their number; a negative number selects a
+          whole set: <code>-1</code> the first, <code>-2</code> the second, <code>-4</code> the third, <code>-8</code> the
+          fourth…).
           Opening a link always asks first: it lists every file and the server it comes from, and nothing is
           downloaded until you agree. <a href={exampleLink}>Try it with the example data</a>.
         </p>

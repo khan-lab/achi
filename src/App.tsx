@@ -6,21 +6,23 @@ import { PairwiseHeatmap } from "./components/PairwiseHeatmap";
 import { SubsetTable } from "./components/SubsetTable";
 import { SummaryPlot, type SummaryItem } from "./components/SummaryPlot";
 import { RegionAnnotationPlot } from "./components/RegionAnnotationPlot";
-import { GeneListPanel } from "./components/GeneListPanel";
+import { useNearestGenes } from "./components/nearestGenes";
+import { SelectedGroupCard } from "./components/SelectedGroupCard";
 import { SubsetEnrichmentPanel } from "./components/SubsetEnrichmentPanel";
 import { GoEnrichmentPanel } from "./components/GoEnrichmentPanel";
+import { SignalProfilePanel } from "./components/SignalProfilePanel";
 import { OfflineBadge } from "./components/OfflineStatus";
 import { SubsetChips } from "./components/SubsetChips";
-import { SubsetItemsList, SubsetRegionsTable } from "./components/SubsetRegionsTable";
 import { HelpPage } from "./components/HelpPage";
 import { GenomeBrowser } from "./components/GenomeBrowser";
 import { ComputeStatus } from "./components/ComputeStatus";
 import { LinkDialog } from "./components/LinkDialog";
 import { buildLink, parseLink } from "./lib/shareLink";
 import { COPYRIGHT_YEAR, LAB_NAME, LAB_URL, LICENSE_URL, SOURCE_CODE_URL } from "./siteLinks";
-import { subsetFileText, useStore, type View } from "./state/store";
+import { useChosenGroups, useStore, type View } from "./state/store";
+import { validSelection } from "./lib/selection";
 import { subsetToBedText } from "./lib/pipeline";
-import { PALETTE, type Subset } from "./types";
+import { PALETTE } from "./types";
 import "./styles/tokens.css";
 import "./App.css";
 import { Icon } from "./components/Icon";
@@ -32,18 +34,10 @@ const VIEWS: { id: View; label: string }[] = [
   { id: "venn", label: "Venn" },
   { id: "pairwise", label: "Pairwise" },
   { id: "table", label: "Table" },
-   { id: "browser", label: "Genome Browser" },
+   { id: "browser", label: "Browser" },
   { id: "summary", label: "Set Summary" },
 ];
 
-function fmt(n: number): string {
-  return n.toLocaleString("en-US");
-}
-function bpfmt(n: number): string {
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1)} Mb`;
-  if (n >= 1e3) return `${(n / 1e3).toFixed(0)} kb`;
-  return `${n} bp`;
-}
 
 const isView = (v: string | undefined): v is View => v === "help" || VIEWS.some((x) => x.id === v);
 
@@ -55,7 +49,6 @@ function App() {
   const selected = useStore((s) => s.selected);
   const toggleSelected = useStore((s) => s.toggleSelected);
   const exportSelectedBedZip = useStore((s) => s.exportSelectedBedZip);
-  const exportSubsetBed = useStore((s) => s.exportSubsetBed);
   const exportAnalysis = useStore((s) => s.exportAnalysis);
   const listMode = useStore((s) => s.inputMode === "lists");
   const applyPendingSelection = useStore((s) => s.applyPendingSelection);
@@ -68,23 +61,9 @@ function App() {
   // Where "Back to workspace" returns to from the help page.
   const lastWorkspaceView = useRef<View>("upset");
   if (view !== "help") lastWorkspaceView.current = view;
-  // Which subset's regions were just copied, so the button can briefly
-  // confirm success — cleared after a short timeout, not tied to any
-  // store state since it's purely transient UI feedback.
-  const [copiedMask, setCopiedMask] = useState<number | null>(null);
   // The "Selected subsets" column can be folded to a thin strip to give the
   // middle column its width. Kept for the page session (in memory only).
   const [asideOpen, setAsideOpen] = useState(true);
-
-  const copySubsetToClipboard = useCallback(async (subset: Subset) => {
-    try {
-      await navigator.clipboard.writeText(subsetFileText(subset));
-      setCopiedMask(subset.mask);
-      setTimeout(() => setCopiedMask((m) => (m === subset.mask ? null : m)), 1500);
-    } catch (err) {
-      console.warn("Could not copy to clipboard", err);
-    }
-  }, []);
 
   // Restore view, settings and selection from the address (lib/shareLink.ts).
   // Sets are never uploaded or persisted: a link can name public files, which
@@ -117,9 +96,8 @@ function App() {
     if (appliedInitialSelection.current || !subsets.length) return;
     const pending = (window as unknown as { __pendingSel?: number[] }).__pendingSel;
     if (pending?.length) {
-      for (const mask of pending) {
-        if (subsets.some((s) => s.mask === mask)) toggleSelected(mask);
-      }
+      // Subset masks, and whole sets by their negative key (lib/selection.ts).
+      for (const mask of validSelection(pending, subsets, useStore.getState().sets.filter((s) => s.included))) toggleSelected(mask);
     }
     appliedInitialSelection.current = true;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,7 +142,7 @@ function App() {
     }
   }, [linkHash]);
 
-  const selectedSubsets = [...selected].map((m) => subsets.find((s) => s.mask === m)).filter((s) => s !== undefined);
+  const selectedSubsets = useChosenGroups();
 
   const setSummaryItems: SummaryItem[] = sets
     .filter((s) => s.included)
@@ -183,6 +161,9 @@ function App() {
     color: PALETTE[i % PALETTE.length],
     getRawText: () => Promise.resolve(subsetToBedText(s)),
   }));
+
+  // Nearest genes of each selected subset or set, for its card's Genes tab (and Export analysis).
+  const nearest = useNearestGenes(listMode ? [] : selectedSubsetSummaryItems);
 
   return (
     <div className="shell">
@@ -239,7 +220,7 @@ function App() {
             </div>
             <div className="rowsplit-actions">
               <button className="ghost" disabled={!selected.size} onClick={() => void exportSelectedBedZip()}>
-                Export selected subsets
+                Export selected
               </button>
               <button
                 className="ghost"
@@ -307,7 +288,7 @@ function App() {
           {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
-                <div className="eyebrow">Summary of selected subsets (bedtools summary)</div>
+                <div className="eyebrow">Summary of selected subsets and sets (bedtools summary)</div>
               </div>
               <SummaryPlot items={selectedSubsetSummaryItems} />
             </div>
@@ -316,7 +297,7 @@ function App() {
           {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
-                <div className="eyebrow">Region annotation of selected subsets — bedtools intersect/closest vs. GENCODE</div>
+                <div className="eyebrow">Region annotation of selected subsets and sets — bedtools intersect/closest vs. GENCODE</div>
               </div>
               <RegionAnnotationPlot items={selectedSubsetSummaryItems} />
             </div>
@@ -325,7 +306,7 @@ function App() {
           {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
-                <div className="eyebrow">Enrichment of selected subsets — reference region sets</div>
+                <div className="eyebrow">Enrichment of selected subsets and sets — reference region sets</div>
               </div>
               <div className="bd">
                 <SubsetEnrichmentPanel />
@@ -336,7 +317,7 @@ function App() {
           {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
-                <div className="eyebrow">GO enrichment of selected subsets — GREAT-like or Cistrome-GO-like</div>
+                <div className="eyebrow">GO enrichment of selected subsets and sets — GREAT-like or Cistrome-GO-like</div>
               </div>
               <div className="bd">
                 <GoEnrichmentPanel />
@@ -344,40 +325,43 @@ function App() {
             </div>
           )}
 
+
           {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
             <div className="card">
               <div className="hd">
-                <div className="eyebrow">Genes near the selected subsets — nearest to TSS</div>
+                <div className="eyebrow">Signal at the selected subsets and sets — profiles and heatmaps (bigWig)</div>
               </div>
-              <GeneListPanel items={selectedSubsetSummaryItems} />
+              <div className="bd">
+                <SignalProfilePanel />
+              </div>
             </div>
           )}
         </section>
 
         {!asideOpen ? (
-          <section className="col asidestrip" aria-label="Selected subset details (hidden)">
+          <section className="col asidestrip" aria-label="Selected subset and set details (hidden)">
             <button
               className="asidetab"
               onClick={() => setAsideOpen(true)}
               aria-expanded={false}
               aria-controls="selected-subsets"
-              title="Show the selected subsets column"
+              title="Show the selected subsets and sets column"
             >
               <Icon name="panelOpen" />
-              <span className="asidetab-label">Selected subsets</span>
+              <span className="asidetab-label">Selected subsets and sets</span>
               {selectedSubsets.length > 0 && <span className="asidetab-count">{selectedSubsets.length}</span>}
             </button>
           </section>
         ) : (
-        <section className="col" id="selected-subsets" aria-label="Selected subset details">
+        <section className="col" id="selected-subsets" aria-label="Selected subset and set details">
           <div className="asidehd">
-            <div className="eyebrow">Selected subsets</div>
+            <div className="eyebrow">Selected subsets and sets</div>
             <button
               className="iconbtn"
               onClick={() => setAsideOpen(false)}
               aria-expanded={true}
               aria-controls="selected-subsets"
-              aria-label="Hide the selected subsets column"
+              aria-label="Hide the selected subsets and sets column"
               title="Hide this column (widens the middle column)"
             >
               <Icon name="panelClose" />
@@ -391,41 +375,8 @@ function App() {
               </div>
             </div>
           )}
-          {selectedSubsets.map((s) => (
-            <div className="card" key={s.mask} style={{ marginBottom: 10 }}>
-              <div className="bd">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                  <div className="nm" style={{ fontSize: 13.5, fontWeight: 500 }}>
-                    {s.label}
-                  </div>
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <button
-                      className="iconbtn"
-                      title={copiedMask === s.mask ? "Copied!" : listMode ? "Copy names to clipboard" : "Copy BED to clipboard"}
-                      aria-label={`Copy ${s.label} as ${listMode ? "names" : "BED"}`}
-                      onClick={() => void copySubsetToClipboard(s)}
-                    >
-                      <Icon name={copiedMask === s.mask ? "check" : "copy"} />
-                    </button>
-                    <button
-                      className="iconbtn"
-                      title={`Download ${s.code || s.mask}.${listMode ? "txt" : "bed"}`}
-                      aria-label={`Download ${s.label} as ${listMode ? "a list" : "BED"}`}
-                      onClick={() => exportSubsetBed(s.mask)}
-                    >
-                      <Icon name="download" />
-                    </button>
-                    <button className="iconbtn" title={`Close ${s.label}`} aria-label={`Deselect ${s.label}`} onClick={() => toggleSelected(s.mask)}>
-                      <Icon name="close" />
-                    </button>
-                  </div>
-                </div>
-                <div className="mono" style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 6 }}>
-                  {listMode ? `${fmt(s.nRegions)} names` : `${fmt(s.nRegions)} regions · ${bpfmt(s.nBp)}`}
-                </div>
-                {s.items ? <SubsetItemsList items={s.items} /> : <SubsetRegionsTable subset={s} />}
-              </div>
-            </div>
+          {selectedSubsets.map((s, i) => (
+            <SelectedGroupCard key={s.mask} group={s} genes={listMode ? undefined : nearest.genesOf(selectedSubsetSummaryItems[i])} genesError={nearest.error} />
           ))}
         </section>
         )}

@@ -1,0 +1,86 @@
+{
+ "bin": 200,
+ "pad": 10000,
+ "assembly": "hg38",
+ "built_with": "build_example_signal.mjs (@gmod/bbi 9.3.3) + bedgraph_to_bigwig.py (pyBigWig 0.3.30)",
+ "files": [
+  {
+   "set": "MCF7",
+   "file": "MCF7_H3K27ac.example.bw",
+   "bytes": 7386485,
+   "md5": "f244cdf24e441d006a410d65221fca63",
+   "bins": 778310,
+   "source": {
+    "accession": "ENCFF063VLJ",
+    "url": "https://encode-public.s3.amazonaws.com/2020/10/20/b94a5aac-19e4-44e3-8626-f9fb4f27a670/ENCFF063VLJ.bigWig",
+    "md5": "5f34b0a2fa0624a34395b98f412aed4e",
+    "bytes": 2045498393,
+    "experiment": "ENCSR752UOD",
+    "output_type": "fold change over control",
+    "replicates": [
+     1,
+     2
+    ]
+   }
+  },
+  {
+   "set": "GM12878",
+   "file": "GM12878_H3K27ac.example.bw",
+   "bytes": 6565065,
+   "md5": "d31f76c704be333362a3a9683468dfca",
+   "bins": 778234,
+   "source": {
+    "accession": "ENCFF469WVA",
+    "url": "https://encode-public.s3.amazonaws.com/2020/09/30/7ae35df2-f211-4f5a-90e2-1bce9a864622/ENCFF469WVA.bigWig",
+    "md5": "8dd4ff50d61a6901aa31453a26a31ccd",
+    "bytes": 189946414,
+    "experiment": "ENCSR000AKC",
+    "output_type": "fold change over control",
+    "replicates": [
+     1,
+     2
+    ]
+   }
+  },
+  {
+   "set": "K562",
+   "file": "K562_H3K27ac.example.bw",
+   "bytes": 7387297,
+   "md5": "d991037e4248589ea04c4294b9018a8b",
+   "bins": 778310,
+   "source": {
+    "accession": "ENCFF381NDD",
+    "url": "https://encode-public.s3.amazonaws.com/2022/06/14/a3a5887a-bfe4-4c51-856e-986d8d40cfe2/ENCFF381NDD.bigWig",
+    "md5": "f4d6c7f5a2940fddc57929ca8d71d84d",
+    "bytes": 1511112441,
+    "experiment": "ENCSR000AKP",
+    "output_type": "fold change over control",
+    "replicates": [
+     1,
+     2,
+     3
+    ]
+   }
+  },
+  {
+   "set": "HepG2",
+   "file": "HepG2_H3K27ac.example.bw",
+   "bytes": 7331642,
+   "md5": "55de2d89f7b6f34388303444758d5bce",
+   "bins": 778310,
+   "source": {
+    "accession": "ENCFF022TZG",
+    "url": "https://encode-public.s3.amazonaws.com/2022/06/14/973e71d1-e7cd-4007-a650-5d40f929185a/ENCFF022TZG.bigWig",
+    "md5": "2974ecbedbbe151190cf92c612a213b3",
+    "bytes": 1588663229,
+    "experiment": "ENCSR000AMO",
+    "output_type": "fold change over control",
+    "replicates": [
+     1,
+     2,
+     3
+    ]
+   }
+  }
+ ]
+}

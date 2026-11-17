@@ -9,6 +9,7 @@ import {
   geneListMethods,
   goMethods,
   methodsText,
+  signalMethods,
   parseSettings,
   selectionFromSettings,
   setsTsv,
@@ -93,6 +94,12 @@ describe("selectionFromSettings", () => {
     expect(selectionFromSettings(s, CELLS)).toEqual({ masks: [8, 12], missing: [] });
     // Loaded in another order: HepG2 is bit 0, K562 bit 1.
     expect(selectionFromSettings(s, ["HepG2", "K562", "MCF7", "GM12878"])).toEqual({ masks: [1, 3], missing: [] });
+  });
+  it("finds saved whole sets as set keys (the negative of the set's bit), next to subsets", () => {
+    const w = buildSettings(input({ selected: [{ label: "K562 (all)", memberNames: ["K562"], n: 1003, whole: true }, { label: "HepG2 only", memberNames: ["HepG2"], n: 929 }] }));
+    expect(selectionFromSettings(w, CELLS)).toEqual({ masks: [-4, 8], missing: [] });
+    expect(selectionFromSettings(w, ["K562", "HepG2"])).toEqual({ masks: [-1, 2], missing: [] });
+    expect(methodsText(w, [])).toMatch(/The subsets and whole sets selected for further analysis were all of K562 \(1,003 regions\), HepG2 only \(929 regions\)\./);
   });
   it("lists the saved subsets whose sets are not loaded", () => {
     // HepG2 is the third loaded set here: bit 2.
@@ -190,6 +197,54 @@ describe("methods paragraphs of further analyses", () => {
     expect(e.methods).toMatch(/Cochran–Mantel–Haenszel test over five region-length strata/);
     expect(e.methods).toMatch(/Benjamini–Hochberg/);
     expect(enrichmentMethods({ adjust: false, referenceNames: ["x"] }).methods).toMatch(/two-sided Fisher's exact test/);
+  });
+  it("signal profiles: layout, bins, missing data, tracks, sorting, clustering and the test, citing deepTools", () => {
+    const scale = signalMethods({
+      params: { mode: "scale", referencePoint: "center", upstream: 5000, downstream: 5000, body: 5000, binSize: 200, missingAsZero: false },
+      nRegions: 1234,
+      tracks: ["K562 H3K27ac", "HepG2 H3K27ac"],
+      sort: "desc",
+      k: 3,
+      nGroups: 2,
+    });
+    expect(scale.methods).toMatch(/scale-regions mode/);
+    expect(scale.methods).toMatch(/scaled to 5 kb, with 5 kb upstream and 5 kb downstream, in 200 bp bins/);
+    expect(scale.methods).toMatch(/1,234 regions/);
+    expect(scale.methods).toMatch(/K562 H3K27ac, HepG2 H3K27ac/);
+    expect(scale.methods).toMatch(/treated as missing/);
+    expect(scale.methods).toMatch(/highest mean signal first/);
+    expect(scale.methods).toMatch(/k-means \(k = 3/);
+    expect(scale.methods).toMatch(/two-sided Mann–Whitney U test/);
+    expect(scale.methods).not.toMatch(/Benjamini/); // one pair of subsets
+    expect(scale.references.join(" ")).toMatch(/deepTools2/);
+    const ref = signalMethods({
+      params: { mode: "reference", referencePoint: "center", upstream: 2000, downstream: 1000, body: 0, binSize: 50, missingAsZero: true },
+      nRegions: 10,
+      tracks: ["x"],
+      sort: "keep",
+      k: 0,
+      nGroups: 3,
+    });
+    expect(ref.methods).toMatch(/reference-point mode, 2 kb upstream and 1 kb downstream of each region's centre, in 50 bp bins/);
+    expect(ref.methods).toMatch(/counted as 0/);
+    expect(ref.methods).not.toMatch(/k-means/);
+    expect(ref.methods).toMatch(/Benjamini–Hochberg/);
+  });
+  it("signal profiles: says how public tracks were read (private summary layer, or exact range requests)", () => {
+    const m = signalMethods({
+      params: { mode: "scale", referencePoint: "center", upstream: 5000, downstream: 5000, body: 5000, binSize: 1000, missingAsZero: false },
+      nRegions: 50,
+      tracks: ["SCREEN DNase (merged)", "K562 H3K27ac"],
+      sort: "desc",
+      k: 0,
+      nGroups: 1,
+      public: [
+        { name: "SCREEN DNase (merged)", host: "downloads.wenglab.org", level: 3072 },
+        { name: "K562 H3K27ac", host: "encode-public.s3.amazonaws.com" },
+      ],
+    }).methods;
+    expect(m).toMatch(/SCREEN DNase \(merged\) was read from its 3,072 bp summary \(zoom\) layer, downloaded for the whole genome from downloads.wenglab.org/);
+    expect(m).toMatch(/K562 H3K27ac was read at base resolution by HTTP range requests to encode-public.s3.amazonaws.com/);
   });
   it("GO: method, background, domain rule or decay, term sizes and thresholds, with the method's reference", () => {
     const great = goMethods({

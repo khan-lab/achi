@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Browser } from "igv";
-import { useStore } from "../state/store";
+import { useChosenGroups, useStore } from "../state/store";
 import {
   browserConfig,
   exportFileName,
@@ -80,8 +80,6 @@ interface TrackSpec {
 
 export function GenomeBrowser() {
   const sets = useStore((s) => s.sets);
-  const subsets = useStore((s) => s.subsets);
-  const selected = useStore((s) => s.selected);
   const assembly = useStore((s) => s.assembly);
   const sizes = useStore((s) => s.chromSizes[s.assembly]);
   const target = useStore((s) => s.browserTarget);
@@ -152,6 +150,9 @@ export function GenomeBrowser() {
     setLocalErrors([...messages, ...results.flatMap((r) => ("error" in r ? [r.error] : []))]);
     const added = results.filter((r): r is LocalTrack => !("error" in r));
     if (added.length) changeLocal([...(saved.local[assembly] ?? []), ...added]);
+    // bigWigs are also offered to the signal-profile card (components/SignalProfilePanel.tsx).
+    const bigwigs = added.filter((t) => t.format === "bigwig");
+    if (bigwigs.length) void useStore.getState().addSignalFiles(bigwigs.map((t) => t.file), "local", bigwigs.map((t) => t.name));
   }
   const localRows = useMemo(() => local.filter((t) => t.regions).map((t) => ({ key: t.id, name: t.name, regions: t.regions! })), [local]);
   const lastTarget = useRef(0);
@@ -162,7 +163,7 @@ export function GenomeBrowser() {
   }, [reference]);
 
   const included = useMemo(() => sets.filter((s) => s.included), [sets]);
-  const chosen = useMemo(() => subsets.filter((s) => selected.has(s.mask)), [subsets, selected]);
+  const chosen = useChosenGroups();
   const refOptions = useMemo(() => referenceOptions(assembly), [assembly]);
 
   // The tracks the browser should show now, keyed so only changes are reloaded.
@@ -182,7 +183,7 @@ export function GenomeBrowser() {
       out.push({
         key: `subset:${s.mask}`,
         sig: `${s.label}|${color}|${s.nRegions}`,
-        config: () => ({ ...regionTrack(`Subset: ${s.label}`, color, s.regions), order: 100 + i }),
+        config: () => ({ ...regionTrack(`${s.whole ? "Set" : "Subset"}: ${s.label}`, color, s.regions), order: 100 + i }),
       });
     });
     refOptions
