@@ -15,6 +15,8 @@ import { SubsetItemsList, SubsetRegionsTable } from "./components/SubsetRegionsT
 import { HelpPage } from "./components/HelpPage";
 import { GenomeBrowser } from "./components/GenomeBrowser";
 import { ComputeStatus } from "./components/ComputeStatus";
+import { LinkDialog } from "./components/LinkDialog";
+import { buildLink, parseLink } from "./lib/shareLink";
 import { COPYRIGHT_YEAR, LAB_NAME, LAB_URL, LICENSE_URL, SOURCE_CODE_URL } from "./siteLinks";
 import { subsetFileText, useStore, type View } from "./state/store";
 import { subsetToBedText } from "./lib/pipeline";
@@ -43,16 +45,7 @@ function bpfmt(n: number): string {
   return `${n} bp`;
 }
 
-/** Read `#view=upset&sel=3,5` from the URL on first load. */
-function parseHash(): { view?: View; selMasks: number[] } {
-  const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-  const view = params.get("view") as View | null;
-  const sel = params.get("sel");
-  return {
-    view: view && (view === "help" || VIEWS.some((v) => v.id === view)) ? view : undefined,
-    selMasks: sel ? sel.split(",").map(Number).filter(Number.isFinite) : [],
-  };
-}
+const isView = (v: string | undefined): v is View => v === "help" || VIEWS.some((x) => x.id === v);
 
 function App() {
   const view = useStore((s) => s.view);
@@ -93,17 +86,30 @@ function App() {
     }
   }, []);
 
-  // Restore view + selection from a shared URL. Sets/regions are never
-  // uploaded or persisted, so this only restores the *analysis config*
-  // (which view, which subset masks) — reload the same files (or "Load
-  // example") to see it populated again.
+  // Restore view, settings and selection from the address (lib/shareLink.ts).
+  // Sets are never uploaded or persisted: a link can name public files, which
+  // are downloaded only after the user agrees (LinkDialog); otherwise reload
+  // the same files (or "Load example") to see the analysis populated again.
   useEffect(() => {
-    const { view: initialView, selMasks } = parseHash();
-    if (initialView) setView(initialView);
-    if (selMasks.length) {
-      // Applied once subsets exist — see the effect below.
-      (window as unknown as { __pendingSel?: number[] }).__pendingSel = selMasks;
-    }
+    const open = (onLoad: boolean) => {
+      const link = parseLink(window.location.hash, { ownOrigin: window.location.origin });
+      // Later address changes (a link clicked or pasted in this tab) matter only when they name files.
+      if (!onLoad && !link.files.length) return;
+      const st = useStore.getState();
+      st.applyLinkSettings(link.settings);
+      if (isView(link.view)) setView(link.view);
+      if (link.sel.length) {
+        // Applied once subsets exist — see the effect below.
+        (window as unknown as { __pendingSel?: number[] }).__pendingSel = link.sel;
+        appliedInitialSelection.current = false;
+      }
+      if (link.files.length) st.requestLink(link);
+      else if (link.problems.length) useStore.setState({ notices: link.problems });
+    };
+    open(true);
+    const onHash = () => open(false);
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -119,12 +125,44 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subsets]);
 
+  // Keep the address in step with the analysis. Files go into it only when
+  // every included set came from a public link: a file from the user's
+  // computer never does. Left alone while a link waits for the user's answer.
+  const inputMode = useStore((s) => s.inputMode);
+  const linkRequest = useStore((s) => s.linkRequest);
+  const assembly = useStore((s) => s.assembly);
+  const overlapPreset = useStore((s) => s.overlapPreset);
+  const advanced = useStore((s) => s.advancedBedtoolsOptions);
+  const blacklistFilter = useStore((s) => s.blacklistFilter);
+  const upsetSort = useStore((s) => s.upsetSort);
+  const upsetMinSize = useStore((s) => s.upsetMinSize);
+  const pairwiseStat = useStore((s) => s.pairwiseStat);
+  const includedSets = sets.filter((s) => s.included);
+  const linkable = includedSets.length > 0 && includedSets.every((s) => s.sourceUrl);
+  const linkHash = buildLink({
+    mode: inputMode,
+    files: linkable ? includedSets.map((s) => ({ url: s.sourceUrl!, name: s.name })) : [],
+    settings: { assembly, overlapPreset, advanced, blacklistFilter, upsetSort, upsetMinSize, pairwiseStat },
+    view,
+    sel: [...selected],
+  });
   useEffect(() => {
-    const params = new URLSearchParams();
-    params.set("view", view);
-    if (selected.size) params.set("sel", [...selected].join(","));
-    window.history.replaceState(null, "", `#${params.toString()}`);
-  }, [view, selected]);
+    // Read from the store, not this render: the link is requested by the
+    // effect above in this same commit, after this render's value was taken.
+    if (linkRequest || useStore.getState().linkRequest) return;
+    window.history.replaceState(null, "", `#${linkHash}`);
+  }, [linkHash, linkRequest]);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const copyLink = useCallback(async () => {
+    const url = `${window.location.origin}${window.location.pathname}#${linkHash}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      window.prompt("Copy this link:", url);
+    }
+  }, [linkHash]);
 
   const selectedSubsets = [...selected].map((m) => subsets.find((s) => s.mask === m)).filter((s) => s !== undefined);
 
@@ -148,6 +186,7 @@ function App() {
 
   return (
     <div className="shell">
+      <LinkDialog />
       <header className="top">
         <div className="brand">
           <h1><img src="logo.png" width="100" alt="Intervene Secure" /></h1>
@@ -209,6 +248,18 @@ function App() {
                 onClick={() => void exportAnalysis()}
               >
                 Export analysis
+              </button>
+              <button
+                className="ghost"
+                disabled={!linkable || busy}
+                title={
+                  linkable
+                    ? "Copy a link that opens these public files with the same settings, view and selection"
+                    : "Only for sets opened from public web links: a file from your computer is never put in a link"
+                }
+                onClick={() => void copyLink()}
+              >
+                {linkCopied ? "Link copied" : "Copy link"}
               </button>
             </div>
           </div>

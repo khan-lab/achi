@@ -21,10 +21,12 @@ import {
   type SavedSubset,
 } from "../lib/analysisExport";
 import { collectExports } from "../lib/exportRegistry";
+import { fetchFailureMessage, matchGzipName, type LinkSettings, type ParsedLink } from "../lib/shareLink";
 import { svgToStandaloneString } from "../lib/exportImage";
 import {
   InputValidationError,
   SUPPORTED_ASSEMBLIES,
+  MAX_FILE_BYTES,
   checkFileSize,
   normalizeRegionText,
   parseChromSizes,
@@ -65,6 +67,8 @@ export interface LoadedSet extends RegionSet {
   extents: Record<string, number>;
   /** Non-fatal problems found while checking the file (skipped lines, conversions). */
   warnings: string[];
+  /** The public https address it was downloaded from, when it came from an "Open in" link (lib/shareLink.ts); never set for files from the user's computer. */
+  sourceUrl?: string;
 }
 
 interface StoreState {
@@ -72,6 +76,8 @@ interface StoreState {
   inputMode: InputMode;
   /** Subsets to select once the matching sets are loaded (from a restored settings file). */
   pendingSelection: SavedSubset[] | null;
+  /** Files named by the link this page was opened with, waiting for the user to agree to download them (components/LinkDialog.tsx). */
+  linkRequest: ParsedLink | null;
   sets: LoadedSet[];
   subsets: Subset[];
   selected: Set<number>;
@@ -104,7 +110,7 @@ interface StoreState {
   upsetMinSize: number;
 
   /** `meta[i]`, when given, overrides the name/code derived from `files[i]`'s file name (used for built-in annotation sets). */
-  addFiles: (files: File[], meta?: ({ name: string; code: string } | undefined)[]) => Promise<void>;
+  addFiles: (files: File[], meta?: ({ name?: string; code?: string; sourceUrl?: string } | undefined)[]) => Promise<void>;
   loadChromSizes: () => Promise<void>;
   dismissNotices: () => void;
   removeSet: (id: string) => void;
@@ -136,6 +142,13 @@ interface StoreState {
   applySettings: (text: string) => Promise<void>;
   /** Select the pending subsets that exist now (called when subsets change). */
   applyPendingSelection: () => void;
+  /** Settings from the page's link: applied at once (nothing is downloaded for them). */
+  applyLinkSettings: (settings: Partial<LinkSettings>) => void;
+  /** Ask the user about the link's files (sets linkRequest). */
+  requestLink: (link: ParsedLink) => void;
+  /** The user agreed: download the link's files and compare them. */
+  acceptLink: () => Promise<void>;
+  declineLink: () => void;
 }
 
 function labelSubsets(raw: { mask: number; memberIds: string[]; regions: Interval[]; nRegions: number; nBp: number; items?: string[] }[], sets: LoadedSet[]): Subset[] {
@@ -399,6 +412,7 @@ export const useStore = create<StoreState>((set, get) => {
   return {
   inputMode: "regions",
   pendingSelection: null,
+  linkRequest: null,
   sets: [],
   subsets: [],
   selected: new Set(),
@@ -469,6 +483,7 @@ export const useStore = create<StoreState>((set, get) => {
         extents: prepared.extents,
         warnings: prepared.warnings,
         ...("items" in prepared ? { items: prepared.items } : {}),
+        ...(meta?.[i]?.sourceUrl ? { sourceUrl: meta[i].sourceUrl } : {}),
       });
     }
 
@@ -845,6 +860,68 @@ export const useStore = create<StoreState>((set, get) => {
     const { masks, missing } = selectionFromSettings({ selected: pending } as AnalysisSettings, included.map((x) => x.name));
     const found = masks.filter((m) => get().subsets.some((x) => x.mask === m));
     set({ selected: new Set(found), pendingSelection: missing.length ? pending : null });
+  },
+
+  applyLinkSettings: (s) => {
+    // Only called on page load, before any set exists, so nothing needs recomputing.
+    set({
+      ...(s.assembly !== undefined ? { assembly: s.assembly } : {}),
+      ...(s.overlapPreset !== undefined ? { overlapPreset: s.overlapPreset } : {}),
+      ...(s.advanced !== undefined ? { advancedBedtoolsOptions: s.advanced } : {}),
+      ...(s.blacklistFilter !== undefined ? { blacklistFilter: s.blacklistFilter } : {}),
+      ...(s.upsetSort !== undefined ? { upsetSort: s.upsetSort } : {}),
+      ...(s.upsetMinSize !== undefined ? { upsetMinSize: s.upsetMinSize } : {}),
+      ...(s.pairwiseStat !== undefined ? { pairwiseStat: s.pairwiseStat } : {}),
+    });
+  },
+
+  requestLink: (link) => set({ linkRequest: link.files.length ? link : null }),
+
+  declineLink: () => set({ linkRequest: null }),
+
+  acceptLink: async () => {
+    const link = get().linkRequest;
+    set({ linkRequest: null });
+    if (!link?.files.length || !link.mode) return;
+    // A link describes the whole analysis: its files replace any loaded now (the dialog says so).
+    if (link.mode !== get().inputMode) get().setInputMode(link.mode);
+    for (const s of get().sets) {
+      forgetSet(s.id);
+      forgetBlacklist(s.id);
+    }
+    set({ sets: [], subsets: [], selected: new Set(), status: "loading-worker", error: null });
+    const files: File[] = [];
+    const meta: { name?: string; sourceUrl: string }[] = [];
+    const failed: string[] = [];
+    for (const [i, f] of link.files.entries()) {
+      set({ progress: { done: i, total: link.files.length, label: `Downloading ${f.name ?? f.fileName} from ${f.host}` } });
+      try {
+        // No cookies and no referrer: the file's server learns only that this browser downloaded the file.
+        const res = await fetch(f.url, { credentials: "omit", referrerPolicy: "no-referrer" });
+        if (!res.ok) {
+          failed.push(fetchFailureMessage(f.url, { status: res.status }));
+          continue;
+        }
+        const declared = Number(res.headers.get("content-length") ?? "");
+        if (declared > MAX_FILE_BYTES) {
+          failed.push(fetchFailureMessage(f.url, { tooLarge: declared }));
+          continue;
+        }
+        const blob = await res.blob();
+        if (blob.size > MAX_FILE_BYTES) {
+          failed.push(fetchFailureMessage(f.url, { tooLarge: blob.size }));
+          continue;
+        }
+        const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+        files.push(new File([blob], matchGzipName(f.fileName, head), { type: "text/plain" }));
+        meta.push({ ...(f.name ? { name: f.name } : {}), sourceUrl: f.url });
+      } catch (err) {
+        failed.push(fetchFailureMessage(f.url, { error: err }));
+      }
+    }
+    if (files.length) await get().addFiles(files, meta);
+    else set({ status: get().sets.length ? "done" : "idle", progress: null });
+    if (failed.length) set({ notices: [...get().notices, ...failed] });
   },
   };
 });

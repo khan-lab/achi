@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { MAX_FILE_BYTES, MAX_REGIONS } from "../lib/inputValidation";
 import { MAX_SETS } from "../types";
+import { LINK_DEFAULTS, buildLink } from "../lib/shareLink";
 import { OfflinePanel } from "./OfflineStatus";
 import { COPYRIGHT_YEAR, LAB_NAME, LAB_URL, LICENSE_URL, SOURCE_CODE_URL } from "../siteLinks";
 
@@ -41,7 +42,15 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
+/** This page's address, for the link examples; the example link opens this site's own example files. */
+function linkExamples(): { appBase: string; exampleLink: string } {
+  const appBase = `${window.location.origin}${import.meta.env.BASE_URL}`;
+  const files = ["MCF7", "GM12878", "K562", "HepG2"].map((n) => ({ url: new URL(`examples/hg38_ses/${n}.bed`, appBase).href, name: n }));
+  return { appBase, exampleLink: `#${buildLink({ mode: "regions", files, settings: LINK_DEFAULTS, view: "upset", sel: [] })}` };
+}
+
 export function HelpPage({ onBack }: { onBack: () => void }) {
+  const { appBase, exampleLink } = linkExamples();
   const mb = Math.round(MAX_FILE_BYTES / (1024 * 1024));
   return (
     <main className="helppage">
@@ -336,6 +345,32 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           return once you load the same files (matched by set name; files whose checksum differs are named).
         </p>
 
+        <h3 id="links">Open public files from a link</h3>
+        <p>
+          A link can open Intervene Secure with public files already named, for a data portal, a lab page or a
+          paper's supplement. Everything after <code>#</code> stays in the browser and is never sent to this site.
+          Each <code>bed=</code> is one set (BED, narrowPeak, broadPeak, bedGraph or VCF, plain or .gz); a{" "}
+          <code>name=</code> after it names that set. For lists of names, use <code>list=</code> instead. Up to{" "}
+          {MAX_SETS} sets, https addresses only, and the server must allow downloads from other web pages (ENCODE's{" "}
+          <code>@@download</code> links do; many lab servers and Galaxy instances do too). The address must be
+          URL-encoded.
+        </p>
+        <pre className="help-code">{`${appBase}#bed=<url>&name=K562&bed=<url>&name=HepG2&assembly=hg38&overlap=reciprocal50&view=upset`}</pre>
+        <p>
+          Optional settings: <code>assembly</code> (hg38, hg19, mm10, mm9), <code>overlap</code> (1bp, fraction50,
+          reciprocal50), <code>bedtools</code> (the Advanced field, e.g. <code>f=0.25,r</code>),{" "}
+          <code>blacklist=1</code>, <code>sort=degree</code>, <code>min</code> (smallest UpSet bar),{" "}
+          <code>stat</code> (jaccard, fisher, reldist), <code>view</code> and <code>sel</code> (selected subsets).
+          Opening a link always asks first: it lists every file and the server it comes from, and nothing is
+          downloaded until you agree. <a href={exampleLink}>Try it with the example data</a>.
+        </p>
+        <p>
+          When every set came from a link, <em>Copy link</em> copies one that reopens the same files with the same
+          settings, view and selection; the address bar holds the same link. A file from your computer is never put
+          in a link, so <em>Copy link</em> is off once one is loaded. A button for your page:
+        </p>
+        <pre className="help-code">{`<a href="${appBase}#bed=<url-encoded file URL>&name=My%20peaks">Open in Intervene Secure</a>`}</pre>
+
         <h3 id="keyboard">Keyboard</h3>
         <p>
           Tab moves to each UpSet bar, Venn count and table row. Enter or Space selects or deselects it. Every
@@ -354,7 +389,9 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           (www.encodeproject.org, encode-public.s3.amazonaws.com, downloads.wenglab.org, hgdownload.soe.ucsc.edu, or
           the host of a URL you paste)
           then see which regions you view, and ENCODE sees the words you search for. Your files are never sent. The
-          agreement lasts until you reload the page or press <em>Stop public tracks</em>.
+          agreement lasts until you reload the page or press <em>Stop public tracks</em>. A{" "}
+          <a href="#links">link naming public files</a> is the other: after you agree, your browser downloads those
+          files from their servers, which see the download and nothing else.
         </p>
 
         <h3 id="offline">Offline use</h3>

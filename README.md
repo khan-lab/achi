@@ -46,6 +46,10 @@
 - One ZIP per analysis: a generated methods paragraph with references,
   every subset, tables, results, the plots on screen, and a settings file
   (no data; file checksums) that restores the analysis.
+- Links that open public files (ENCODE, a lab server, a paper's
+  supplement) with settings, view and selection: the page lists the files
+  and downloads nothing until you agree. "Copy link" shares an analysis of
+  public files; files from your computer never go into a link.
 
 **Enrichment** (selected subsets)
 - Bundled reference sets (ENCODE cCREs, FANTOM5 and VISTA enhancers, CpG
