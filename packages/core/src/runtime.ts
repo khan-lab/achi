@@ -11,6 +11,8 @@
  *             against checksums.
  */
 
+import type { MotifScanner } from "./motifScan";
+
 export interface BedtoolsResult {
   stdout: string;
   stderr: string;
@@ -51,6 +53,13 @@ export interface RefData {
 export interface Runtime {
   bedtools: Bedtools;
   refdata: RefData;
+  /** Motif scanning, spread over the environment's threads (motifScan.ts; scanMotifsInline on one thread). */
+  scanMotifs: MotifScanner;
+}
+
+/** Throws an AbortError ("Cancelled") if the run was cancelled. */
+export function abortIfCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
 }
 
 /** `rt.refdata.text(path)`, rejecting with "Could not load <what>" (the underlying error as its cause). */

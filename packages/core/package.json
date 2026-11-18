@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@gmod/bbi": "9.3.3",
+    "@gmod/twobit": "6.0.14",
     "generic-filehandle2": "2.5.1"
   }
 }

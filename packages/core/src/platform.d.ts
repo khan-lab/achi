@@ -39,3 +39,8 @@ interface AbortSignal {
 
 /** Used only to yield to the event loop during long loops (setTimeout(resolve, 0)). */
 declare function setTimeout(handler: (...args: never[]) => void, timeout?: number): unknown;
+
+/** For AbortError ("Cancelled"), as browsers and Node >= 17 throw it. */
+declare class DOMException extends Error {
+  constructor(message?: string, name?: string);
+}

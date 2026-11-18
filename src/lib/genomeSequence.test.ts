@@ -1,10 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { centreWindow, exactTwoBitSource, privateTwoBitSource, twoBitBlobSource, type SeqWindow } from "./genomeSequence";
+import type { SeqWindow } from "@achi/core/genomeSequence";
+import { exactTwoBitSource, privateTwoBitSource } from "./genomeSequence";
 
 /**
- * Genome sequence for motif scanning, read in the page. A real .2bit of hg38
+ * Genome sequence for motif scanning from public .2bit files (the local
+ * sources are tested in @achi/core). A real .2bit of hg38
  * slices (tests/fixtures/twobit: an N gap, soft-masked repeats, and a
  * non-canonical sequence), checked against the same sequences as FASTA.
  * The remote sources are served from the fixture by a fake fetch that
@@ -47,24 +49,6 @@ const WINDOWS_A: SeqWindow[] = [
   { chrom: "chr22", start: 100, end: 300 },
 ];
 const WINDOWS_B: SeqWindow[] = [{ chrom: "chr22", start: 25_000, end: 25_200 }];
-
-describe("centreWindow", () => {
-  it("is ±half around the region's centre (floor), clamped at 0", () => {
-    expect(centreWindow({ chrom: "chr1", start: 1000, end: 1501 }, 100)).toEqual({ chrom: "chr1", start: 1150, end: 1350 });
-    expect(centreWindow({ chrom: "chr1", start: 0, end: 20 }, 100)).toEqual({ chrom: "chr1", start: 0, end: 110 });
-  });
-});
-
-describe("twoBitBlobSource (a .2bit on the user's computer)", () => {
-  it("reads the windows, N gap included, in either naming style", async () => {
-    const src = twoBitBlobSource(new Blob([BYTES]), "mini.2bit");
-    const got = await src.read([...WINDOWS_A, { chrom: "21", start: 30_000, end: 30_200 }, { chrom: "chr9", start: 0, end: 10 }]);
-    WINDOWS_A.forEach((w, i) => expect(got[i]!.toUpperCase()).toBe(truth(w)));
-    expect(got[0]!.slice(0, 100)).toBe("N".repeat(100));
-    expect(got[3]!.toUpperCase()).toBe(truth(WINDOWS_A[1]));
-    expect(got[4]).toBeNull();
-  });
-});
 
 describe("privateTwoBitSource (whole chromosomes from a public .2bit)", () => {
   it("reads the same windows as the file itself", async () => {
