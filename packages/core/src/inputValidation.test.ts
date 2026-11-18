@@ -12,8 +12,8 @@ import {
   parseChromSizes,
 } from "./inputValidation";
 
-const FIXTURES_DIR = join(__dirname, "../../tests/fixtures/encode");
-const REFDATA_DIR = join(__dirname, "../../public/refdata");
+const FIXTURES_DIR = join(__dirname, "../../../tests/fixtures/encode");
+const REFDATA_DIR = join(__dirname, "../../../public/refdata");
 
 const heart = readFileSync(join(FIXTURES_DIR, "heart_h3k27ac_ENCFF059ERB.subsample.bed"), "utf8");
 const chromSizes = Object.fromEntries(

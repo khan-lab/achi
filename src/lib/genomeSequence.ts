@@ -19,7 +19,7 @@
  */
 import { TwoBitFile } from "@gmod/twobit";
 import { BlobFile, RemoteFile } from "generic-filehandle2";
-import { chromAlias } from "./bigwigSource";
+import { chromAlias } from "@achi/core/bigwigSource";
 import { readReferenceSequence, type LocalReference } from "./localTracks";
 
 export interface SeqWindow {

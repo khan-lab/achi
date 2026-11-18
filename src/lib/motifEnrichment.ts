@@ -19,9 +19,9 @@
  * a cap (a random sample above it). "The other regions" are then the
  * background sample's regions outside the group.
  */
-import { benjaminiHochberg, mantelHaenszel } from "./stats";
+import { benjaminiHochberg, mantelHaenszel } from "@achi/core/stats";
 import { lengthStrata } from "./subsetEnrichment";
-import { inGroup } from "./selection";
+import { inGroup } from "@achi/core/selection";
 
 export const GC_STRATA = 5;
 

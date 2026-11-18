@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { color as d3color, interpolateLab } from "d3";
 import { useChosenGroups, useStore } from "../state/store";
-import { chosenGroups } from "../lib/selection";
+import { chosenGroups } from "@achi/core/selection";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
 import {
@@ -11,13 +11,13 @@ import {
   universeHits,
   type EnrichmentCell,
 } from "../lib/subsetEnrichment";
-import type { ExternalAnnotation } from "../lib/externalAnnotations";
+import type { ExternalAnnotation } from "@achi/core/externalAnnotations";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
 import { TopRowsInput } from "./TopRowsInput";
-import { DEFAULT_TOP_ROWS, rankRows } from "../lib/heatmapRows";
+import { DEFAULT_TOP_ROWS, rankRows } from "@achi/core/heatmapRows";
 import { registerExport } from "../lib/exportRegistry";
-import { enrichmentMethods } from "../lib/analysisExport";
+import { enrichmentMethods } from "@achi/core/analysisExport";
 
 // Concrete colours so exported SVG/PNG render without this page's CSS.
 const INK = "#101826";

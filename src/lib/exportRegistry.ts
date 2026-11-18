@@ -4,7 +4,7 @@
  * its references. A panel registers a provider while it is on screen; the
  * provider returns null when there is nothing to add yet (not run).
  */
-import type { MethodsExtra } from "./analysisExport";
+import type { MethodsExtra } from "@achi/core/analysisExport";
 
 export interface ExportContribution {
   files: { path: string; content: string }[];

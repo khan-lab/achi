@@ -23,7 +23,7 @@ import { openBigWig } from "./bigwigSource";
  * super-enhancers there (scale-regions) and 30 GENCODE TSSs on both strands
  * (reference-point).
  */
-const ROOT = join(__dirname, "..", "..");
+const ROOT = join(__dirname, "..", "..", "..");
 const DT = (f: string) => join(ROOT, "tests/fixtures/deeptools", f);
 const bed = (f: string): ProfileRegion[] =>
   readFileSync(DT(f), "utf8")

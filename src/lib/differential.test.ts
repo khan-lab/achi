@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { computeSubsets, sortIntervals, parseBed } from "./intervals";
+import { computeSubsets, sortIntervals, parseBed } from "@achi/core/intervals";
 import { generateTruthTable, parseIntersectCounts, subsetsFromOverlaps } from "./pipeline";
 import { parseFisherOutput, parseJaccardOutput, parseReldistOutput, medianFromReldistBins, ksPValueVsUniform } from "./pairwiseStats";
 import { parseSummaryOutput, filterCanonicalChromosomes, getAggregateRow } from "./summaryStats";

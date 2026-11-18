@@ -36,7 +36,7 @@ interface RefMhg {
   cutoff: number;
   pval: number | null;
 }
-const REF = JSON.parse(readFileSync(join(__dirname, "../../tests/fixtures/cistromego/reference_hg38_bp.json"), "utf8")) as {
+const REF = JSON.parse(readFileSync(join(__dirname, "../../../tests/fixtures/cistromego/reference_hg38_bp.json"), "utf8")) as {
   configs: { file: string; N: number; L: number; mhg: RefMhg[] }[];
   extra_mhg: RefMhg[];
 };

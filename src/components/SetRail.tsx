@@ -1,8 +1,8 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
-import type { OverlapPreset } from "../lib/bedtoolsOptions";
-import { ANNOTATION_CATEGORIES, EXTERNAL_ANNOTATIONS } from "../lib/externalAnnotations";
-import { checkAssembly, fittingAssemblies, type ChromSizes } from "../lib/inputValidation";
+import type { OverlapPreset } from "@achi/core/bedtoolsOptions";
+import { ANNOTATION_CATEGORIES, EXTERNAL_ANNOTATIONS } from "@achi/core/externalAnnotations";
+import { checkAssembly, fittingAssemblies, type ChromSizes } from "@achi/core/inputValidation";
 import { hasBlacklist } from "../lib/blacklist";
 import { MAX_SETS } from "../types";
 import { Icon } from "./Icon";

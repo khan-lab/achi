@@ -1,23 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { color as d3color, interpolateLab } from "d3";
 import { useChosenGroups, useStore } from "../state/store";
-import { chosenGroups } from "../lib/selection";
+import { chosenGroups } from "@achi/core/selection";
 import { buildUniverse } from "../lib/subsetEnrichment";
 import { centreWindow, exactTwoBitSource, fastaSource, opfsStore, privateTwoBitSource, twoBitBlobSource, type SequenceSource } from "../lib/genomeSequence";
 import { prepareLocalReference } from "../lib/localTracks";
-import { backgroundOf, encodeSequence, packSequences } from "../lib/pwm";
+import { backgroundOf, encodeSequence, packSequences } from "@achi/core/pwm";
 import { compositionStrata, cpgRatio, gcPerMille, motifEnrichment, scanPlan, MAX_POOL, type MotifCell } from "../lib/motifEnrichment";
 import { scanMotifs } from "../lib/motifScan";
 import { registerExport } from "../lib/exportRegistry";
-import { DEFAULT_COLLECTION, MOTIF_COLLECTIONS, collectionById, mergeCollections, type JasparFile, type JasparMotif, type MotifCollection } from "../lib/motifCollections";
-import { motifMethods } from "../lib/analysisExport";
+import { DEFAULT_COLLECTION, MOTIF_COLLECTIONS, collectionById, mergeCollections, type JasparFile, type JasparMotif, type MotifCollection } from "@achi/core/motifCollections";
+import { motifMethods } from "@achi/core/analysisExport";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { SettingsShell } from "./GoEnrichmentPanel";
 import { Icon } from "./Icon";
 import { TopRowsInput } from "./TopRowsInput";
-import { DEFAULT_TOP_ROWS, rankRows } from "../lib/heatmapRows";
+import { DEFAULT_TOP_ROWS, rankRows } from "@achi/core/heatmapRows";
 
 /**
  * Motif enrichment of the selected subsets and sets: JASPAR 2026 CORE

@@ -2,7 +2,7 @@
  * Runs the motif scan (lib/pwm.ts) on several Web Workers, motifs shared
  * out between them; inline where workers are not available (tests).
  */
-import { integerMatrix, logOddsMatrix, scanPacked, thresholdForP, type Background, type PackedSequences } from "./pwm";
+import { integerMatrix, logOddsMatrix, scanPacked, thresholdForP, type Background, type PackedSequences } from "@achi/core/pwm";
 
 export interface ScanResult {
   /** Per motif: 1 per sequence with a site. */

@@ -3,7 +3,7 @@
  * each worker its own share). For each motif: log-odds against the run's
  * background, the exact threshold for p, then 1 per sequence with a site.
  */
-import { integerMatrix, logOddsMatrix, scanPacked, thresholdForP, type Background, type PackedSequences } from "./pwm";
+import { integerMatrix, logOddsMatrix, scanPacked, thresholdForP, type Background, type PackedSequences } from "@achi/core/pwm";
 
 interface Job {
   packed: PackedSequences;

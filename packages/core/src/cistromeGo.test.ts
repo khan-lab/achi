@@ -31,8 +31,8 @@ import { xlmhgTest } from "./xlmhg";
  * package files (public/refdata/<asm>/cistromego/rp_model.json).
  */
 
-const PUBLIC = join(__dirname, "../../public");
-const FIXTURES = join(__dirname, "../../tests/fixtures");
+const PUBLIC = join(__dirname, "../../../public");
+const FIXTURES = join(__dirname, "../../../tests/fixtures");
 const model = JSON.parse(readFileSync(join(PUBLIC, "refdata/hg38/cistromego/rp_model.json"), "utf8")) as RpModel;
 
 interface RefConfig {

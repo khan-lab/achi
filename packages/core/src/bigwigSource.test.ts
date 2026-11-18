@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { chromAlias, openBigWig } from "./bigwigSource";
 
 /** A bigWig on the user's computer, read in byte ranges (never uploaded). */
-const ROOT = join(__dirname, "..", "..");
+const ROOT = join(__dirname, "..", "..", "..");
 const file = (f: string, name: string) => new File([new Uint8Array(readFileSync(join(ROOT, "tests/fixtures", f)))], name);
 
 describe("openBigWig", () => {

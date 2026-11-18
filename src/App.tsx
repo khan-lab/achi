@@ -21,7 +21,7 @@ import { LinkDialog } from "./components/LinkDialog";
 import { buildLink, parseLink } from "./lib/shareLink";
 import { COPYRIGHT_YEAR, LAB_NAME, LAB_URL, LICENSE_URL, SOURCE_CODE_URL } from "./siteLinks";
 import { useChosenGroups, useStore, type View } from "./state/store";
-import { validSelection } from "./lib/selection";
+import { validSelection } from "@achi/core/selection";
 import { subsetToBedText } from "./lib/pipeline";
 import { PALETTE } from "./types";
 import "./styles/tokens.css";

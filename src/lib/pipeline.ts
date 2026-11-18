@@ -1,6 +1,6 @@
 import * as bedtools from "./bedtools";
 import type { Interval } from "../types";
-import type { SweepSubset } from "./intervals";
+import type { SweepSubset } from "@achi/core/intervals";
 
 /**
  * Subset computation with real bedtools (PLAN.md §2, Decision A / §10

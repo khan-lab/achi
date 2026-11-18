@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { BLACKLIST_ASSEMBLIES, BLACKLIST_REGION_COUNTS, blacklistHits, blacklistPath, hasBlacklist, splitByBlacklistHits } from "./blacklist";
-import { checkAssembly, normalizeRegionText, parseChromSizes } from "./inputValidation";
+import { checkAssembly, normalizeRegionText, parseChromSizes } from "@achi/core/inputValidation";
 import { parseIntersectCounts } from "./pipeline";
 
 /**

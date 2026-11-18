@@ -10,7 +10,7 @@ import { SUPPORTED_ASSEMBLIES, checkAssembly, normalizeRegionText, parseChromSiz
  * files). These tests read the real vendored files — no fixtures.
  */
 
-const PUBLIC_DIR = join(__dirname, "../../public");
+const PUBLIC_DIR = join(__dirname, "../../../public");
 const available = EXTERNAL_ANNOTATIONS.filter((a) => a.path);
 const placeholders = EXTERNAL_ANNOTATIONS.filter((a) => !a.path);
 

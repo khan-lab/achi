@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useStore, type PairwiseStat } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
-import { resolveOverlapFlags } from "../lib/bedtoolsOptions";
+import { resolveOverlapFlags } from "@achi/core/bedtoolsOptions";
 import { fetchAndMountGenome, sortForGenome, sortPlain, computeFisher, computeJaccard, computeReldist, type FisherResult, type JaccardResult, type ReldistResult } from "../lib/pairwiseStats";
 
 // Concrete colors (not CSS vars) so the exported standalone SVG/PNG render

@@ -1,9 +1,9 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { useChosenGroups, useStore, type LoadedSet } from "../state/store";
-import { inGroup } from "../lib/selection";
+import { inGroup } from "@achi/core/selection";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
-import { parseChromSizes } from "../lib/inputValidation";
+import { parseChromSizes } from "@achi/core/inputValidation";
 import {
   GO_NAMESPACES,
   GREAT_DEFAULTS,
@@ -15,7 +15,7 @@ import {
   type GoNamespace,
   type GreatSettings,
   type PreparedGreat,
-} from "../lib/great";
+} from "@achi/core/great";
 import {
   CISTROMEGO_DEFAULTS,
   DECAY_CHOICES,
@@ -25,13 +25,13 @@ import {
   type CistromeGoSettings,
   type PreparedCistromeGo,
   type RpModel,
-} from "../lib/cistromeGo";
+} from "@achi/core/cistromeGo";
 import type { Subset } from "../types";
 import { PALETTE } from "../types";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
 import { registerExport } from "../lib/exportRegistry";
-import { goMethods } from "../lib/analysisExport";
+import { goMethods } from "@achi/core/analysisExport";
 
 type Method = "great" | "cistromego";
 type GoBackground = "inputs" | "genome";

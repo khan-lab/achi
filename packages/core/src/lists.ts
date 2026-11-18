@@ -5,7 +5,7 @@
  * shape as region subsets, so the UpSet plot, Venn diagram, table, selection
  * and exports work unchanged; a subset's `items` replace its regions.
  */
-import type { Interval } from "../types";
+import type { Interval } from "./types";
 import { InputValidationError } from "./inputValidation";
 
 /** Most names read from one list. */

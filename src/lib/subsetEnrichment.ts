@@ -1,9 +1,9 @@
 import * as bedtools from "./bedtools";
-import { EXTERNAL_ANNOTATIONS, type ExternalAnnotation } from "./externalAnnotations";
+import { EXTERNAL_ANNOTATIONS, type ExternalAnnotation } from "@achi/core/externalAnnotations";
 import { parseIntersectCounts } from "./pipeline";
-import { benjaminiHochberg, fisherExact, mantelHaenszel, oddsRatio } from "./stats";
+import { benjaminiHochberg, fisherExact, mantelHaenszel, oddsRatio } from "@achi/core/stats";
 import type { Interval } from "../types";
-import { inGroup } from "./selection";
+import { inGroup } from "@achi/core/selection";
 
 /**
  * Subset enrichment for the built-in reference region sets — the null

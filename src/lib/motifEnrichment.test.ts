@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CPG_STRATA, GC_STRATA, compositionStrata, cpgRatio, gcPerMille, gcStrata, motifEnrichment, scanPlan } from "./motifEnrichment";
-import { backgroundOf, encodeSequence, hasHit, integerMatrix, logOddsMatrix, thresholdForP, type Background } from "./pwm";
-import { benjaminiHochberg, mantelHaenszel } from "./stats";
+import { backgroundOf, encodeSequence, hasHit, integerMatrix, logOddsMatrix, thresholdForP, type Background } from "@achi/core/pwm";
+import { benjaminiHochberg, mantelHaenszel } from "@achi/core/stats";
 
 /**
  * Motif enrichment: for each selected group and motif, the share of the

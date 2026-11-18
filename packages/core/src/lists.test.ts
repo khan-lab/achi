@@ -11,7 +11,7 @@ import { computeListSubsets, listSetName, parseListText } from "./lists";
  * build_example_lists.py).
  */
 
-const ROOT = join(__dirname, "../..");
+const ROOT = join(__dirname, "../../..");
 const list = (cell: string) => readFileSync(join(ROOT, `public/examples/lists/${cell}_genes.txt`), "utf8");
 const CELLS = ["MCF7", "GM12878", "K562", "HepG2"];
 

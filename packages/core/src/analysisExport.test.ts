@@ -27,7 +27,7 @@ import { computeListSubsets, parseListText } from "./lists";
  * example region files and example gene lists.
  */
 
-const ROOT = join(__dirname, "../..");
+const ROOT = join(__dirname, "../../..");
 const read = (p: string) => readFileSync(join(ROOT, p));
 const CELLS = ["MCF7", "GM12878", "K562", "HepG2"];
 const sha = (p: string) => createHash("sha256").update(read(p)).digest("hex");

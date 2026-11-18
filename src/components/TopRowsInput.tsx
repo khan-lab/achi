@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { DEFAULT_TOP_ROWS } from "../lib/heatmapRows";
+import { DEFAULT_TOP_ROWS } from "@achi/core/heatmapRows";
 
 /** "Show top [10] <noun>" for an enrichment heatmap; a cleared or invalid field keeps the last valid number. */
 export function TopRowsInput({ value, max, noun, onChange }: { value: number; max: number; noun: string; onChange: (n: number) => void }) {

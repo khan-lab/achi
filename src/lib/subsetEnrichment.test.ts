@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseIntersectCounts, subsetsFromOverlaps } from "./pipeline";
-import { EXTERNAL_ANNOTATIONS } from "./externalAnnotations";
+import { EXTERNAL_ANNOTATIONS } from "@achi/core/externalAnnotations";
 import { buildUniverse, enrichmentCounts, lengthStrata, testableAnnotations, unionEnrichment } from "./subsetEnrichment";
 import type { Interval } from "../types";
 

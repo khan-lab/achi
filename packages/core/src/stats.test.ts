@@ -126,7 +126,7 @@ describe("hypergeometricUpper: P(X >= j) drawing m of N with K successes, as R's
 describe("mannWhitneyU (two-sided, normal approximation with tie and continuity correction, as SciPy's asymptotic method)", () => {
   // Real values: mean K562 H3K27ac signal over the chr21 super-enhancers vs
   // GENCODE TSSs ± 1 kb (tests/fixtures/deeptools/expected_summary.json, SciPy 1.18.1).
-  const exp = JSON.parse(readFileSync(join(__dirname, "..", "..", "tests/fixtures/deeptools/expected_summary.json"), "utf8"));
+  const exp = JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "tests/fixtures/deeptools/expected_summary.json"), "utf8"));
   it("matches SciPy on real data", () => {
     const r = mannWhitneyU(exp.se_means, exp.tss_means);
     expect(r.U).toBe(exp.mwu.U);

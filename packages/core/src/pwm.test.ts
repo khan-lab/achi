@@ -10,7 +10,7 @@ import { PSEUDOCOUNT, SCALE, backgroundOf, encodeSequence, hasHit, hitPositions,
  * matrices and hg38 sequence (±100 bp around the centres of example
  * super-enhancers), see tests/fixtures/motifs/PROVENANCE.md.
  */
-const DIR = join(__dirname, "..", "..", "tests", "fixtures", "motifs");
+const DIR = join(__dirname, "..", "..", "..", "tests", "fixtures", "motifs");
 interface Expected {
   pseudocount: number;
   p: number;

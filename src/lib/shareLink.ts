@@ -12,12 +12,12 @@
  * development); nothing the user loaded from their computer is ever written
  * into a link (App.tsx writes files only when every set came from one).
  */
-import type { InputMode } from "./analysisExport";
-import type { OverlapPreset } from "./bedtoolsOptions";
-import { MAX_FILE_BYTES, SUPPORTED_ASSEMBLIES } from "./inputValidation";
-import { LIST_EXTENSION } from "./lists";
+import type { InputMode } from "@achi/core/analysisExport";
+import type { OverlapPreset } from "@achi/core/bedtoolsOptions";
+import { MAX_FILE_BYTES, SUPPORTED_ASSEMBLIES } from "@achi/core/inputValidation";
+import { LIST_EXTENSION } from "@achi/core/lists";
 import { MAX_SETS } from "../types";
-import { isSetKey } from "./selection";
+import { isSetKey } from "@achi/core/selection";
 
 type PairwiseStat = "jaccard" | "fisher" | "reldist";
 

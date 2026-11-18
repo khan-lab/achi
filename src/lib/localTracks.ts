@@ -20,8 +20,8 @@
  */
 import type { Interval } from "../types";
 import { visibilityWindowFor, type IgvTrack } from "./browserTracks";
-import { checkAssembly, InputValidationError, MAX_FILE_BYTES, normalizeRegionText, type ChromSizes } from "./inputValidation";
-import { parseBed, sortIntervals } from "./intervals";
+import { checkAssembly, InputValidationError, MAX_FILE_BYTES, normalizeRegionText, type ChromSizes } from "@achi/core/inputValidation";
+import { parseBed, sortIntervals } from "@achi/core/intervals";
 
 export type LocalFormat = "bigwig" | "bigbed" | "bed" | "narrowpeak" | "broadpeak" | "bedgraph" | "vcf" | "bam" | "cram";
 export type LocalKind = "signal" | "annotation" | "alignment";

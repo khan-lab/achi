@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import { useMemo } from "react";
-import * as intervals from "../lib/intervals";
+import * as intervals from "@achi/core/intervals";
 import { computeSubsetsViaBedtools, forgetSet, subsetToBedText, type PipelineProgress } from "../lib/pipeline";
-import { resolveOverlapFlags, type OverlapPreset } from "../lib/bedtoolsOptions";
+import { resolveOverlapFlags, type OverlapPreset } from "@achi/core/bedtoolsOptions";
 import { MAX_SETS, PALETTE, type Interval, type RegionSet, type Subset } from "../types";
-import type { ExternalAnnotation } from "../lib/externalAnnotations";
+import type { ExternalAnnotation } from "@achi/core/externalAnnotations";
 import { blacklistHits, hasBlacklist, mountBlacklist, splitByBlacklistHits } from "../lib/blacklist";
-import { LIST_EXTENSION, computeListSubsets, listSetName, parseListText } from "../lib/lists";
+import { LIST_EXTENSION, computeListSubsets, listSetName, parseListText } from "@achi/core/lists";
 import {
   buildSettings,
   compareInputs,
@@ -20,12 +20,12 @@ import {
   type AnalysisSettings,
   type InputMode,
   type SavedSubset,
-} from "../lib/analysisExport";
+} from "@achi/core/analysisExport";
 import { collectExports } from "../lib/exportRegistry";
-import { bigWigFor } from "../lib/bigwigSource";
+import { bigWigFor } from "@achi/core/bigwigSource";
 import { fetchFailureMessage, matchGzipName, type LinkSettings, type ParsedLink } from "../lib/shareLink";
 import { svgToStandaloneString } from "../lib/exportImage";
-import { chosenGroups, remapSelection, validSelection } from "../lib/selection";
+import { chosenGroups, remapSelection, validSelection } from "@achi/core/selection";
 import {
   InputValidationError,
   SUPPORTED_ASSEMBLIES,
@@ -35,7 +35,7 @@ import {
   parseChromSizes,
   type ChromSizes,
   type InputFormat,
-} from "../lib/inputValidation";
+} from "@achi/core/inputValidation";
 
 export type View = "upset" | "venn" | "pairwise" | "table" | "summary" | "browser" | "help";
 

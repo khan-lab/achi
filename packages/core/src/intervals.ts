@@ -1,4 +1,4 @@
-import type { Interval } from "../types";
+import type { Interval } from "./types";
 
 /**
  * Pure-TypeScript interval sweep — the fallback path for browsers where

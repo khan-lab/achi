@@ -14,7 +14,7 @@
  * tests between two selected groups are skipped where they share regions
  * (`sharesRegions`).
  */
-import type { RegionSet, Subset } from "../types";
+import type { RegionSet, Subset } from "./types";
 
 /** The selection key of the included set at subset bit `bit`. */
 export function setKey(bit: number): number {

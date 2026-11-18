@@ -15,7 +15,7 @@ import { binomialUpper, hypergeometricUpper } from "./stats";
  * ENCODE fixture with the vendored hg38 GO data.
  */
 
-const PUBLIC = join(__dirname, "../../public");
+const PUBLIC = join(__dirname, "../../../public");
 const read = (p: string) => readFileSync(join(PUBLIC, p), "utf8");
 const sizes = parseChromSizes(read("refdata/hg38/hg38.chrom.sizes"));
 const go = JSON.parse(read("refdata/hg38/go/go.json")) as GoData;
@@ -106,7 +106,7 @@ describe.skipIf(!available("bedtools"))("GREAT on real data vs native bedtools",
   const prepared = prepareGreat(go, sizes, gapsText);
   const domainsPath = join(dir, "domains.bed");
   writeFileSync(domainsPath, prepared.domains.map((d, i) => `${d.chrom}\t${d.start}\t${d.end}\t${i}`).join("\n") + "\n");
-  const fixture = normalizeRegionText(readFileSync(join(__dirname, "../../tests/fixtures/encode/heart_h3k27ac_ENCFF059ERB.subsample.bed"), "utf8")).bedText;
+  const fixture = normalizeRegionText(readFileSync(join(__dirname, "../../../tests/fixtures/encode/heart_h3k27ac_ENCFF059ERB.subsample.bed"), "utf8")).bedText;
   const regions = fixture
     .split("\n")
     .filter(Boolean)

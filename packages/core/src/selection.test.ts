@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { chosenGroups, inGroup, isSetKey, remapSelection, setBitOf, setGroup, setKey, sharesRegions, validSelection } from "./selection";
 import { computeListSubsets, parseListText } from "./lists";
 import { parseBed, sortIntervals } from "./intervals";
-import type { RegionSet, Subset } from "../types";
+import type { RegionSet, Subset } from "./types";
 
 /**
  * Selecting whole sets next to subsets. A whole set is keyed by the
@@ -13,7 +13,7 @@ import type { RegionSet, Subset } from "../types";
  * positive) and never collides with one. Real data: the example gene lists
  * and the example super-enhancer BED files.
  */
-const ROOT = join(__dirname, "../..");
+const ROOT = join(__dirname, "../../..");
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
 const CELLS = ["MCF7", "GM12878", "K562", "HepG2"];
 

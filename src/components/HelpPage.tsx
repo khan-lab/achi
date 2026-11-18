@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MAX_FILE_BYTES, MAX_REGIONS } from "../lib/inputValidation";
+import { MAX_FILE_BYTES, MAX_REGIONS } from "@achi/core/inputValidation";
 import { MAX_SETS } from "../types";
 import { LINK_DEFAULTS, buildLink } from "../lib/shareLink";
 import { OfflinePanel } from "./OfflineStatus";

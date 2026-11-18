@@ -8,7 +8,7 @@ import {
 } from "../lib/geneList";
 import type { SummaryItem } from "./SummaryPlot";
 import { registerExport } from "../lib/exportRegistry";
-import { geneListMethods } from "../lib/analysisExport";
+import { geneListMethods } from "@achi/core/analysisExport";
 
 // Module-level, not component state: this panel unmounts whenever
 // `selectedSubsets` empties out or `view` navigates to "summary" (App.tsx

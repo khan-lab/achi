@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_COLLECTION, MOTIF_COLLECTIONS, collectionById, mergeCollections, type JasparFile } from "./motifCollections";
 
 /** The JASPAR 2026 collections offered by the motif card, checked against the built files (public/refdata/jaspar). */
-const DIR = join(__dirname, "..", "..", "public", "refdata", "jaspar");
+const DIR = join(__dirname, "..", "..", "..", "public", "refdata", "jaspar");
 const load = (f: string): JasparFile => JSON.parse(readFileSync(join(DIR, f), "utf8"));
 
 describe("MOTIF_COLLECTIONS", () => {
