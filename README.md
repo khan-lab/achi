@@ -1,19 +1,21 @@
 <p align="left">
-  <img src="public/logo.png" alt="Intervene logo" width="220">
+  <img src="public/achi-logo.svg" alt="Achi logo" width="260">
 </p>
 
-> ### A secure platform for in-browser genomic intersections, annotation and enrichment
+> ### A browser-based framework for comparing, annotating and interpreting genomic intervals
 
-[![Deploy](https://github.com/khan-lab/intervene-secure/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/khan-lab/intervene-secure/actions/workflows/deploy.yml)
-[![Web app](https://img.shields.io/website?url=https%3A%2F%2Fkhan-lab.github.io%2Fintervene-secure%2F&label=web%20app&up_message=online&down_message=offline)](https://khan-lab.github.io/intervene-secure/)
+[![Deploy](https://github.com/khan-lab/achi/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/khan-lab/achi/actions/workflows/deploy.yml)
+[![Web app](https://img.shields.io/website?url=https%3A%2F%2Fkhan-lab.github.io%2Fachi%2F&label=web%20app&up_message=online&down_message=offline)](https://khan-lab.github.io/achi/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![bedtools 2.31 (WebAssembly)](https://img.shields.io/badge/bedtools-2.31%20%C2%B7%20WebAssembly-654ff0.svg)](https://bedtools.readthedocs.io/)
 [![No data upload](https://img.shields.io/badge/data-never%20uploaded-success.svg)](#built-for-patient-and-sensitive-data)
 [![Cite: BMC Bioinformatics 2017](https://img.shields.io/badge/cite-10.1186%2Fs12859--017--1708--7-informational.svg)](https://doi.org/10.1186/s12859-017-1708-7)
 
-**Available: <https://khan-lab.github.io/intervene-secure/>**
+**Available: <https://khan-lab.github.io/achi/>**
 
-**Intervene Secure** performs genomic interval intersections, annotation and enrichment analysis entirely in your browser. It supports 2–8 input files in BED, narrowPeak or VCF format and uses bedtools compiled to WebAssembly to compute intersections. Both the input sets and their intersection subsets can be annotated and tested for enrichment. All processing happens locally within your browser tab, with no files uploaded to a server, helping keep sensitive genomic data under your control.
+**Achi** (pronounced “AH-chee”) is a browser-based framework for comparing, annotating and interpreting genomic intervals. It performs genomic interval intersections, annotation and enrichment analysis entirely in your browser. It supports 2–8 input files in BED, narrowPeak or VCF format and uses bedtools compiled to WebAssembly to compute intersections. Both the input sets and their intersection subsets can be annotated and tested for enrichment. All processing happens locally within your browser tab, with no files uploaded to a server, helping keep sensitive genomic data under your control.
+
+Achi grows out of [Intervene](https://github.com/asntech/intervene) (Khan and Mathelier, 2017). It computes the same intersections as the Intervene command-line tool and adds annotation, enrichment, motif and signal analyses on top.
 
 ## Built for patient and sensitive data
 
@@ -102,9 +104,9 @@ regions per file.
 
 ## How intersections are computed
 
-For each combination of sets, Intervene keeps the regions of the first set
+For each combination of sets, Achi keeps the regions of the first set
 that overlap every other member (`bedtools intersect -u`) and no non-member
-(`bedtools intersect -v`), the same definition as the CLI. In the browser,
+(`bedtools intersect -v`), the same definition as the Intervene CLI. In the browser,
 each ordered pair of sets is compared once with `bedtools intersect -c`
 (56 runs instead of 1,785 for eight sets), with identical results.
 
@@ -113,10 +115,10 @@ each ordered pair of sets is compared once with `bedtools intersect -c`
 Requires [Node.js](https://nodejs.org/) 20.19+ or 22.12+.
 
 ```sh
-git clone https://github.com/khan-lab/intervene-secure.git
-cd intervene-secure
+git clone https://github.com/khan-lab/achi.git
+cd achi
 npm ci
-npm run dev        # http://localhost:5173/intervene-secure/
+npm run dev        # http://localhost:5173/achi/
 ```
 
 `npm test` runs the test suite (differential tests need a native `bedtools`
@@ -130,7 +132,7 @@ Most of the code has been written with the assistance of AI tools, mostly Claude
 
 ## Citation
 
-If you use Intervene for your work, please cite:
+Achi builds on Intervene. If you use Achi for your work, please cite:
 
 > Khan A, Mathelier A. Intervene: a tool for intersection and visualization of
 > multiple gene or genomic region sets. *BMC Bioinformatics*. 2017;18:287.
@@ -169,4 +171,4 @@ The genome browser is igv.js:
 > [doi:10.1093/bioinformatics/btac830](https://doi.org/10.1093/bioinformatics/btac830)
 
 
-> Intervene Secure is developed and maintained by the [CBCRG Lab](https://khanlab.bio).
+> Achi is developed and maintained by the [CBCRG Lab](https://khanlab.bio).

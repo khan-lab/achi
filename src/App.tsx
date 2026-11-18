@@ -171,8 +171,8 @@ function App() {
       <LinkDialog />
       <header className="top">
         <div className="brand">
-          <h1><img src="logo.png" width="100" alt="Intervene Secure" /></h1>
-          <span className="eyebrow">A secure platform for in-browser genomic intersections, annotation and enrichment without data upload</span>
+          <h1><img src="achi-logo.svg" width="125" alt="Achi" /></h1>
+          <span className="eyebrow">a browser-based framework for comparing, annotating, and interpreting genomic intervals</span>
         </div>
         <nav className="topnav" aria-label="Site">
           <OfflineBadge
@@ -399,7 +399,7 @@ function App() {
         <div className="foot-notes">
           <span className="free">
             <span className="dot" aria-hidden="true" />
-            Intervene is open to all without anylogin.
+            Achi is open to all without any login.
           </span>
           <span className="foot-private">Your files never leave your browser.</span>
         </div>

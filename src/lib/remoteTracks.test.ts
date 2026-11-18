@@ -25,7 +25,7 @@ import {
 
 const PUBLIC = join(__dirname, "../../public");
 const API = join(__dirname, "../../tests/fixtures/encode_api");
-const BASE = "https://khan-lab.github.io/intervene-secure/";
+const BASE = "https://khan-lab.github.io/achi/";
 const ORIGIN = "https://khan-lab.github.io";
 const CONSENTED = new Set(CONSENT_HOSTS.map((h) => h.host));
 

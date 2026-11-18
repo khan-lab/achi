@@ -61,7 +61,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
 
         <h2>Documentation</h2>
         <p>
-          Intervene Secure performs genomic interval intersections, annotation and enrichment analysis entirely in your browser. It supports 2–{MAX_SETS} input files in BED, 
+          Achi (pronounced “AH-chee”) is a browser-based framework for comparing, annotating and interpreting genomic intervals. It performs genomic interval intersections, annotation and enrichment analysis entirely in your browser. It supports 2–{MAX_SETS} input files in BED, 
           narrowPeak or VCF format and uses bedtools compiled to WebAssembly to compute intersections. Both the input sets and their intersection subsets can be annotated and 
           tested for enrichment. All processing happens locally within your browser tab, with no files uploaded to a server, helping keep sensitive genomic data under your control.
         </p>
@@ -72,7 +72,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
             Drop two or more region files on <em>Drop BED files</em>, or press <em>Load example data</em>.
           </li>
           <li>
-            Pick the genome assembly your files use. Intervene checks chromosome names and lengths against it and warns
+            Pick the genome assembly your files use. Achi checks chromosome names and lengths against it and warns
             you if a file looks like it belongs to a different assembly.
           </li>
           <li>
@@ -166,7 +166,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
 
         <h3 id="method">How intersections are computed</h3>
         <p>
-          Intervene uses the same algorithm as the command-line tool. For each of the 2<sup>n</sup>−1 combinations of
+          Achi uses the same algorithm as the Intervene command-line tool. For each of the 2<sup>n</sup>−1 combinations of
           sets, it takes the regions of the first set in the combination and keeps those that overlap every other set
           in it (<code>bedtools intersect -u</code>) and no set outside it (<code>bedtools intersect -v</code>). So
           subset counts are regions of the combination's first set, in the order the sets are listed, and subset
@@ -278,8 +278,10 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           with the whole genome. The test is Fisher's exact test on the 2×2 table of regions (in the subset or not ×
           hit or not). With <em>Adjust for region length</em> (on by default) it is the Cochran–Mantel–Haenszel test
           across five region-length strata, because longer regions hit reference sets more often by chance. p-values
-          are adjusted with Benjamini–Hochberg across all cells of a run (q). The heatmap shows the odds ratio:{" "}
-          red for enriched, blue for depleted; stars mark q &lt; 0.05, 0.01 and 0.001. Download the full table as TSV.
+          are adjusted with Benjamini–Hochberg across all cells of a run (q). The heatmap colours the odds ratio:{" "}
+          red for enriched, blue for depleted; stars mark q &lt; 0.05, 0.01 and 0.001, and hovering a cell gives its
+          numbers. It shows the 10 most significant reference sets (<em>Show top</em> changes how many); the table and the
+          TSV keep them all.
         </p>
         <p>
           A reference set that is one of your analysed input sets is not tested. There is no whole-genome background:{" "}
@@ -345,7 +347,8 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           <em>Settings</em> every CORE version, the UNVALIDATED collection, or CORE and UNVALIDATED together) on both strands
           of a window around each region's centre (±100 bp by default), counts the regions with at least one site (p &lt; 1e-4),
           and compares a group with the rest within strata of GC and CpG content (Cochran–Mantel–Haenszel test, Benjamini–Hochberg
-          adjusted). The heatmap shows the most enriched motifs with their logos (one per TF family by default); the table links
+          adjusted). The heatmap shows the 10 most enriched motifs with their logos (one per TF family by default; <em>Show top</em>{" "}
+          changes how many), coloured by odds ratio with stars for q, and hovering a cell gives its numbers; the table links
           each matrix to JASPAR. Long regions such as super-enhancers are represented by their centre only.
         </p>
         <p>
@@ -387,7 +390,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
         <h3 id="export">Export and restore an analysis</h3>
         <p>
           <em>Export analysis</em> saves one ZIP, made in the page: <code>methods.md</code>, a methods paragraph for
-          the analysis with its references (the build of Intervene Secure, the inputs, assembly, overlap rule, filters,
+          the analysis with its references (the build of Achi, the inputs, assembly, overlap rule, filters,
           the selected subsets and sets and, if you ran them, the enrichment, GO and gene-list settings);{" "}
           <code>settings.json</code>; every subset as BED (or .txt for lists); tables of the inputs and all subsets; the
           enrichment and GO results and gene lists you computed; and the plots on screen at that moment as SVG.{" "}
@@ -398,7 +401,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
 
         <h3 id="links">Open public files from a link</h3>
         <p>
-          A link can open Intervene Secure with public files already named, for a data portal, a lab page or a
+          A link can open Achi with public files already named, for a data portal, a lab page or a
           paper's supplement. Everything after <code>#</code> stays in the browser and is never sent to this site.
           Each <code>bed=</code> is one set (BED, narrowPeak, broadPeak, bedGraph or VCF, plain or .gz); a{" "}
           <code>name=</code> after it names that set. For lists of names, use <code>list=</code> instead. Up to{" "}
@@ -422,7 +425,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           settings, view and selection; the address bar holds the same link. A file from your computer is never put
           in a link, so <em>Copy link</em> is off once one is loaded. A button for your page:
         </p>
-        <pre className="help-code">{`<a href="${appBase}#bed=<url-encoded file URL>&name=My%20peaks">Open in Intervene Secure</a>`}</pre>
+        <pre className="help-code">{`<a href="${appBase}#bed=<url-encoded file URL>&name=My%20peaks">Open in Achi</a>`}</pre>
 
         <h3 id="keyboard">Keyboard</h3>
         <p>
@@ -436,7 +439,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           The only network requests are for this site's own static files: the application, the bedtools WebAssembly
           binary, example data and reference annotation. There is no login, no account and no server-side storage. Links
           out (GO terms to AmiGO) open only when you click them and send only the term id. The genome browser shows
-          only your files and data bundled with Intervene: its genome is the bundled chromosome sizes, gene search runs
+          only your files and data bundled with Achi: its genome is the bundled chromosome sizes, gene search runs
           here, and igv.js's own genome list and search service are switched off. The one exception is{" "}
           <em>Public tracks</em> in the genome browser, off until you agree: the servers named in that notice
           (www.encodeproject.org, encode-public.s3.amazonaws.com, downloads.wenglab.org, hgdownload.soe.ucsc.edu, or
@@ -507,7 +510,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
         </p>
 
         <h3 id="cite">How to cite</h3>
-        <p>If Intervene helps your work, please cite:</p>
+        <p>Achi builds on Intervene. If Achi helps your work, please cite:</p>
         <blockquote className="citation">{INTERVENE_CITATION}</blockquote>
         <div className="citeactions">
           <CopyButton text={INTERVENE_CITATION} label="Copy citation" />
@@ -538,7 +541,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           implementation of the Integrative Genomics Viewer (IGV). <em>Bioinformatics</em> 2023;39:btac830), MIT
           licence, Copyright (c) 2014-2025 Broad Institute of MIT and Harvard, Regents of the University of California. The genome-wide overview is GenomeSpy 1.3.0 (Lavikka K, et al. Deciphering cancer genomes with GenomeSpy: a
           grammar-based visualization toolkit. <em>GigaScience</em> 2024;13:giae040), MIT licence.
-          Intervene is developed by
+          Achi is developed by
           the{" "}
           <a href={LAB_URL} target="_blank" rel="noreferrer">
             {LAB_NAME}
@@ -547,7 +550,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
         </p>
 
         <p className="free" style={{ marginTop: 28 }}>
-          Intervene is free and open to all users and there is no login requirement.
+          Achi is free and open to all users and there is no login requirement.
         </p>
       </div>
     </main>

@@ -473,7 +473,7 @@ export const useStore = create<StoreState>((set, get) => {
     const notices: string[] = [];
     if (files.length > room) {
       notices.push(
-        `Intervene compares up to ${MAX_SETS} sets; ${plural(files.length - room, "file")} not added (${files
+        `Achi compares up to ${MAX_SETS} sets; ${plural(files.length - room, "file")} not added (${files
           .slice(room)
           .map((f) => f.name)
           .join(", ")}).`
@@ -725,7 +725,7 @@ export const useStore = create<StoreState>((set, get) => {
     }
     const memberNames = (ids: string[]) => ids.map((id) => byId.get(id)?.name ?? id).join(", ");
     const readme = [
-      "# Intervene subset export",
+      "# Achi subset export",
       "",
       ...(get().inputMode === "lists"
         ? ["Each .txt file is one combinatorial intersection subset of the lists (one name per line),", "computed in the browser by exact name matching. No data left this browser."]
@@ -747,7 +747,7 @@ export const useStore = create<StoreState>((set, get) => {
       "",
     ].join("\n");
     zip.file("README.md", readme);
-    download(await zip.generateAsync({ type: "blob" }), "intervene-subsets.zip");
+    download(await zip.generateAsync({ type: "blob" }), "achi-subsets.zip");
   },
 
   exportSubsetBed: (mask) => {
@@ -833,14 +833,14 @@ export const useStore = create<StoreState>((set, get) => {
       });
       const unit = mode === "lists" ? "names" : "regions";
       const readme = [
-        "# Intervene Secure analysis export",
+        "# Achi analysis export",
         "",
         `Exported ${settings.created} from ${settings.app.url} (build ${settings.app.commit}, ${settings.app.buildDate}).`,
         "Everything was computed in the browser; no data were uploaded.",
         "",
         "- methods.md: a methods paragraph for this analysis, with references.",
         "- settings.json: the parameters and the inputs' names, file names and SHA-256 checksums (no data).",
-        "  Load it with \"Restore settings…\" in Intervene Secure, then load the same files, to restore the analysis.",
+        "  Load it with \"Restore settings…\" in Achi, then load the same files, to restore the analysis.",
         "- tables/sets.tsv: the inputs.",
         `- tables/subsets.tsv: every subset (${st.subsets.length}), its members, size in ${unit}, and whether it was selected.`,
         `- subsets/: every subset as ${mode === "lists" ? ".txt (one name per line)" : ".bed"}.`,
@@ -849,7 +849,7 @@ export const useStore = create<StoreState>((set, get) => {
         "",
       ].join("\n");
       zip.file("README.md", readme);
-      download(await zip.generateAsync({ type: "blob" }), `intervene-analysis-${settings.created.slice(0, 10)}.zip`);
+      download(await zip.generateAsync({ type: "blob" }), `achi-analysis-${settings.created.slice(0, 10)}.zip`);
     } finally {
       set({ progress: null });
     }

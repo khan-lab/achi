@@ -93,7 +93,7 @@ describe("blacklistHits", () => {
 });
 
 describeIfBedtools("blacklist split vs native bedtools (real ENCODE fixtures, hg38 blacklist v2)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "intervene-blacklist-"));
+  const dir = mkdtempSync(join(tmpdir(), "achi-blacklist-"));
   const bl = join(PUBLIC_DIR, blacklistPath("hg38"));
 
   for (const name of FIXTURES) {

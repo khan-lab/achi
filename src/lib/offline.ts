@@ -7,8 +7,8 @@ import type { OfflineManifest } from "./offlineManifest";
  */
 
 const BASE = import.meta.env.BASE_URL;
-const DATA_CACHE = "intervene-data";
-const STATE_CACHE = "intervene-state";
+const DATA_CACHE = "achi-data";
+const STATE_CACHE = "achi-state";
 
 export function offlineSupported(): boolean {
   return import.meta.env.PROD && "serviceWorker" in navigator && "caches" in window;

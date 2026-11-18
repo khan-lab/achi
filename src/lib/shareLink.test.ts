@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { LINK_DEFAULTS, buildLink, fetchFailureMessage, fileNameFromUrl, matchGzipName, parseLink } from "./shareLink";
 
 /**
- * "Open in Intervene Secure" links: the part after # names public files and
+ * "Open in Achi" links: the part after # names public files and
  * settings. It is never sent to a server (a URL fragment stays in the
  * browser); the files are downloaded only after the user agrees.
  */
 const ENCODE = "https://www.encodeproject.org/files/ENCFF314QTE/@@download/ENCFF314QTE.bed.gz";
-const PAGES = "https://khanlab.bio/intervene-secure/examples/hg38_ses/K562.bed";
+const PAGES = "https://khanlab.bio/achi/examples/hg38_ses/K562.bed";
 const enc = encodeURIComponent;
 
 describe("parseLink", () => {
@@ -47,7 +47,7 @@ describe("parseLink", () => {
   });
 
   it("accepts the app's own origin over http (local development)", () => {
-    const own = "http://localhost:4317/intervene-secure/examples/hg38_ses/K562.bed";
+    const own = "http://localhost:4317/achi/examples/hg38_ses/K562.bed";
     expect(parseLink(`bed=${enc(own)}`, { ownOrigin: "http://localhost:4317" }).files).toHaveLength(1);
     expect(parseLink(`bed=${enc(own)}`).files).toHaveLength(0);
   });

@@ -228,10 +228,10 @@ describe("genomeSpec", () => {
 describe("genomeExportName", () => {
   const contigs = contigsFromSizes(SIZES);
   it("names an export after what is shown: one locus, a chromosome range, or the whole genome", () => {
-    expect(genomeExportName([{ chrom: "chr7", start: 999, end: 2000 }], contigs, "svg")).toBe("intervene-genome_chr7_1000-2000.svg");
-    expect(genomeExportName([{ chrom: "chr1", start: 5, end: SIZES.chr1 }, { chrom: "chr2", start: 0, end: 9 }], contigs, "png")).toBe("intervene-genome_chr1-chr2.png");
+    expect(genomeExportName([{ chrom: "chr7", start: 999, end: 2000 }], contigs, "svg")).toBe("achi-genome_chr7_1000-2000.svg");
+    expect(genomeExportName([{ chrom: "chr1", start: 5, end: SIZES.chr1 }, { chrom: "chr2", start: 0, end: 9 }], contigs, "png")).toBe("achi-genome_chr1-chr2.png");
     const all = contigs.map((c) => ({ chrom: c.name, start: 0, end: c.size }));
-    expect(genomeExportName(all, contigs, "svg")).toBe("intervene-genome_whole.svg");
-    expect(genomeExportName([], contigs, "svg")).toBe("intervene-genome.svg");
+    expect(genomeExportName(all, contigs, "svg")).toBe("achi-genome_whole.svg");
+    expect(genomeExportName([], contigs, "svg")).toBe("achi-genome.svg");
   });
 });

@@ -1,5 +1,5 @@
 """
-Example gene lists for Intervene Secure's list mode, derived from the app's
+Example gene lists for Achi's list mode, derived from the app's
 own example data (no download): for each ENCODE cell line in
 public/examples/hg38_ses/, the protein-coding genes whose TSS is nearest to
 at least one of its peaks.

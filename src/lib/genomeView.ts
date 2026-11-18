@@ -186,8 +186,8 @@ export function genomeSpec(opts: { contigs: Contig[]; tracks: GenomeTrack[]; row
     axis: zoomAxis ? { chromGrid: true } : null,
   });
   return {
-    genomes: { intervene: { contigs: opts.contigs } },
-    assembly: "intervene",
+    genomes: { achi: { contigs: opts.contigs } },
+    assembly: "achi",
     datasets: { density: [], regions: [], viewport: [] },
     resolve: { scale: { x: "shared" } },
     spacing: 6,
@@ -254,9 +254,9 @@ export function genomeSpec(opts: { contigs: Contig[]; tracks: GenomeTrack[]; row
 
 /** Export file name for what the genome view shows. */
 export function genomeExportName(loci: Locus[], contigs: Contig[], ext: "svg" | "png"): string {
-  if (!loci.length) return `intervene-genome.${ext}`;
+  if (!loci.length) return `achi-genome.${ext}`;
   const whole = loci.length === contigs.length && loci.every((l, i) => l.chrom === contigs[i].name && l.start === 0 && l.end === contigs[i].size);
-  if (whole) return `intervene-genome_whole.${ext}`;
-  if (loci.length === 1) return `intervene-genome_${loci[0].chrom}_${loci[0].start + 1}-${loci[0].end}.${ext}`;
-  return `intervene-genome_${loci[0].chrom}-${loci[loci.length - 1].chrom}.${ext}`;
+  if (whole) return `achi-genome_whole.${ext}`;
+  if (loci.length === 1) return `achi-genome_${loci[0].chrom}_${loci[0].start + 1}-${loci[0].end}.${ext}`;
+  return `achi-genome_${loci[0].chrom}-${loci[loci.length - 1].chrom}.${ext}`;
 }

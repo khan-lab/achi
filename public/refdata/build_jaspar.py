@@ -40,7 +40,7 @@ COLLECTIONS = [
 def get(url, tries=5):
     for attempt in range(1, tries + 1):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "intervene-secure-refdata-build"})
+            req = urllib.request.Request(url, headers={"User-Agent": "achi-build-jaspar/1.0 (+https://github.com/khan-lab/achi)"})
             with urllib.request.urlopen(req, timeout=60) as r:
                 return r.read()
         except Exception as e:  # noqa: BLE001 - report and retry, then stop

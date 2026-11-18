@@ -16,6 +16,8 @@ import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { SettingsShell } from "./GoEnrichmentPanel";
 import { Icon } from "./Icon";
+import { TopRowsInput } from "./TopRowsInput";
+import { DEFAULT_TOP_ROWS, rankRows } from "../lib/heatmapRows";
 
 /**
  * Motif enrichment of the selected subsets and sets: JASPAR 2026 CORE
@@ -48,7 +50,7 @@ const EXACT_MAX = 2_000;
 type SourceMode = "local" | "private" | "exact";
 // Agreed hosts and the chosen source, for the page session.
 const agreedPrivate = new Set<string>();
-let lastUi = { mode: "local" as SourceMode, half: 100, p: 1e-4, perFamily: true, collection: DEFAULT_COLLECTION };
+let lastUi = { mode: "local" as SourceMode, half: 100, p: 1e-4, perFamily: true, collection: DEFAULT_COLLECTION, top: DEFAULT_TOP_ROWS };
 let lastResult: RunResult | null = null;
 let localSource: { source: SequenceSource; name: string; assembly: string } | null = null;
 
@@ -70,6 +72,8 @@ interface RunResult {
 
 const INK = "#101826";
 const INK_3 = "#8b97a9";
+/** The heatmap frame (as the signal heatmaps). */
+const AXIS = "#3a4250";
 const PAPER = "#ffffff";
 const NA_FILL = "#f4f5f7";
 const DEPLETED = "#2a78d6";
@@ -77,7 +81,7 @@ const NEUTRAL = "#f0efec";
 const ENRICHED = "#e34948";
 const LOGO = ["#109648", "#255C99", "#F7B32B", "#D62839"]; // A C G T
 const LOG2_CLIP = 3;
-const CELL_W = 64;
+const CELL_W = 40;
 const CELL_H = 26;
 const PAD = 10;
 
@@ -150,6 +154,8 @@ export function MotifEnrichmentPanel() {
   const setHalf = (v: number) => ((lastUi = { ...lastUi, half: v }), setHalfState(v));
   const setP = (v: number) => ((lastUi = { ...lastUi, p: v }), setPState(v));
   const setPerFamily = (v: boolean) => ((lastUi = { ...lastUi, perFamily: v }), setPerFamilyState(v));
+  const [top, setTopState] = useState(lastUi.top);
+  const setTop = (v: number) => ((lastUi = { ...lastUi, top: v }), setTopState(v));
   const [collectionId, setCollectionState] = useState(lastUi.collection);
   const setCollection = (v: string) => ((lastUi = { ...lastUi, collection: v }), setCollectionState(v));
   const collection = collectionById(collectionId);
@@ -223,7 +229,7 @@ export function MotifEnrichmentPanel() {
         mode === "local"
           ? local!.source
           : mode === "private"
-            ? privateTwoBitSource(ucscTwoBit(assembly), { store: await opfsStore(`intervene-genome-${assembly}`) })
+            ? privateTwoBitSource(ucscTwoBit(assembly), { store: await opfsStore(`achi-genome-${assembly}`) })
             : exactTwoBitSource(ucscTwoBit(assembly));
       setProgress({ done: 0, total: windows.length, label: "Reading sequence", unit: "regions" });
       const seqs = await source.read(windows, {
@@ -476,9 +482,14 @@ export function MotifEnrichmentPanel() {
 
       {result && (
         <div className={stale ? "stale" : undefined}>
-          <MotifHeatmap result={result} perFamily={perFamily} groupOf={groupOf} svgRef={svgRef} />
+          <MotifHeatmap result={result} perFamily={perFamily} top={top} groupOf={groupOf} svgRef={svgRef} />
           <div className="plotactions">
-            <label className="checkrow" style={{ marginRight: "auto" }} title="Show only the best motif of each TF family (JASPAR's families) in the heatmap; the table and download keep them all.">
+            <TopRowsInput value={top} max={result.motifs.length} noun="motifs" onChange={setTop} />
+            <label
+              className="checkrow"
+              style={{ marginRight: "auto", marginLeft: 12 }}
+              title="Show only the best motif of each TF family (JASPAR's families) in the heatmap; the table and download keep them all."
+            >
               <input type="checkbox" checked={perFamily} onChange={(e) => setPerFamily(e.target.checked)} />
               <span className="k">One motif per family</span>
             </label>
@@ -486,14 +497,14 @@ export function MotifEnrichmentPanel() {
               className="iconbtn"
               title="Download all results as TSV"
               aria-label="Download motif enrichment results as TSV"
-              onClick={() => save(tsvText(result), "intervene-motif-enrichment.tsv")}
+              onClick={() => save(tsvText(result), "achi-motif-enrichment.tsv")}
             >
               <Icon name="download" />
             </button>
-            <button className="iconbtn" title="Export SVG" onClick={() => svgRef.current && downloadSvg(svgRef.current, "intervene-motif-enrichment.svg")}>
+            <button className="iconbtn" title="Export SVG" onClick={() => svgRef.current && downloadSvg(svgRef.current, "achi-motif-enrichment.svg")}>
               SVG
             </button>
-            <button className="iconbtn" title="Export PNG" onClick={() => svgRef.current && void downloadPng(svgRef.current, "intervene-motif-enrichment.png")}>
+            <button className="iconbtn" title="Export PNG" onClick={() => svgRef.current && void downloadPng(svgRef.current, "achi-motif-enrichment.png")}>
               PNG
             </button>
           </div>
@@ -508,37 +519,35 @@ export function MotifEnrichmentPanel() {
   );
 }
 
-/** Rows: the motifs with q < 0.05 and odds ratio > 1 in any group (best per family when asked), most significant first, at most 25. */
-function heatmapRows(r: RunResult, perFamily: boolean): { motifs: number[]; significant: boolean } {
-  const best = new Map<number, number>();
-  for (const c of r.cells) if (c.oddsRatio > 1) best.set(c.motif, Math.min(best.get(c.motif) ?? Infinity, c.q));
-  let ranked = [...best.entries()].sort((a, b) => a[1] - b[1]);
-  const significant = ranked.some(([, q]) => q < 0.05);
-  ranked = significant ? ranked.filter(([, q]) => q < 0.05) : ranked;
+/** Rows: the `top` motifs with the smallest q among cells with odds ratio > 1 (best per family when asked); `nSignificant` counts those with q < 0.05. */
+function heatmapRows(r: RunResult, perFamily: boolean, top: number): { motifs: number[]; nSignificant: number } {
+  let ranked = rankRows(r.cells, (c) => c.motif, (c) => c.oddsRatio > 1);
   if (perFamily) {
     const seen = new Set<string>();
-    ranked = ranked.filter(([m]) => {
-      const f = familyOf(r.motifs[m]);
+    ranked = ranked.filter(({ row }) => {
+      const f = familyOf(r.motifs[row]);
       if (seen.has(f)) return false;
       seen.add(f);
       return true;
     });
   }
-  return { motifs: ranked.slice(0, significant ? 25 : 10).map(([m]) => m), significant };
+  return { motifs: ranked.slice(0, top).map((x) => x.row), nSignificant: ranked.filter((x) => x.q < 0.05).length };
 }
 
 function MotifHeatmap({
   result,
   perFamily,
+  top,
   groupOf,
   svgRef,
 }: {
   result: RunResult;
   perFamily: boolean;
+  top: number;
   groupOf: (k: number) => { label: string } | undefined;
   svgRef: React.RefObject<SVGSVGElement | null>;
 }) {
-  const { motifs: rows, significant } = heatmapRows(result, perFamily);
+  const { motifs: rows, nSignificant } = heatmapRows(result, perFamily, top);
   const cols = result.keys;
   const cell = new Map(result.cells.map((c) => [`${c.key}:${c.motif}`, c]));
   const LOGO_W = 70;
@@ -553,7 +562,11 @@ function MotifHeatmap({
   const height = legendY + 56;
   return (
     <div className="heatwrap">
-      {!significant && <div className="setinfo">No motif reaches q &lt; 0.05 in any group; the 10 with the smallest q are shown.</div>}
+      <div className="setinfo">
+        {nSignificant === 0
+          ? `No motif reaches q < 0.05 in any group; the ${rows.length} with the smallest q ${rows.length === 1 ? "is" : "are"} shown.`
+          : `${nSignificant.toLocaleString("en-US")} ${perFamily ? "famil" + (nSignificant === 1 ? "y" : "ies") : "motif" + (nSignificant === 1 ? "" : "s")} enriched at q < 0.05 in at least one group; showing the top ${rows.length}, most significant first.`}
+      </div>
       <svg ref={svgRef} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Motif enrichment heatmap">
         <defs>
           <linearGradient id="motif-grad" x1="0" x2="1" y1="0" y2="0">
@@ -590,21 +603,23 @@ function MotifHeatmap({
                 return (
                   <g key={k}>
                     <title>{`${groupOf(k)?.label} × ${mo.name} (${mo.id})\nodds ratio ${fmtOr(c.oddsRatio)} · p ${fmtP(c.p)} · q ${fmtP(c.q)}\nsite in ${pct(t[0], t[0] + t[1])} of the group's regions (${t[0].toLocaleString()} of ${(t[0] + t[1]).toLocaleString()}) vs ${pct(t[2], t[2] + t[3])} of the others`}</title>
-                    <rect x={gridX + j * CELL_W + 1} y={y + 1} width={CELL_W - 2} height={CELL_H - 2} rx={3} fill={fill} />
-                    <text x={gridX + j * CELL_W + CELL_W / 2} y={y + CELL_H / 2 + 4} textAnchor="middle" fontSize={10.5} fontFamily="monospace" fill={textOn(fill)}>
-                      {fmtOr(c.oddsRatio)}
-                      {stars(c.q)}
-                    </text>
+                    <rect x={gridX + j * CELL_W} y={y} width={CELL_W} height={CELL_H} fill={fill} stroke={PAPER} strokeWidth={1} shapeRendering="crispEdges" />
+                    {c.q < 0.05 && (
+                      <text x={gridX + j * CELL_W + CELL_W / 2} y={y + CELL_H / 2 + 7} textAnchor="middle" fontSize={12} fontFamily="monospace" fill={textOn(fill)}>
+                        {stars(c.q)}
+                      </text>
+                    )}
                   </g>
                 );
               })}
             </g>
           );
         })}
+        {rows.length > 0 && <rect x={gridX} y={gridY} width={cols.length * CELL_W} height={rows.length * CELL_H} fill="none" stroke={AXIS} shapeRendering="crispEdges" />}
         <text x={gridX} y={legendY - 6} fontSize={10} fill={INK_3}>
           Odds ratio (colour: log₂, clipped at ±3)
         </text>
-        <rect x={gridX} y={legendY} width={180} height={10} rx={2} fill="url(#motif-grad)" />
+        <rect x={gridX} y={legendY} width={180} height={10} fill="url(#motif-grad)" stroke={AXIS} shapeRendering="crispEdges" />
         {[0.125, 0.5, 1, 2, 8].map((v) => (
           <text key={v} x={gridX + ((Math.log2(v) + 3) / 6) * 180} y={legendY + 24} textAnchor="middle" fontSize={9.5} fontFamily="monospace" fill={INK_3}>
             {v < 1 ? `1/${1 / v}` : v}
@@ -647,7 +662,14 @@ function MotifTable({ result, groupOf }: { result: RunResult; groupOf: (k: numbe
               <tr key={`${c.key}:${c.motif}`}>
                 <td>
                   {m.name}{" "}
-                  <a className="mono" style={{ fontSize: 11 }} href={`https://jaspar.elixir.no/matrix/${m.id}/`} target="_blank" rel="noopener noreferrer" title={`${m.id} on JASPAR (opens a new tab)`}>
+                  <a
+                    className="mono"
+                    style={{ fontSize: 11 }}
+                    href={`https://jaspar.elixir.no/matrix/${m.id}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`${m.id} on JASPAR (opens a new tab)`}
+                  >
                     {m.id}
                   </a>
                 </td>

@@ -212,10 +212,10 @@ export function VennPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement | 
         })}
       </svg>
       <div className="plotactions">
-        <button className="iconbtn" title="Export SVG" onClick={() => ref.current && downloadSvg(ref.current, "intervene-venn.svg")}>
+        <button className="iconbtn" title="Export SVG" onClick={() => ref.current && downloadSvg(ref.current, "achi-venn.svg")}>
           SVG
         </button>
-        <button className="iconbtn" title="Export PNG" onClick={() => ref.current && void downloadPng(ref.current, "intervene-venn.png")}>
+        <button className="iconbtn" title="Export PNG" onClick={() => ref.current && void downloadPng(ref.current, "achi-venn.png")}>
           PNG
         </button>
       </div>

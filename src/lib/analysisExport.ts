@@ -40,9 +40,9 @@ export interface SavedSubset {
 }
 
 export interface AnalysisSettings {
-  format: "intervene-secure-settings";
+  format: "achi-settings";
   version: 1;
-  app: { name: "Intervene Secure"; url: string; commit: string; buildDate: string };
+  app: { name: "Achi"; url: string; commit: string; buildDate: string };
   created: string;
   mode: InputMode;
   assembly: string;
@@ -72,14 +72,14 @@ export interface SettingsInput {
   selected: SavedSubset[];
 }
 
-export const APP_URL = "https://khan-lab.github.io/intervene-secure/";
+export const APP_URL = "https://khan-lab.github.io/achi/";
 const PRESETS: OverlapPreset[] = ["1bp", "fraction50", "reciprocal50"];
 
 export function buildSettings(i: SettingsInput): AnalysisSettings {
   return {
-    format: "intervene-secure-settings",
+    format: "achi-settings",
     version: 1,
-    app: { name: "Intervene Secure", url: APP_URL, commit: i.build.commit, buildDate: i.build.date },
+    app: { name: "Achi", url: APP_URL, commit: i.build.commit, buildDate: i.build.date },
     created: i.created,
     mode: i.mode,
     assembly: i.assembly,
@@ -93,7 +93,10 @@ export function buildSettings(i: SettingsInput): AnalysisSettings {
   };
 }
 
-/** Reads a settings file, or says why it cannot. */
+/** The format name used before the app was renamed from Intervene Secure to Achi. */
+const LEGACY_FORMAT = "intervene-secure-settings";
+
+/** Reads a settings file, or says why it cannot (also files saved under the old name). */
 export function parseSettings(text: string): AnalysisSettings | { error: string } {
   let v: unknown;
   try {
@@ -102,8 +105,10 @@ export function parseSettings(text: string): AnalysisSettings | { error: string 
     return { error: "This is not a settings file: it is not JSON." };
   }
   const s = v as Partial<AnalysisSettings>;
-  if (!s || typeof s !== "object" || s.format !== "intervene-secure-settings") return { error: "This is not an Intervene Secure settings file." };
-  if (typeof s.version !== "number" || s.version > 1) return { error: "This settings file comes from a newer version of Intervene Secure; reload the page to update." };
+  const format: unknown = s && typeof s === "object" ? s.format : undefined;
+  if (format !== "achi-settings" && format !== LEGACY_FORMAT) return { error: "This is not an Achi settings file." };
+  s.format = "achi-settings";
+  if (typeof s.version !== "number" || s.version > 1) return { error: "This settings file comes from a newer version of Achi; reload the page to update." };
   if (s.mode !== "regions" && s.mode !== "lists") return { error: "The settings file names an unknown input mode." };
   if (!s.overlap || !PRESETS.includes(s.overlap.preset)) return { error: "The settings file names an unknown overlap rule." };
   if (!Array.isArray(s.sets) || !Array.isArray(s.selected)) return { error: "The settings file has no list of input sets." };
@@ -183,7 +188,7 @@ export function methodsText(s: AnalysisSettings, extras: MethodsExtra[]): string
   const included = s.sets.filter((x) => x.included);
   const excluded = s.sets.filter((x) => !x.included);
   const describe = (x: SavedSet) => `${x.name} (${x.fileName}, ${fmt(x.n)} ${unit})`;
-  const tool = `Intervene Secure (build ${s.app.commit}, ${s.app.buildDate}; ${s.app.url}), a browser version of Intervene (Khan and Mathelier, 2017)`;
+  const tool = `Achi (build ${s.app.commit}, ${s.app.buildDate}; ${s.app.url}), which builds on Intervene (Khan and Mathelier, 2017)`;
 
   const p: string[] = [];
   if (lists) {
@@ -311,7 +316,7 @@ export function signalMethods(r: {
   return {
     methods:
       `Signal profiles of ${r.nRegions.toLocaleString("en-US")} regions of the selected subsets were computed in the browser from the bigWig files ${r.tracks.join(", ")}, ` +
-      `with Intervene Secure's reimplementation of deepTools computeMatrix (Ramírez et al., 2016; checked against deepTools 4.0.0) ${layout}. ` +
+      `with Achi's reimplementation of deepTools computeMatrix (Ramírez et al., 2016; checked against deepTools 4.0.0) ${layout}. ` +
       `Each bin is the mean signal over its bases with data; bins without data were ${p.missingAsZero ? "counted as 0" : "treated as missing and left out of the averages"}. ` +
       `Profiles show the mean ± standard error per bin for each subset.${pub} ${sort}${kmeans}${test}`,
     references: [REF.deeptools],
@@ -338,7 +343,7 @@ export function goMethods(g: GoMethodsInput): MethodsExtra {
         : `regions selecting a term's genes were compared between the subset and all other regions of the analysis with the two-sided Fisher's exact test (odds ratio); a term was called significant with q < ${s.qThreshold}`;
     return {
       methods:
-        `Gene Ontology (${g.namespace}) enrichment of the selected subsets used a GREAT-like test (McLean et al., 2010) reimplemented in Intervene Secure: ${domains}, and ${test}. ` +
+        `Gene Ontology (${g.namespace}) enrichment of the selected subsets used a GREAT-like test (McLean et al., 2010) reimplemented in Achi: ${domains}, and ${test}. ` +
         `Terms with ${s.minGenes}–${fmt(s.maxGenes)} genes were tested, and p-values were adjusted with the Benjamini–Hochberg method per subset and namespace.`,
       references: [GREAT_REF],
     };
@@ -347,7 +352,7 @@ export function goMethods(g: GoMethodsInput): MethodsExtra {
   const decay = c.decay === "auto" ? "half-decay distance chosen automatically (1 or 10 kb)" : `half-decay distance ${kb(c.decay)}`;
   return {
     methods:
-      `Gene Ontology (${g.namespace}) enrichment of the selected subsets used a Cistrome-GO-like test (Li et al., 2019; solo mode) reimplemented in Intervene Secure: ` +
+      `Gene Ontology (${g.namespace}) enrichment of the selected subsets used a Cistrome-GO-like test (Li et al., 2019; solo mode) reimplemented in Achi: ` +
       `genes were ranked by the regulatory potential of the subset's regions (${c.topPeaks === "all" ? "all regions" : `top ${fmt(c.topPeaks)} regions by score when scores were present`}; ${decay}; background-adjusted with the package's Cistrome DB medians), ` +
       `and terms with ${c.minGenes}–${fmt(c.maxGenes)} ranked genes${c.dedup ? " (after the package's redundancy filter)" : ""} were tested with the XL-mHG test (cutoffs up to ${fmt(c.maxL)}); ` +
       `p-values were adjusted with the Benjamini–Hochberg method and terms with q < ${c.qThreshold} were called significant.`,

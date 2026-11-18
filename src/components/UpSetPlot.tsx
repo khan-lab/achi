@@ -272,13 +272,13 @@ export function UpSetPlot({ svgRef }: { svgRef?: React.RefObject<SVGSVGElement |
         </div>
       </div>
       <div className="plotactions">
-        <button className="iconbtn" title="Export SVG" onClick={() => ref.current && downloadSvg(ref.current, "intervene-upset.svg")}>
+        <button className="iconbtn" title="Export SVG" onClick={() => ref.current && downloadSvg(ref.current, "achi-upset.svg")}>
           SVG
         </button>
         <button
           className="iconbtn"
           title="Export PNG"
-          onClick={() => ref.current && void downloadPng(ref.current, "intervene-upset.png")}
+          onClick={() => ref.current && void downloadPng(ref.current, "achi-upset.png")}
         >
           PNG
         </button>

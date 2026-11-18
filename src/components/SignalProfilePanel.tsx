@@ -693,30 +693,30 @@ export function SignalProfilePanel() {
             {run.tracks.map((t) => `${t.name}: ${t.how}`).join(" · ")}.{run.tracks.some((t) => t.level && t.level > run.params.binSize) && ` Bins of ${run.params.binSize} bp are finer than the public summary layer, so neighbouring bins repeat its values: use bins of at least the layer's size, or Exact.`}
           </div>
           <div className="plotactions">
-            <button className="iconbtn" title="Download the matrices (one TSV per track, as rows of bins)" aria-label="Download signal matrices as TSV" onClick={() => run.tracks.forEach((t, i) => save(matrixTsv(run, i), `intervene-signal-matrix-${slug(t.name)}.tsv`))}>
+            <button className="iconbtn" title="Download the matrices (one TSV per track, as rows of bins)" aria-label="Download signal matrices as TSV" onClick={() => run.tracks.forEach((t, i) => save(matrixTsv(run, i), `achi-signal-matrix-${slug(t.name)}.tsv`))}>
               <Icon name="download" />
             </button>
             {run.clusters && (
-              <button className="iconbtn" title="Download the regions with their cluster as BED" onClick={() => save(clustersBed(run), "intervene-signal-clusters.bed", "text/plain")}>
+              <button className="iconbtn" title="Download the regions with their cluster as BED" onClick={() => save(clustersBed(run), "achi-signal-clusters.bed", "text/plain")}>
                 BED
               </button>
             )}
-            <button className="iconbtn" title="Export SVG" onClick={() => figRef.current && downloadSvg(figRef.current, "intervene-signal-profiles.svg")}>
+            <button className="iconbtn" title="Export SVG" onClick={() => figRef.current && downloadSvg(figRef.current, "achi-signal-profiles.svg")}>
               SVG
             </button>
-            <button className="iconbtn" title="Export PNG" onClick={() => figRef.current && void downloadPng(figRef.current, "intervene-signal-profiles.png")}>
+            <button className="iconbtn" title="Export PNG" onClick={() => figRef.current && void downloadPng(figRef.current, "achi-signal-profiles.png")}>
               PNG
             </button>
           </div>
           <RegionSummary run={run} svgRef={boxRef} />
           <div className="plotactions">
-            <button className="iconbtn" title="Download each region's mean signal per track, and the tests, as TSV" aria-label="Download region means and tests as TSV" onClick={() => (save(regionMeansTsv(run), "intervene-signal-region-means.tsv"), run.stats.length && save(statsTsv(run), "intervene-signal-tests.tsv"))}>
+            <button className="iconbtn" title="Download each region's mean signal per track, and the tests, as TSV" aria-label="Download region means and tests as TSV" onClick={() => (save(regionMeansTsv(run), "achi-signal-region-means.tsv"), run.stats.length && save(statsTsv(run), "achi-signal-tests.tsv"))}>
               <Icon name="download" />
             </button>
-            <button className="iconbtn" title="Export SVG" onClick={() => boxRef.current && downloadSvg(boxRef.current, "intervene-signal-region-means.svg")}>
+            <button className="iconbtn" title="Export SVG" onClick={() => boxRef.current && downloadSvg(boxRef.current, "achi-signal-region-means.svg")}>
               SVG
             </button>
-            <button className="iconbtn" title="Export PNG" onClick={() => boxRef.current && void downloadPng(boxRef.current, "intervene-signal-region-means.png")}>
+            <button className="iconbtn" title="Export PNG" onClick={() => boxRef.current && void downloadPng(boxRef.current, "achi-signal-region-means.png")}>
               PNG
             </button>
           </div>

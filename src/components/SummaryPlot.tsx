@@ -216,13 +216,13 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
       </div>
 
       <div className="plotactions">
-        <button className="iconbtn" title="Export SVG" onClick={() => ref.current && downloadSvg(ref.current, "intervene-summary.svg")}>
+        <button className="iconbtn" title="Export SVG" onClick={() => ref.current && downloadSvg(ref.current, "achi-summary.svg")}>
           SVG
         </button>
         <button
           className="iconbtn"
           title="Export PNG"
-          onClick={() => ref.current && void downloadPng(ref.current, "intervene-summary.png")}
+          onClick={() => ref.current && void downloadPng(ref.current, "achi-summary.png")}
         >
           PNG
         </button>

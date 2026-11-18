@@ -262,13 +262,13 @@ function AnnoBarChart({
         })}
       </svg>
       <div className="plotactions">
-        <button className="iconbtn" title="Export SVG" onClick={() => svgRef.current && downloadSvg(svgRef.current, "intervene-anno-bar.svg")}>
+        <button className="iconbtn" title="Export SVG" onClick={() => svgRef.current && downloadSvg(svgRef.current, "achi-anno-bar.svg")}>
           SVG
         </button>
         <button
           className="iconbtn"
           title="Export PNG"
-          onClick={() => svgRef.current && void downloadPng(svgRef.current, "intervene-anno-bar.png")}
+          onClick={() => svgRef.current && void downloadPng(svgRef.current, "achi-anno-bar.png")}
         >
           PNG
         </button>
@@ -401,13 +401,13 @@ function DistToTssChart({
         })}
       </svg>
       <div className="plotactions">
-        <button className="iconbtn" title="Export SVG" onClick={() => svgRef.current && downloadSvg(svgRef.current, "intervene-dist-to-tss.svg")}>
+        <button className="iconbtn" title="Export SVG" onClick={() => svgRef.current && downloadSvg(svgRef.current, "achi-dist-to-tss.svg")}>
           SVG
         </button>
         <button
           className="iconbtn"
           title="Export PNG"
-          onClick={() => svgRef.current && void downloadPng(svgRef.current, "intervene-dist-to-tss.png")}
+          onClick={() => svgRef.current && void downloadPng(svgRef.current, "achi-dist-to-tss.png")}
         >
           PNG
         </button>

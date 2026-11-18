@@ -1,5 +1,5 @@
 /*
- * Intervene offline service worker.
+ * Achi offline service worker.
  *
  * Makes the app usable with no network after the first visit. It never
  * sees user data: uploaded files are read by the page with the File API
@@ -22,11 +22,11 @@
 // Replaced with the manifest version at build time (vite.config.ts), so every
 // deploy changes this file's bytes and browsers install the new worker.
 const VERSION = "__OFFLINE_VERSION__";
-const BASE = new URL(self.registration.scope).pathname; // e.g. /intervene-secure/
+const BASE = new URL(self.registration.scope).pathname; // e.g. /achi/
 const MANIFEST = "offline-manifest.json";
-const STATE_CACHE = "intervene-state";
-const DATA_CACHE = "intervene-data";
-const shellCache = (v) => `intervene-shell-${v}`;
+const STATE_CACHE = "achi-state";
+const DATA_CACHE = "achi-data";
+const shellCache = (v) => `achi-shell-${v}`;
 
 let manifestMemo = null;
 
@@ -46,7 +46,7 @@ self.addEventListener("install", (event) => {
       const manifest = await res.clone().json();
       if (VERSION !== "__OFFLINE_VERSION__" && manifest.version !== VERSION) {
         // The site was redeployed between this worker's download and now; the next update installs the newer one.
-        console.info(`Intervene offline: worker ${VERSION}, manifest ${manifest.version}`);
+        console.info(`Achi offline: worker ${VERSION}, manifest ${manifest.version}`);
       }
       const shell = await caches.open(shellCache(manifest.version));
       await shell.addAll(Object.keys(manifest.shell).map((p) => new Request(BASE + p, { cache: "reload" })));
@@ -65,7 +65,7 @@ self.addEventListener("activate", (event) => {
       const manifest = await currentManifest();
       if (manifest) {
         for (const name of await caches.keys()) {
-          if (name.startsWith("intervene-shell-") && name !== shellCache(manifest.version)) await caches.delete(name);
+          if (name.startsWith("achi-shell-") && name !== shellCache(manifest.version)) await caches.delete(name);
         }
         const wanted = new Set(Object.entries(manifest.data).map(([p, d]) => `${BASE}${p}?v=${d.hash}`));
         const data = await caches.open(DATA_CACHE);

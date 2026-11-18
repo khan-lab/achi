@@ -372,13 +372,13 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
       )}
 
       <div className="plotactions">
-        <button className="iconbtn" title="Export SVG" onClick={() => ref.current && downloadSvg(ref.current, "intervene-pairwise.svg")}>
+        <button className="iconbtn" title="Export SVG" onClick={() => ref.current && downloadSvg(ref.current, "achi-pairwise.svg")}>
           SVG
         </button>
         <button
           className="iconbtn"
           title="Export PNG"
-          onClick={() => ref.current && void downloadPng(ref.current, "intervene-pairwise.png")}
+          onClick={() => ref.current && void downloadPng(ref.current, "achi-pairwise.png")}
         >
           PNG
         </button>

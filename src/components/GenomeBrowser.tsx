@@ -494,7 +494,7 @@ export function GenomeBrowser() {
       <div className="hint">
         {remote.length
           ? `Your files and bundled data stay in this page. Public tracks are read from ${[...new Set(remote.map((t) => new URL(t.url).hostname))].join(", ")}, which see the regions you view.`
-          : "Shown from your files (local tracks included) and data bundled with Intervene; nothing is sent to other servers."}{" "}
+          : "Shown from your files (local tracks included) and data bundled with Achi; nothing is sent to other servers."}{" "}
         Sets with more than 50,000 regions are drawn when zoomed in.
       </div>
     </div>

@@ -1,7 +1,7 @@
 {
-  "name": "Intervene Secure",
-  "short_name": "Intervene",
-  "description": "Genomic intersections, annotation and enrichment in the browser. Files are never uploaded.",
+  "name": "Achi",
+  "short_name": "Achi",
+  "description": "A browser-based framework for comparing, annotating and interpreting genomic intervals. Files are never uploaded.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
@@ -10,8 +10,8 @@
   "theme_color": "#ffffff",
   "categories": ["education", "productivity", "utilities"],
   "icons": [
-    { "src": "intervene-icon-mobile.png", "sizes": "600x600", "type": "image/png", "purpose": "any" },
-    { "src": "intervene-icon-mobile.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "intervene-icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "achi-icon-mobile.png", "sizes": "600x600", "type": "image/png", "purpose": "any" },
+    { "src": "achi-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "achi-icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

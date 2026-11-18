@@ -387,7 +387,7 @@ function goExport() {
   };
 }
 
-const fileStem = (r: Result) => `intervene-go-${r.ns}-${r.method === "great" ? `greatlike-${r.background}` : "cistromegolike"}`;
+const fileStem = (r: Result) => `achi-go-${r.ns}-${r.method === "great" ? `greatlike-${r.background}` : "cistromegolike"}`;
 const exportTsv = (r: Result, only?: SubsetResult) => {
   const blob = new Blob([goTsv(r, only)], { type: "text/tab-separated-values" });
   const url = URL.createObjectURL(blob);

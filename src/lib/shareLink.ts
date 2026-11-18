@@ -1,5 +1,5 @@
 /**
- * "Open in Intervene Secure" links. The part of the address after # can
+ * "Open in Achi" links. The part of the address after # can
  * name public files and the analysis settings:
  *
  *   #bed=<url>&name=K562&bed=<url>&name=HepG2&assembly=hg38&overlap=reciprocal50&view=upset&sel=3
@@ -172,7 +172,7 @@ export function parseLink(hash: string, opts: { ownOrigin?: string } = {}): Pars
     }
   }
   if (mixed) out.problems.push("A link holds either bed= files (regions) or list= files (lists of names); the other kind was skipped.");
-  if (leftOut) out.problems.push(`Intervene compares up to ${MAX_SETS} sets; ${leftOut} left out.`);
+  if (leftOut) out.problems.push(`Achi compares up to ${MAX_SETS} sets; ${leftOut} left out.`);
   return out;
 }
 

@@ -97,9 +97,9 @@ export function fromIgvLocus(s: string): Locus | null {
   return { chrom: m[1], start: Math.max(0, Math.floor(Number(m[2]) - 1)), end: Math.ceil(Number(m[3])) };
 }
 
-/** File name for an export of the browser view: intervene-browser_chr12_6534300-6534700.svg (1-based). */
+/** File name for an export of the browser view: achi-browser_chr12_6534300-6534700.svg (1-based). */
 export function exportFileName(l: Locus, ext: "svg" | "png"): string {
-  return `intervene-browser_${l.chrom}_${l.start + 1}-${l.end}.${ext}`;
+  return `achi-browser_${l.chrom}_${l.start + 1}-${l.end}.${ext}`;
 }
 
 export function formatLocus(l: Locus): string {
@@ -132,7 +132,7 @@ export interface IgvGenome {
  */
 export function igvGenome(assembly: string, base: string): IgvGenome {
   return {
-    id: `intervene-${assembly}`,
+    id: `achi-${assembly}`,
     name: assembly,
     format: "chromsizes",
     fastaURL: `${base}refdata/${assembly}/${assembly}.chrom.sizes`,

@@ -114,7 +114,7 @@ function nativeTruthTableSubsets(sortedPaths: string[], ids: string[], dir: stri
 }
 
 describeIfBedtools("differential test: lib/intervals.ts and lib/pipeline.ts's algorithm vs native bedtools", () => {
-  const dir = mkdtempSync(join(tmpdir(), "intervene-diff-"));
+  const dir = mkdtempSync(join(tmpdir(), "achi-diff-"));
   const ids = FIXTURE_FILES.map((f) => f.split("_")[0]); // heart, lung, liver
 
   // Sort (no merge — regions are taken as given) each real fixture with
@@ -195,7 +195,7 @@ function nativePairwiseCountSubsets(sortedPaths: string[], ids: string[], flags:
 }
 
 describeIfBedtools("differential test: pairwise-count algorithm vs the CLI's intersect chain, native bedtools", () => {
-  const dir = mkdtempSync(join(tmpdir(), "intervene-diff-counts-"));
+  const dir = mkdtempSync(join(tmpdir(), "achi-diff-counts-"));
   const sortInto = (raw: string, name: string) => {
     const path = join(dir, name);
     writeFileSync(path, execFileSync("bedtools", ["sort", "-i", "/dev/stdin"], { input: raw, encoding: "utf8" }));
@@ -236,7 +236,7 @@ describeIfBedtools("differential test: pairwise-count algorithm vs the CLI's int
 });
 
 describeIfBedtools("differential test: lib/pairwiseStats.ts parsers vs native bedtools fisher/reldist", () => {
-  const dir = mkdtempSync(join(tmpdir(), "intervene-diff-pairwise-"));
+  const dir = mkdtempSync(join(tmpdir(), "achi-diff-pairwise-"));
   const ids = FIXTURE_FILES.map((f) => f.split("_")[0]); // heart, lung, liver
 
   // Genome-aware sort (-g), deliberately not lib/pipeline.ts's plain
@@ -302,7 +302,7 @@ describeIfBedtools("differential test: lib/pairwiseStats.ts parsers vs native be
 describeIfBedtools("differential test: lib/summaryStats.ts parser vs native bedtools summary", () => {
   it("parseSummaryOutput + filterCanonicalChromosomes agree with real native `bedtools summary -i -g` on the real fixture", () => {
     const raw = readFileSync(join(FIXTURES_DIR, FIXTURE_FILES[0]), "utf8");
-    const dir = mkdtempSync(join(tmpdir(), "intervene-diff-summary-"));
+    const dir = mkdtempSync(join(tmpdir(), "achi-diff-summary-"));
     const rawPath = join(dir, "heart.raw.bed");
     writeFileSync(rawPath, raw);
 
@@ -351,7 +351,7 @@ describe("differential test: lib/peakAnnotation.ts's classification chain vs nat
     let remainingPath = rawPath;
     const counts: Record<string, number> = {};
     let step = 0;
-    const dir = mkdtempSync(join(tmpdir(), "intervene-diff-anno-"));
+    const dir = mkdtempSync(join(tmpdir(), "achi-diff-anno-"));
 
     for (const cat of ANNO_CATEGORIES) {
       if (!cat.file) continue;
@@ -417,7 +417,7 @@ describe("differential test: lib/geneList.ts's parser vs native bedtools closest
 });
 
 describeIfBedtools("differential test: Jaccard via native bedtools jaccard (as the CLI's `intervene pairwise --compute jaccard`)", () => {
-  const dir = mkdtempSync(join(tmpdir(), "intervene-diff-jaccard-"));
+  const dir = mkdtempSync(join(tmpdir(), "achi-diff-jaccard-"));
   const sortInto = (raw: string, name: string) => {
     const path = join(dir, name);
     writeFileSync(path, execFileSync("bedtools", ["sort", "-i", "/dev/stdin"], { input: raw, encoding: "utf8", maxBuffer: 1 << 30 }));

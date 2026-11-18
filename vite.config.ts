@@ -16,7 +16,7 @@ import { classifyOfflineFile, dataAssembly, type OfflineManifest } from './src/l
 function offlineManifest(): Plugin {
   let outDir = 'dist'
   return {
-    name: 'intervene-offline-manifest',
+    name: 'achi-offline-manifest',
     apply: 'build',
     configResolved(config) {
       outDir = config.build.outDir
@@ -62,11 +62,11 @@ function buildInfo(): { commit: string; date: string } {
 export default defineConfig({
   define: { __APP_BUILD__: JSON.stringify(buildInfo()) },
   plugins: [react(), offlineManifest()],
-  // Served at https://khan-lab.github.io/intervene-secure/ — see
+  // Served at https://khan-lab.github.io/achi/ — see
   // docs/deploy-github-pages.md. Every runtime asset fetch already goes
   // through import.meta.env.BASE_URL, so this is the only config needed
   // for a GitHub Pages project-site deployment.
-  base: '/intervene-secure/',
+  base: '/achi/',
   // igv.js (genome browser) is one 1.5 MB chunk, loaded only when the
   // Browser tab opens; the main bundle stays ~400 kB.
   build: { chunkSizeWarningLimit: 1600 },

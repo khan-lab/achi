@@ -14,12 +14,16 @@ import {
 import type { ExternalAnnotation } from "../lib/externalAnnotations";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
+import { TopRowsInput } from "./TopRowsInput";
+import { DEFAULT_TOP_ROWS, rankRows } from "../lib/heatmapRows";
 import { registerExport } from "../lib/exportRegistry";
 import { enrichmentMethods } from "../lib/analysisExport";
 
 // Concrete colours so exported SVG/PNG render without this page's CSS.
 const INK = "#101826";
 const INK_3 = "#8b97a9";
+/** The heatmap frame (as the signal heatmaps). */
+const AXIS = "#3a4250";
 const PAPER = "#ffffff";
 const NA_FILL = "#f4f5f7";
 // Diverging blue <-> red with a grey midpoint (dataviz reference palette),
@@ -29,8 +33,8 @@ const NEUTRAL = "#f0efec";
 const ENRICHED = "#e34948";
 const LOG2_CLIP = 3;
 
-const CELL_W = 64;
-const CELL_H = 30;
+const CELL_W = 40;
+const CELL_H = 24;
 const PAD = 10;
 const LABEL_FONT = 11.5;
 const ROW_LABEL_MAX_W = 140;
@@ -71,6 +75,7 @@ interface RunResult {
 
 // Survives the panel unmounting when the selection is cleared and re-made.
 let lastResult: RunResult | null = null;
+let lastTop = DEFAULT_TOP_ROWS;
 
 export function SubsetEnrichmentPanel() {
   const subsets = useStore((s) => s.subsets);
@@ -78,6 +83,8 @@ export function SubsetEnrichmentPanel() {
   const assembly = useStore((s) => s.assembly);
   const mainStatus = useStore((s) => s.status);
   const [adjust, setAdjust] = useState(lastResult?.adjust ?? true);
+  const [top, setTopState] = useState(lastTop);
+  const setTop = (n: number) => ((lastTop = n), setTopState(n));
   const [result, setResult] = useState<RunResult | null>(lastResult);
   const [progress, setProgress] = useState<ComputeProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -153,7 +160,7 @@ export function SubsetEnrichmentPanel() {
     const url = URL.createObjectURL(blob);
     const el = document.createElement("a");
     el.href = url;
-    el.download = "intervene-enrichment.tsv";
+    el.download = "achi-enrichment.tsv";
     document.body.appendChild(el);
     el.click();
     el.remove();
@@ -187,15 +194,18 @@ export function SubsetEnrichmentPanel() {
 
       {shown && (
         <div className={stale ? "stale" : undefined}>
-          <EnrichmentHeatmap result={shown} subsetOf={subsetOf} cellOf={cellOf} svgRef={svgRef} />
+          <EnrichmentHeatmap result={shown} top={top} subsetOf={subsetOf} cellOf={cellOf} svgRef={svgRef} />
           <div className="plotactions">
+            <div style={{ marginRight: "auto" }}>
+              <TopRowsInput value={top} max={shown.annotations.length} noun="reference sets" onChange={setTop} />
+            </div>
             <button className="iconbtn" title="Download results as TSV" aria-label="Download enrichment results as TSV" onClick={exportTsv}>
               <Icon name="download" />
             </button>
-            <button className="iconbtn" title="Export SVG" onClick={() => svgRef.current && downloadSvg(svgRef.current, "intervene-enrichment.svg")}>
+            <button className="iconbtn" title="Export SVG" onClick={() => svgRef.current && downloadSvg(svgRef.current, "achi-enrichment.svg")}>
               SVG
             </button>
-            <button className="iconbtn" title="Export PNG" onClick={() => svgRef.current && void downloadPng(svgRef.current, "intervene-enrichment.png")}>
+            <button className="iconbtn" title="Export PNG" onClick={() => svgRef.current && void downloadPng(svgRef.current, "achi-enrichment.png")}>
               PNG
             </button>
           </div>
@@ -210,16 +220,22 @@ type SubsetLookup = (mask: number) => { label: string; code: string } | undefine
 
 function EnrichmentHeatmap({
   result,
+  top,
   subsetOf,
   cellOf,
   svgRef,
 }: {
   result: RunResult;
+  top: number;
   subsetOf: SubsetLookup;
   cellOf: (mask: number, id: string) => EnrichmentCell | undefined;
   svgRef: React.RefObject<SVGSVGElement | null>;
 }) {
-  const rows = result.annotations;
+  // The `top` reference sets by their best q over the groups (enriched or depleted), most significant first.
+  const byId = new Map(result.annotations.map((a) => [a.id, a]));
+  const ranked = rankRows(result.cells, (c) => c.annotationId);
+  const rows = ranked.slice(0, top).flatMap((r) => byId.get(r.row) ?? []);
+  const nSignificant = ranked.filter((r) => r.q < 0.05).length;
   const cols = result.masks;
   const rowLabelW = Math.min(ROW_LABEL_MAX_W, Math.max(...rows.map((a) => estimateTextWidth(a.setName, LABEL_FONT))));
   const colLabels = cols.map((m) => truncateToWidth(subsetOf(m)?.label ?? String(m), COL_LABEL_MAX_W, LABEL_FONT));
@@ -240,6 +256,11 @@ function EnrichmentHeatmap({
 
   return (
     <div className="heatwrap">
+      <div className="setinfo">
+        {nSignificant === 0
+          ? `No reference set reaches q < 0.05 in any group; the ${rows.length} with the smallest q ${rows.length === 1 ? "is" : "are"} shown.`
+          : `${nSignificant} of ${ranked.length} reference sets reach q < 0.05 in at least one group; showing the top ${rows.length}, most significant first.`}
+      </div>
       <svg ref={svgRef} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Subset enrichment heatmap">
         <defs>
           <linearGradient id={gradId} x1="0" x2="1" y1="0" y2="0">
@@ -275,22 +296,24 @@ function EnrichmentHeatmap({
                 return (
                   <g key={m}>
                     <title>{tip}</title>
-                    <rect x={gridX + j * CELL_W + 1} y={y + 1} width={CELL_W - 2} height={CELL_H - 2} rx={3} fill={fill} />
-                    <text x={gridX + j * CELL_W + CELL_W / 2} y={y + CELL_H / 2 + 4} textAnchor="middle" fontSize={10.5} fontFamily="monospace" fill={textOn(fill)}>
-                      {fmtOr(c.oddsRatio)}
-                      {stars(c.q)}
-                    </text>
+                    <rect x={gridX + j * CELL_W} y={y} width={CELL_W} height={CELL_H} fill={fill} stroke={PAPER} strokeWidth={1} shapeRendering="crispEdges" />
+                    {c.q < 0.05 && (
+                      <text x={gridX + j * CELL_W + CELL_W / 2} y={y + CELL_H / 2 + 7} textAnchor="middle" fontSize={12} fontFamily="monospace" fill={textOn(fill)}>
+                        {stars(c.q)}
+                      </text>
+                    )}
                   </g>
                 );
               })}
             </g>
           );
         })}
+        {rows.length > 0 && <rect x={gridX} y={gridY} width={gridW} height={rows.length * CELL_H} fill="none" stroke={AXIS} shapeRendering="crispEdges" />}
         {/* legend */}
         <text x={gridX} y={legendY - 6} fontSize={10} fill={INK_3}>
           Odds ratio (colour: log₂, clipped at ±3)
         </text>
-        <rect x={gridX} y={legendY} width={legendW} height={10} rx={2} fill={`url(#${gradId})`} />
+        <rect x={gridX} y={legendY} width={legendW} height={10} fill={`url(#${gradId})`} stroke={AXIS} shapeRendering="crispEdges" />
         {[0.125, 0.5, 1, 2, 8].map((v) => {
           const x = gridX + ((Math.log2(v) + 3) / 6) * legendW;
           return (

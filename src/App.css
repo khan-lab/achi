@@ -1551,7 +1551,7 @@ svg text.selectable:focus-visible {
   }
 }
 
-/* "Open in Intervene Secure" link: asks before downloading (components/LinkDialog.tsx). */
+/* "Open in Achi" link: asks before downloading (components/LinkDialog.tsx). */
 .ghost.primary {
   background: var(--accent);
   border-color: var(--accent);

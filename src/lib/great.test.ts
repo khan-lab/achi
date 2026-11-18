@@ -101,7 +101,7 @@ function available(cmd: string): boolean {
 }
 
 describe.skipIf(!available("bedtools"))("GREAT on real data vs native bedtools", () => {
-  const dir = mkdtempSync(join(tmpdir(), "intervene-great-"));
+  const dir = mkdtempSync(join(tmpdir(), "achi-great-"));
   const sh = (args: string[]) => execFileSync("bedtools", args, { encoding: "utf8", maxBuffer: 1 << 28 });
   const prepared = prepareGreat(go, sizes, gapsText);
   const domainsPath = join(dir, "domains.bed");

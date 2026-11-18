@@ -91,7 +91,7 @@ describe.skipIf(!hasBedtools)("input-sets enrichment on real ENCODE subsets (nat
   const FIXTURES_DIR = join(__dirname, "../../tests/fixtures/encode");
   const PUBLIC_DIR = join(__dirname, "../../public");
   const files = ["heart_h3k27ac_ENCFF059ERB.subsample.bed", "lung_h3k27ac_ENCFF314QTE.subsample.bed", "liver_h3k27ac_ENCFF805YRQ.subsample.bed"];
-  const dir = mkdtempSync(join(tmpdir(), "intervene-enrich-"));
+  const dir = mkdtempSync(join(tmpdir(), "achi-enrich-"));
   const sh = (args: string[]) => execFileSync("bedtools", args, { encoding: "utf8", maxBuffer: 1 << 28 });
   const parse = (text: string): Interval[] =>
     text

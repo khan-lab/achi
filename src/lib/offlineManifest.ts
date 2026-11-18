@@ -22,7 +22,7 @@ const SHELL: RegExp[] = [
   /^index\.html$/,
   /^assets\/[^/]+\.(js|css|svg|png|webp|woff2?)$/,
   /^wasm\/(bedtools|aioli)\/[^/]+$/,
-  /^(favicon|icons|logo|apple-touch-icon|intervene-icon-[a-z]+)\.(svg|png)$/,
+  /^(favicon|icons|logo|apple-touch-icon|achi-[a-z-]+)\.(svg|png)$/,
   /^manifest\.webmanifest$/,
   /^examples\/[^/]+(\/[^/]+)?\.bed$/,
   /^examples\/lists\/[^/]+\.txt$/,

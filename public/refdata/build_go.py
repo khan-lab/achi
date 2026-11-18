@@ -46,7 +46,7 @@ def fetch(scratch, name, url):
     if not os.path.exists(path):
         print(f"Downloading {url}")
         # purl.obolibrary.org answers 403 to Python's default User-Agent.
-        req = urllib.request.Request(url, headers={"User-Agent": "intervene-build-go/1.0 (+https://github.com/khan-lab/intervene-secure)"})
+        req = urllib.request.Request(url, headers={"User-Agent": "achi-build-go/1.0 (+https://github.com/khan-lab/achi)"})
         with urllib.request.urlopen(req) as res, open(path, "wb") as out:
             out.write(res.read())
     return path

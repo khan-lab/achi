@@ -27,7 +27,7 @@ def main():
     for asm in ["hg38", "hg19", "mm10", "mm9"]:
         path = os.path.join(scratch, f"{asm}.cytoBandIdeo.txt.gz")
         if not os.path.exists(path):
-            req = urllib.request.Request(URL.format(asm=asm), headers={"User-Agent": "intervene-build-cytobands/1.0 (+https://github.com/khan-lab/intervene-secure)"})
+            req = urllib.request.Request(URL.format(asm=asm), headers={"User-Agent": "achi-build-cytobands/1.0 (+https://github.com/khan-lab/achi)"})
             with urllib.request.urlopen(req) as r, open(path, "wb") as out:
                 out.write(r.read())
         digest = hashlib.sha256(open(path, "rb").read()).hexdigest()

@@ -41,7 +41,7 @@ const sizesOf = (asm: string) =>
       .map(([c, n]) => [c, Number(n)]),
   ) as Record<string, number>;
 const HG38 = sizesOf("hg38");
-const BASE = "https://khan-lab.github.io/intervene-secure/";
+const BASE = "https://khan-lab.github.io/achi/";
 const ORIGIN = "https://khan-lab.github.io";
 
 /** A real row of public/refdata/hg38/genes/gene_models.bed (GAPDH, GENCODE v50, Ensembl canonical). */
@@ -95,8 +95,8 @@ describe("fromIgvLocus", () => {
 
 describe("exportFileName", () => {
   it("names a browser export after the locus shown (1-based, no separators)", () => {
-    expect(exportFileName({ chrom: "chr12", start: 6534299, end: 6534700 }, "svg")).toBe("intervene-browser_chr12_6534300-6534700.svg");
-    expect(exportFileName({ chrom: "chrX", start: 0, end: 156040895 }, "png")).toBe("intervene-browser_chrX_1-156040895.png");
+    expect(exportFileName({ chrom: "chr12", start: 6534299, end: 6534700 }, "svg")).toBe("achi-browser_chr12_6534300-6534700.svg");
+    expect(exportFileName({ chrom: "chrX", start: 0, end: 156040895 }, "png")).toBe("achi-browser_chrX_1-156040895.png");
   });
 });
 

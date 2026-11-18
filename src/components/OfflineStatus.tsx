@@ -45,8 +45,8 @@ export function OfflineBadge({ onOpenHelp }: { onOpenHelp: () => void }) {
       onClick={onOpenHelp}
       title={
         online
-          ? "Intervene is cached in this browser and works with no network connection. Click for details."
-          : "No network connection. Intervene is running from this browser's cache; your files never leave it either way."
+          ? "Achi is cached in this browser and works with no network connection. Click for details."
+          : "No network connection. Achi is running from this browser's cache; your files never leave it either way."
       }
     >
       <Icon name={online ? "check" : "close"} size={12} />
@@ -126,7 +126,7 @@ export function OfflinePanel() {
       {error && <p className="hint error">{error}</p>}
       <p className="hint">
         To check that nothing is sent anywhere, turn off your network (or use your browser's developer tools → Network →
-        Offline), reload, and use Intervene as usual.
+        Offline), reload, and use Achi as usual.
       </p>
     </div>
   );

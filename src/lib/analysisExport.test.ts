@@ -72,8 +72,12 @@ describe("sha256Hex", () => {
 describe("settings file", () => {
   it("round-trips through JSON, and is marked so it can be recognised", () => {
     const s = buildSettings(input());
-    expect(s).toMatchObject({ format: "intervene-secure-settings", version: 1, mode: "regions", assembly: "hg38" });
+    expect(s).toMatchObject({ format: "achi-settings", version: 1, mode: "regions", assembly: "hg38" });
     expect(parseSettings(JSON.stringify(s))).toEqual(s);
+  });
+  it("still reads a settings file saved before the rename to Achi", () => {
+    const old = { ...buildSettings(input()), format: "achi-settings" };
+    expect(parseSettings(JSON.stringify(old))).toMatchObject({ format: "achi-settings", mode: "regions" });
   });
   it("holds no regions or names from the data, only file names, sizes and checksums", () => {
     const text = JSON.stringify(buildSettings(input()));
@@ -82,7 +86,7 @@ describe("settings file", () => {
   });
   it("refuses what is not a settings file it can read", () => {
     expect(parseSettings("not json")).toEqual({ error: expect.stringMatching(/not a settings file/) });
-    expect(parseSettings(JSON.stringify({ format: "other" }))).toEqual({ error: expect.stringMatching(/not an Intervene Secure settings file/) });
+    expect(parseSettings(JSON.stringify({ format: "other" }))).toEqual({ error: expect.stringMatching(/not an Achi settings file/) });
     expect(parseSettings(JSON.stringify({ ...buildSettings(input()), version: 9 }))).toEqual({ error: expect.stringMatching(/newer version/) });
     expect(parseSettings(JSON.stringify({ ...buildSettings(input()), mode: "x" }))).toHaveProperty("error");
     expect(parseSettings(JSON.stringify({ ...buildSettings(input()), overlap: { preset: "2bp" } }))).toHaveProperty("error");
@@ -126,7 +130,7 @@ describe("compareInputs", () => {
 describe("methodsText", () => {
   it("states the tool, version, inputs, assembly and overlap rule for regions, with references", () => {
     const m = methodsText(buildSettings(input()), []);
-    expect(m).toMatch(/Intervene Secure \(build abc1234, 2026-11-17/);
+    expect(m).toMatch(/Achi \(build abc1234, 2026-11-17/);
     expect(m).toMatch(/BEDTools v2\.31\.0/);
     expect(m).toMatch(/compiled to WebAssembly/);
     expect(m).toMatch(/MCF7 \(MCF7\.bed, 639 regions\)/);

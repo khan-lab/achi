@@ -58,7 +58,7 @@ REFDATA = os.path.join("public", "refdata")
 ENCODE = "https://www.encodeproject.org"
 SCREEN = "https://downloads.wenglab.org"
 SCREEN_SOURCE = "https://github.com/weng-lab/SCREEN2.0/blob/4782951a696df57552e6d1bfaa3661e5cfeea939/screen2.0/src/app/search/_gbview/SearchBrowserView.tsx"
-UA = {"User-Agent": "intervene-build-remote-tracks/1.0 (+https://github.com/khan-lab/intervene-secure)", "Accept": "application/json"}
+UA = {"User-Agent": "achi-build-remote-tracks/1.0 (+https://github.com/khan-lab/achi)", "Accept": "application/json"}
 
 SCREEN_SIGNAL = {
     "hg38": [

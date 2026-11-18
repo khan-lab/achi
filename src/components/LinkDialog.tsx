@@ -20,7 +20,7 @@ function settingsSummary(link: ParsedLink): string[] {
 }
 
 /**
- * Asks before downloading the public files an "Open in Intervene Secure"
+ * Asks before downloading the public files an "Open in Achi"
  * link names (lib/shareLink.ts). Nothing is fetched until the user agrees.
  */
 export function LinkDialog() {
