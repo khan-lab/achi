@@ -159,6 +159,7 @@ const REF = {
   intervene: "Khan A, Mathelier A. Intervene: a tool for intersection and visualization of multiple gene or genomic region sets. BMC Bioinformatics. 2017;18:287. doi:10.1186/s12859-017-1708-7",
   bedtools: "Quinlan AR, Hall IM. BEDTools: a flexible suite of utilities for comparing genomic features. Bioinformatics. 2010;26(6):841–842. doi:10.1093/bioinformatics/btq033",
   blacklist: "Amemiya HM, Kundaje A, Boyle AP. The ENCODE Blacklist: identification of problematic regions of the genome. Sci Rep. 2019;9:9354. doi:10.1038/s41598-019-45839-z",
+  jaspar2026: "Ovek Baydar D, Rauluseviciute I, Aronsen DR, et al. JASPAR 2026: expansion of transcription factor binding profiles and integration of deep learning models. Nucleic Acids Res. 2026;54(D1):D184–D193. doi:10.1093/nar/gkaf1209",
 };
 
 const fmt = (n: number) => n.toLocaleString("en-US");
@@ -364,5 +365,19 @@ export function geneListMethods(assembly: string): MethodsExtra {
       `For each selected subset, the genes near its regions were listed as the nearest protein-coding gene TSS of each region ` +
       `(bedtools closest -d -t all against GENCODE ${GENCODE[assembly] ?? ""} protein-coding TSSs, ${assembly}; all equally nearest genes kept, no distance cutoff).`.replace("GENCODE  ", "GENCODE "),
     references: [],
+  };
+}
+
+/** Motif enrichment (components/MotifEnrichmentPanel.tsx, lib/motifEnrichment.ts), as run. */
+export function motifMethods(r: { release: string; collection: string; nMotifs: number; half: number; p: number; nScanned: number; nUniverse: number; source: string; assembly: string }): MethodsExtra {
+  const sampled = r.nScanned < r.nUniverse;
+  return {
+    methods:
+      `Motif enrichment used the ${fmt(r.nMotifs)} position frequency matrices of ${r.release} (${r.collection}). ` +
+      `For each region of the analysis, the ${2 * r.half} bp window centred on each region (${r.half} bp either side of the midpoint) was taken from the ${r.assembly} sequence (${r.source}) and scanned on both strands in the browser: ` +
+      `matrices were converted to log-odds scores (natural log; pseudocount 0.8 distributed by the background) against the strand-symmetric base composition of the scanned windows, and a site was a window scoring at or above the exact threshold for p < ${r.p.toExponential(0)} under that background (score distribution by dynamic programming on scores rounded to 0.01 nat). ` +
+      `For each selected subset or whole set and each motif, the regions with at least one site were compared with ${sampled ? `the other regions of a random sample of ${fmt(10_000)} regions of the analysis (each selected group scanned in full, up to 5,000 regions)` : "all other regions of the analysis"} by the Cochran–Mantel–Haenszel test over five strata of GC content (quintiles of the windows' G+C), with continuity correction; ` +
+      `the effect is reported as a common odds ratio, and p-values were adjusted with the Benjamini–Hochberg method across all tests of the run.`,
+    references: [REF.jaspar2026],
   };
 }

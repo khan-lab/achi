@@ -338,6 +338,23 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           ontology release 2026-07-26, annotations 2026-05-21).
         </p>
 
+        <h3 id="motifs">Motif enrichment (JASPAR)</h3>
+        <p>
+          <em>Motif enrichment</em> asks which transcription factor motifs are more common in each selected subset or set than in
+          the other regions of the analysis. It scans JASPAR 2026 vertebrate matrices (bundled; by default the 1,019 of CORE, non-redundant, or under{" "}
+          <em>Settings</em> every CORE version, the UNVALIDATED collection, or CORE and UNVALIDATED together) on both strands
+          of a window around each region's centre (±100 bp by default), counts the regions with at least one site (p &lt; 1e-4),
+          and compares a group with the rest within strata of GC and CpG content (Cochran–Mantel–Haenszel test, Benjamini–Hochberg
+          adjusted). The heatmap shows the most enriched motifs with their logos (one per TF family by default); the table links
+          each matrix to JASPAR. Long regions such as super-enhancers are represented by their centre only.
+        </p>
+        <p>
+          The genome sequence comes from <em>This computer</em> (a .2bit, or a FASTA with its .fai: nothing is downloaded), a{" "}
+          <em>Private download</em> of whole chromosomes from UCSC (about 775 MB for hg38, the same whatever your regions, kept in
+          the browser for later runs), or <em>Exact</em> range requests for your regions only (a fraction of a MB, but the server
+          sees roughly where they are; asked every run, up to 2,000 regions).
+        </p>
+
         <h3 id="signal">Signal profiles and heatmaps</h3>
         <p>
           <em>Signal at the selected subsets and sets</em> shows a bigWig's signal (ChIP-seq, ATAC, DNase, conservation …) across

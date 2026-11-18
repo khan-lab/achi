@@ -1,0 +1,23 @@
+[
+ {
+  "name": "chr21",
+  "source": "hg38 chr21:5000000-5040000",
+  "length": 40000,
+  "nBlocks": 1,
+  "maskBlocks": 37
+ },
+ {
+  "name": "chr22",
+  "source": "hg38 chr22:15400000-15430000",
+  "length": 30000,
+  "nBlocks": 0,
+  "maskBlocks": 1
+ },
+ {
+  "name": "chrUn_test",
+  "source": "hg38 chr1:1000000-1005000",
+  "length": 5000,
+  "nBlocks": 0,
+  "maskBlocks": 12
+ }
+]

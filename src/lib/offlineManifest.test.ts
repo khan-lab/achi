@@ -30,6 +30,11 @@ describe("classifyOfflineFile", () => {
     ["examples/lists/HepG2_genes.txt", "shell"],
     ["refdata/hg38/hg38.chrom.sizes", "shell"],
     ["refdata/mm9/mm9.chrom.sizes", "shell"],
+    // JASPAR matrices (0.4 MB, every assembly): motif enrichment works offline with a local genome.
+    ["refdata/jaspar/jaspar2026_core_vertebrates_nr.json", "shell"],
+    ["refdata/jaspar/jaspar2026_core_vertebrates_redundant.json", "shell"],
+    ["refdata/jaspar/jaspar2026_unvalidated_vertebrates_nr.json", "shell"],
+    ["refdata/build_jaspar.py", null],
     ["refdata/hg38/anno/tss_points.bed", "data"],
     ["refdata/hg38/genes_tss.bed", "data"],
     ["refdata/hg19/blacklist/encode_blacklist_v2.bed", "data"],

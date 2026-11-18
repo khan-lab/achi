@@ -10,6 +10,7 @@ import {
   goMethods,
   methodsText,
   signalMethods,
+  motifMethods,
   parseSettings,
   selectionFromSettings,
   setsTsv,
@@ -279,5 +280,22 @@ describe("geneListMethods", () => {
     expect(m).toMatch(/GENCODE v50/);
     expect(m).toMatch(/no distance cutoff/);
     expect(geneListMethods("mm10").methods).toMatch(/GENCODE vM25/);
+  });
+});
+
+describe("motifMethods", () => {
+  it("states the collection, window, threshold, background, test and sequence source", () => {
+    const m = motifMethods({ release: "JASPAR 2026", collection: "CORE collection, vertebrates, non-redundant", nMotifs: 1019, half: 100, p: 1e-4, nScanned: 3792, nUniverse: 3792, source: "hgdownload.soe.ucsc.edu, private (whole chromosomes)", assembly: "hg38" });
+    expect(m.methods).toMatch(/1,019 position frequency matrices of JASPAR 2026 \(CORE collection, vertebrates, non-redundant\)/);
+    expect(m.methods).toMatch(/200 bp window centred on each region/);
+    expect(m.methods).toMatch(/p < 1e-4/);
+    expect(m.methods).toMatch(/Cochran–Mantel–Haenszel test over five strata of GC content/);
+    expect(m.methods).toMatch(/Benjamini–Hochberg/);
+    expect(m.methods).toMatch(/hg38 sequence \(hgdownload\.soe\.ucsc\.edu, private \(whole chromosomes\)\)/);
+    expect(m.methods).not.toMatch(/sample/);
+    expect(m.references.join(" ")).toMatch(/JASPAR 2026/);
+    const sampled = motifMethods({ release: "JASPAR 2026", collection: "CORE collection, vertebrates, non-redundant", nMotifs: 1019, half: 250, p: 1e-4, nScanned: 15000, nUniverse: 80000, source: "local FASTA hg38.fa", assembly: "hg38" });
+    expect(sampled.methods).toMatch(/500 bp window/);
+    expect(sampled.methods).toMatch(/random sample of 10,000 regions of the analysis/);
   });
 });

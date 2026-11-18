@@ -3,7 +3,7 @@
  * Paths are relative to the site root (the Vite `base`).
  *
  * - "shell": cached on the first visit — the app, bedtools WebAssembly,
- *   example data and chromosome sizes (~5 MB). Enough to load files and
+ *   example data, chromosome sizes and the JASPAR matrices (~6 MB). Enough to load files and
  *   compute intersections with no network.
  * - "data": per-assembly reference data (annotation, TSS, problematic
  *   regions, built-in reference sets, GO, Cistrome-GO gene model; 20–70 MB per assembly) — cached the
@@ -27,6 +27,7 @@ const SHELL: RegExp[] = [
   /^examples\/[^/]+(\/[^/]+)?\.bed$/,
   /^examples\/lists\/[^/]+\.txt$/,
   new RegExp(`^refdata/${ASSEMBLY}/\\1\\.chrom\\.sizes$`),
+  /^refdata\/jaspar\/jaspar\d{4}_(core|unvalidated)_vertebrates_(nr|redundant)\.json$/,
 ];
 const DATA: RegExp[] = [
   new RegExp(`^refdata/${ASSEMBLY}/anno/[^/]+\\.bed$`),

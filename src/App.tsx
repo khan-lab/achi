@@ -8,6 +8,7 @@ import { SummaryPlot, type SummaryItem } from "./components/SummaryPlot";
 import { RegionAnnotationPlot } from "./components/RegionAnnotationPlot";
 import { useNearestGenes } from "./components/nearestGenes";
 import { SelectedGroupCard } from "./components/SelectedGroupCard";
+import { MotifEnrichmentPanel } from "./components/MotifEnrichmentPanel";
 import { SubsetEnrichmentPanel } from "./components/SubsetEnrichmentPanel";
 import { GoEnrichmentPanel } from "./components/GoEnrichmentPanel";
 import { SignalProfilePanel } from "./components/SignalProfilePanel";
@@ -310,6 +311,17 @@ function App() {
               </div>
               <div className="bd">
                 <SubsetEnrichmentPanel />
+              </div>
+            </div>
+          )}
+
+          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
+            <div className="card">
+              <div className="hd">
+                <div className="eyebrow">Motif enrichment of selected subsets and sets — JASPAR 2026</div>
+              </div>
+              <div className="bd">
+                <MotifEnrichmentPanel />
               </div>
             </div>
           )}

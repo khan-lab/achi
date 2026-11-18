@@ -59,13 +59,20 @@
   - **GREAT-like:** regulatory domains; genome or input-set background;
   - **Cistrome-GO-like:** regulatory-potential ranking and XL-mHG test.
 
-**Signal profiles** (selected subsets, deepTools-style)
+**Motif enrichment** (selected sets/subsets)
+- JASPAR 2026 vertebrate motifs, bundled: CORE non-redundant (1,019, the
+  default), every CORE version, UNVALIDATED, or CORE + UNVALIDATED; scanned in the page
+  around each region's centre; each group against the other regions of the
+  analysis, Cochran–Mantel–Haenszel over GC × CpG strata, BH-adjusted.
+- Genome from your own FASTA or .2bit, or from UCSC as whole chromosomes
+  (private, kept for later runs) or by range requests (exact, asked each
+  run). Heatmap with sequence logos, one motif per TF family.
+
+**Signal profiles** (selected sets/subsets)
 - Profiles (mean ± SE) and heatmaps of any bigWig from your computer over
-  and around each subset's regions: scale-regions or reference-point,
-  matching deepTools computeMatrix; sorting, k-means clusters, click a row
+  and around each subset's regions: scale-regions or reference-point, sorting, k-means clusters, click a row
   to open it in the genome browser.
 - Each region's mean signal per subset as box plots, with Mann–Whitney
-  tests between subsets. Example H3K27ac signal for the sample data.
 
 **Genome-wide overview** of selected subsets (GenomeSpy, Genome Browser tab)
 - Where each selected subset lies along the whole genome, with the input
@@ -91,9 +98,7 @@
 and enrichment results as TSV.
 
 Assemblies: hg38, hg19, mm10, mm9. Limits: 8 sets, 100 MB and 2,000,000
-regions per file. Statistics and their null models are in
-[`docs/methods.md`](docs/methods.md); reference data sources, versions and
-checksums in [`docs/provenance.md`](docs/provenance.md).
+regions per file. 
 
 ## How intersections are computed
 
