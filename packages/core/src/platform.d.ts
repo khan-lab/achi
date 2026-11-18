@@ -44,3 +44,6 @@ declare function setTimeout(handler: (...args: never[]) => void, timeout?: numbe
 declare class DOMException extends Error {
   constructor(message?: string, name?: string);
 }
+
+/** For notes that are not errors (e.g. a track missing some chromosomes). */
+declare var console: { info(...data: unknown[]): void; warn(...data: unknown[]): void };

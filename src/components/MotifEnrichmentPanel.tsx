@@ -2,15 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { color as d3color, interpolateLab } from "d3";
 import { useChosenGroups, useStore } from "../state/store";
 import { chosenGroups } from "@achi/core/selection";
-import { buildUniverse } from "@achi/core/subsetEnrichment";
-import { centreWindow, twoBitBlobSource, type SequenceSource } from "@achi/core/genomeSequence";
+import { twoBitBlobSource, type SequenceSource } from "@achi/core/genomeSequence";
 import { exactTwoBitSource, fastaSource, opfsStore, privateTwoBitSource } from "../lib/genomeSequence";
 import { prepareLocalReference } from "../lib/localTracks";
-import { backgroundOf, encodeSequence, packSequences } from "@achi/core/pwm";
-import { compositionStrata, cpgRatio, gcPerMille, motifEnrichment, scanPlan, MAX_POOL, type MotifCell } from "@achi/core/motifEnrichment";
-import { scanMotifs } from "../lib/motifScan";
+import { MAX_POOL } from "@achi/core/motifEnrichment";
+import { motifTsv, runMotifEnrichment, type MotifRun } from "@achi/core/motifRun";
+import { webRuntime } from "../lib/runtime";
 import { registerExport } from "../lib/exportRegistry";
-import { DEFAULT_COLLECTION, MOTIF_COLLECTIONS, collectionById, mergeCollections, type JasparFile, type JasparMotif, type MotifCollection } from "@achi/core/motifCollections";
+import { DEFAULT_COLLECTION, MOTIF_COLLECTIONS, collectionById, type JasparMotif } from "@achi/core/motifCollections";
 import { motifMethods } from "@achi/core/analysisExport";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
@@ -29,18 +28,6 @@ import { DEFAULT_TOP_ROWS, rankRows } from "@achi/core/heatmapRows";
  * whole chromosomes (private) or by range requests (exact, asked each run).
  */
 
-const jasparFiles = new Map<string, Promise<JasparFile>>();
-/** One collection file (refdata/jaspar), once per page session. */
-function loadJasparFile(file: string): Promise<JasparFile> {
-  let p = jasparFiles.get(file);
-  if (!p) {
-    p = fetch(`${import.meta.env.BASE_URL}refdata/jaspar/${file}`).then((r) => (r.ok ? (r.json() as Promise<JasparFile>) : Promise.reject(new Error(`Could not load the JASPAR matrices (${file}).`))));
-    jasparFiles.set(file, p);
-    p.catch(() => jasparFiles.delete(file));
-  }
-  return p;
-}
-
 /** UCSC's .2bit for the assembly (checked: CORS and range requests allowed for all four). */
 const ucscTwoBit = (assembly: string) => `https://hgdownload.soe.ucsc.edu/goldenPath/${assembly}/bigZips/${assembly}.2bit`;
 const UCSC_HOST = "hgdownload.soe.ucsc.edu";
@@ -55,20 +42,9 @@ let lastUi = { mode: "local" as SourceMode, half: 100, p: 1e-4, perFamily: true,
 let lastResult: RunResult | null = null;
 let localSource: { source: SequenceSource; name: string; assembly: string } | null = null;
 
-interface RunResult {
+/** A run as shown: core's MotifRun and the settings key it was run for. */
+interface RunResult extends MotifRun {
   key: string;
-  release: string;
-  collection: MotifCollection;
-  motifs: JasparMotif[];
-  keys: number[];
-  cells: MotifCell[];
-  half: number;
-  p: number;
-  nScanned: number;
-  nUniverse: number;
-  nNoSequence: number;
-  source: string;
-  assembly: string;
 }
 
 const INK = "#101826";
@@ -217,60 +193,19 @@ export function MotifEnrichmentPanel() {
     const ac = new AbortController();
     abortRef.current = ac;
     try {
-      setProgress({ done: 0, total: 0, label: "Loading JASPAR matrices" });
-      const docs = await Promise.all(collection.files.map(loadJasparFile));
-      const jaspar = { release: docs[0].release, motifs: mergeCollections(docs) };
-      const universe = buildUniverse(subsets);
-      const regions = subsets.flatMap((s) => s.regions);
-      const keys = chosen.map((c) => c.mask);
-      let plan = scanPlan(universe.owner, keys);
-      if (mode === "exact" && plan.scan.length > EXACT_MAX) plan = scanPlan(universe.owner, keys, { maxPool: EXACT_MAX / 2, maxGroup: Math.max(100, Math.floor(EXACT_MAX / 2 / keys.length)) });
-      const windows = Array.from(plan.scan, (i) => centreWindow(regions[i], half));
       const source =
         mode === "local"
           ? local!.source
           : mode === "private"
             ? privateTwoBitSource(ucscTwoBit(assembly), { store: await opfsStore(`achi-genome-${assembly}`) })
             : exactTwoBitSource(ucscTwoBit(assembly));
-      setProgress({ done: 0, total: windows.length, label: "Reading sequence", unit: "regions" });
-      const seqs = await source.read(windows, {
-        signal: ac.signal,
-        onProgress: (pr) =>
-          setProgress({ done: pr.unit === "bytes" ? pr.done / 1e6 : pr.done, total: pr.unit === "bytes" ? pr.total / 1e6 : pr.total, label: pr.label, unit: pr.unit === "bytes" ? "MB" : pr.unit }),
-      });
-      const codes = seqs.map((s) => (s ? encodeSequence(s) : new Uint8Array(0)));
-      const gc = Int32Array.from(codes, gcPerMille);
-      const valid = Uint8Array.from(gc, (g) => (g >= 0 ? 1 : 0));
-      const nNoSequence = valid.length - valid.reduce((a, v) => a + v, 0);
-      if (nNoSequence === valid.length) throw new Error(`No sequence was found for these regions in ${source.label}: is it the ${assembly} genome?`);
-      const bg = backgroundOf(codes.filter((_, i) => valid[i]));
-      const packed = packSequences(codes);
-      setProgress({ done: 0, total: jaspar.motifs.length, label: `Scanning ${jaspar.motifs.length.toLocaleString("en-US")} JASPAR motifs`, unit: "motifs" });
-      const scan = await scanMotifs(
-        packed,
-        jaspar.motifs.map((m) => m.pfm),
-        bg,
-        p,
-        { signal: ac.signal, onProgress: (d, t) => setProgress({ done: d, total: t, label: `Scanning ${t.toLocaleString("en-US")} JASPAR motifs`, unit: "motifs" }) },
+      const run = await runMotifEnrichment(
+        webRuntime,
+        { assembly, collection, subsets, groups: chosen.map((c) => c.mask), half, p, source, maxScan: mode === "exact" ? EXACT_MAX : undefined },
+        { signal: ac.signal, onProgress: setProgress }
       );
-      const owner = Int32Array.from(plan.scan, (i) => universe.owner[i]);
-      const cells = motifEnrichment({ owner, pool: plan.pool, valid, strata: compositionStrata(gc, Float64Array.from(codes, cpgRatio)), hits: scan.hits, keys });
       if (mode === "private") agreedPrivate.add(assembly);
-      const r: RunResult = {
-        key,
-        release: jaspar.release,
-        collection,
-        motifs: jaspar.motifs,
-        keys,
-        cells,
-        half,
-        p,
-        nScanned: plan.scan.length,
-        nUniverse: universe.owner.length,
-        nNoSequence,
-        source: source.label,
-        assembly,
-      };
+      const r: RunResult = { ...run, key };
       lastResult = r;
       setResult(r);
     } catch (e) {
@@ -282,15 +217,7 @@ export function MotifEnrichmentPanel() {
   };
 
   const groupOf = (k: number) => chosenGroups([k], subsets, included)[0];
-  const tsvText = (r: RunResult) => {
-    const head = ["group", "matrix_id", "collection", "tf", "class", "family", "group_with_site", "group_regions", "rest_with_site", "rest_regions", "odds_ratio", "p", "q", "test"];
-    const rows = r.cells.map((c) => {
-      const m = r.motifs[c.motif];
-      const t = c.table;
-      return [groupOf(c.key)?.label ?? c.key, m.id, m.id.startsWith("UN") ? "UNVALIDATED" : "CORE", m.name, m.class.join("; "), m.family.join("; "), t[0], t[0] + t[1], t[2], t[2] + t[3], c.oddsRatio, c.p, c.q, "CMH, 15 strata (GC quintile x CpG o/e tertile)"].join("\t");
-    });
-    return [head.join("\t"), ...rows].join("\n") + "\n";
-  };
+  const tsvText = (r: RunResult) => motifTsv(r, (k) => groupOf(k)?.label ?? String(k));
   const tsvRef = useRef(tsvText);
   useEffect(() => {
     tsvRef.current = tsvText;
