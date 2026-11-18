@@ -7,8 +7,8 @@ import {
   DISTANCE_BINS,
   annotationStepTotal,
   bucketDistance,
-  fetchAndMountAnnotation,
-  annotatePeaks,
+  hasAnnotationReferences,
+  runRegionAnnotation,
   type PeakAnno,
 } from "@achi/core/peakAnnotation";
 import type { SummaryItem } from "./SummaryPlot";
@@ -57,7 +57,6 @@ const ROW_LABEL_GAP = 8;
 // unlike a plain useRef/useState pair, which reset on every remount.
 // Keyed by (assembly, item id, item version), so this still
 // self-invalidates correctly if the same id's content ever changes.
-const categoryPathsCache = new Map<string, Record<string, string>>();
 const peakAnnoCache = new Map<string, PeakAnno>();
 
 /**
@@ -73,7 +72,6 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
   const annoBarRef = useRef<SVGSVGElement | null>(null);
   const distToTssRef = useRef<SVGSVGElement | null>(null);
 
-  const categoryPathsRef = useRef(categoryPathsCache); // shared module-level Map, not a fresh one per mount
   const [peakAnnoState, setPeakAnnoState] = useState<Map<string, PeakAnno>>(() => new Map(peakAnnoCache));
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<ComputeProgress | null>(null);
@@ -85,6 +83,7 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
   useEffect(() => {
     if (items.length < 1) return;
     let cancelled = false;
+    const abort = new AbortController();
 
     (async () => {
       const todo = items.filter((item) => !peakAnnoCache.has(cacheKey(item)));
@@ -94,10 +93,10 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
         setProgress(null);
         return;
       }
-      let categoryPaths = categoryPathsRef.current.get(assembly);
+      const referencesLoaded = hasAnnotationReferences(webRuntime, assembly);
       // One step per reference file still to load, then 2 intersects per
-      // category + 1 closest per item (lib/peakAnnotation.ts).
-      const total = annotationStepTotal(todo.length, categoryPaths !== undefined);
+      // category + 1 closest per item (@achi/core/peakAnnotation).
+      const total = annotationStepTotal(todo.length, referencesLoaded);
       let done = 0;
       const onStep = (label: string) => {
         done++;
@@ -105,21 +104,18 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
       };
       setLoading(true);
       setError(null);
-      setProgress({ done: 0, total, label: categoryPaths ? `${todo[0].name}: starting` : "Loading GENCODE annotation" });
+      setProgress({ done: 0, total, label: referencesLoaded ? `${todo[0].name}: starting` : "Loading GENCODE annotation" });
       try {
-        if (!categoryPaths) {
-          categoryPaths = await fetchAndMountAnnotation(webRuntime, assembly, onStep);
-          categoryPathsRef.current.set(assembly, categoryPaths);
-        }
-
-        for (const item of todo) {
-          if (cancelled) return;
-          const key = cacheKey(item);
-          const anno = await annotatePeaks(webRuntime.bedtools, item, categoryPaths, onStep);
-          if (cancelled) return;
-          peakAnnoCache.set(key, anno);
-          setPeakAnnoState((prev) => new Map(prev).set(key, anno));
-        }
+        await runRegionAnnotation(webRuntime, assembly, todo, {
+          onStep,
+          signal: abort.signal,
+          onResult: (anno, item) => {
+            if (cancelled) return;
+            const key = cacheKey(item);
+            peakAnnoCache.set(key, anno);
+            setPeakAnnoState((prev) => new Map(prev).set(key, anno));
+          },
+        });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -132,6 +128,7 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
 
     return () => {
       cancelled = true;
+      abort.abort();
     };
     // peakAnnoCache (the module-level Map) is read for "already computed?"
     // checks only, see the same note in SummaryPlot.tsx's/PairwiseHeatmap.tsx's effects.

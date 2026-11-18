@@ -5,7 +5,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseIntersectCounts, subsetsFromOverlaps } from "./pipeline";
 import { EXTERNAL_ANNOTATIONS } from "./externalAnnotations";
-import { buildUniverse, enrichmentCounts, lengthStrata, testableAnnotations, unionEnrichment } from "./subsetEnrichment";
+import { buildUniverse, enrichmentCounts, lengthStrata, runReferenceSetEnrichment, testableAnnotations, unionEnrichment } from "./subsetEnrichment";
+import { scanMotifsInline } from "./motifScan";
+import { memoryBedtools } from "./testkit";
 import type { Interval } from "./types";
 
 /**
@@ -172,5 +174,47 @@ describe.skipIf(!hasBedtools)("input-sets enrichment on real ENCODE subsets (nat
         .map(Number);
       cells.forEach((cell, i) => expect(Math.abs(cell.q - qR[i])).toBeLessThanOrEqual(Math.max(1e-12, 1e-9 * qR[i])));
     }
+  });
+});
+
+describe("runReferenceSetEnrichment", () => {
+  // Real data: two ENCODE H3K27ac fixtures as two groups, against the bundled VISTA enhancers (hg38).
+  const ROOT = join(__dirname, "../../..");
+  const bed = (f: string): Interval[] =>
+    readFileSync(join(ROOT, "tests/fixtures/encode", f), "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => l.split("\t"))
+      .map(([c, a, b]) => iv(c, +a, +b));
+  const subsets = [
+    { mask: 1, regions: bed("heart_h3k27ac_ENCFF059ERB.subsample.bed") },
+    { mask: 2, regions: bed("liver_h3k27ac_ENCFF805YRQ.subsample.bed") },
+  ];
+  const vista = EXTERNAL_ANNOTATIONS.find((a) => a.id === "vista-enhancers-hg38")!;
+
+  it("is unionEnrichment over each universe region's overlap with each reference set, loading each set through the runtime", async () => {
+    const loaded: string[] = [];
+    const bt = memoryBedtools();
+    const rt = { bedtools: bt, refdata: { text: async (path: string) => (loaded.push(path), readFileSync(join(ROOT, "public", path), "utf8")) }, scanMotifs: scanMotifsInline };
+    const steps: string[] = [];
+    const cells = await runReferenceSetEnrichment(rt, { subsets, groups: [1, 2], annotations: [vista], adjust: true }, { onStep: (l) => steps.push(l) });
+
+    const universe = buildUniverse(subsets);
+    const ref = readFileSync(join(ROOT, "public", vista.path!), "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => l.split("\t"));
+    const hits = Uint8Array.from(
+      universe.bedText
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => l.split("\t"))
+        .map(([c, a, b]) => (ref.some((q) => q[0] === c && +q[1] < +b && +a < +q[2]) ? 1 : 0))
+    );
+    expect(hits.some((h) => h === 1)).toBe(true); // real overlaps, not an empty test
+    expect(cells).toEqual(unionEnrichment(universe, [{ id: vista.id, hits }], [1, 2], true));
+    expect(loaded).toEqual([vista.path]);
+    expect(steps).toEqual([vista.name]);
+    expect(bt.files.size).toBe(0); // the universe and reference files are unmounted afterwards
   });
 });

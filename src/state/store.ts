@@ -37,6 +37,7 @@ import {
   type InputFormat,
 } from "@achi/core/inputValidation";
 import { webRuntime } from "../lib/runtime";
+import type { PairwiseStat } from "@achi/core/pairwiseStats";
 
 export type View = "upset" | "venn" | "pairwise" | "table" | "summary" | "browser" | "help";
 
@@ -47,8 +48,7 @@ export interface BrowserTarget {
   n: number;
 }
 export type ComputeStatus = "idle" | "loading-worker" | "running" | "done" | "error";
-/** Matches the Intervene CLI's own `intervene pairwise --compute {jaccard,fisher,reldist}`. */
-export type PairwiseStat = "jaccard" | "fisher" | "reldist";
+export type { PairwiseStat };
 
 export interface LoadedSet extends RegionSet {
   /**

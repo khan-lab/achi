@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { medianFromReldistBins, parseFisherOutput, parseJaccardOutput, parseReldistOutput, ksPValueVsUniform } from "./pairwiseStats";
+import { medianFromReldistBins, parseFisherOutput, parseJaccardOutput, parseReldistOutput, ksPValueVsUniform, runPairwise } from "./pairwiseStats";
+import { scanMotifsInline } from "./motifScan";
+import type { Runtime } from "./runtime";
 
 /**
  * Real captured `bedtools fisher`/`bedtools reldist` stdout (heart vs. lung
@@ -230,5 +232,58 @@ describe("parseFisherOutput when bedtools can't estimate the odds ratio", () => 
     const r = parseFisherOutput(REAL_FISHER_NAN_STDOUT);
     expect(r.twoTailP).toBe(1);
     expect(r.ratio).toBeNaN();
+  });
+});
+
+describe("runPairwise", () => {
+  /** Stand-in bedtools answering each command with the real captured output above; records the commands. */
+  const runtime = () => {
+    const calls: string[] = [];
+    const loaded: string[] = [];
+    const rt: Runtime = {
+      bedtools: {
+        dir: "/data",
+        reset: async () => {},
+        mount: async () => {},
+        unmount: async () => {},
+        exec: async (cmd) => {
+          calls.push(cmd);
+          const stdout = cmd.startsWith("bedtools sort") ? "chr1\t1\t2\n" : cmd.startsWith("bedtools jaccard") ? REAL_JACCARD_STDOUT : cmd.startsWith("bedtools fisher") ? REAL_FISHER_STDOUT : REAL_RELDIST_STDOUT;
+          return { stdout, stderr: "" };
+        },
+      },
+      refdata: { text: async (path) => (loaded.push(path), "chr1\t248956422\n") },
+      scanMotifs: scanMotifsInline,
+    };
+    return { rt, calls, loaded };
+  };
+  const sets = ["a", "b", "c"].map((id) => ({ id, name: id, file: new Blob([`chr1\t1\t2\n`]) }));
+
+  it("Jaccard: sorts each set once with no genome file, then one bedtools jaccard per ordered pair with the overlap flags", async () => {
+    const { rt, calls, loaded } = runtime();
+    const seen: string[] = [];
+    const out = await runPairwise(rt, { stat: "jaccard", assembly: "hg38", sets, overlapFlags: "-f 0.5" }, { onResult: (a, b) => seen.push(`${a}>${b}`) });
+    expect(out).toHaveLength(6);
+    expect(seen).toEqual(["a>b", "a>c", "b>a", "b>c", "c>a", "c>b"]);
+    expect(out[0].result).toEqual(parseJaccardOutput(REAL_JACCARD_STDOUT));
+    expect(calls.filter((c) => c.startsWith("bedtools sort"))).toEqual(["bedtools sort -i /data/a.jsort.raw", "bedtools sort -i /data/b.jsort.raw", "bedtools sort -i /data/c.jsort.raw"]);
+    expect(calls).toContain("bedtools jaccard -a /data/a.jsorted.bed -b /data/b.jsorted.bed -f 0.5");
+    expect(loaded).toEqual([]);
+    await runPairwise(rt, { stat: "jaccard", assembly: "hg38", sets, overlapFlags: "" });
+    expect(calls.filter((c) => c.startsWith("bedtools sort"))).toHaveLength(3); // sorted once per bedtools
+  });
+
+  it("Fisher and Reldist: sort with the assembly's genome file, skip the pairs the caller already has", async () => {
+    const { rt, calls, loaded } = runtime();
+    const fisher = await runPairwise(rt, { stat: "fisher", assembly: "hg38", sets, overlapFlags: "" }, { skip: (a, b) => a === "a" && b === "b" });
+    expect(fisher).toHaveLength(5);
+    expect(fisher[0].result).toEqual(parseFisherOutput(REAL_FISHER_STDOUT));
+    expect(calls).toContain("bedtools sort -g /data/hg38.chrom.sizes -i /data/a.gsort.raw");
+    expect(calls).toContain("bedtools fisher -a /data/a.gsorted.bed -b /data/c.gsorted.bed -g /data/hg38.chrom.sizes");
+    const reldist = await runPairwise(rt, { stat: "reldist", assembly: "hg38", sets, overlapFlags: "-f 0.5" });
+    expect(reldist[0].result).toMatchObject({ bins: parseReldistOutput(REAL_RELDIST_STDOUT) });
+    expect(calls).toContain("bedtools reldist -a /data/a.gsorted.bed -b /data/b.gsorted.bed");
+    expect(loaded).toEqual(["refdata/hg38/hg38.chrom.sizes"]);
+    expect(calls.filter((c) => c.startsWith("bedtools sort -g"))).toHaveLength(3);
   });
 });

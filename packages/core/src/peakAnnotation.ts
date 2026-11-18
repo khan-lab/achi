@@ -1,4 +1,4 @@
-import { loadRefText, type Bedtools, type Runtime } from "./runtime";
+import { abortIfCancelled, isDoneFor, loadRefText, onceFor, type Bedtools, type Runtime } from "./runtime";
 import type { SummaryItem } from "./types";
 
 /**
@@ -199,4 +199,38 @@ export async function annotatePeaks(
   step?.("distance to nearest TSS");
   const total = Object.values(categoryCounts).reduce((sum, n) => sum + n, 0);
   return { id: item.id, name: item.name, color: item.color, total, categoryCounts, distances };
+}
+
+// ---- the analysis, as the web app, CLI and MCP server run it ----
+
+const referencesKey = (assembly: string) => `anno:${assembly}`;
+
+/** Whether `assembly`'s category reference files are already mounted for this runtime's bedtools (progress totals depend on it). */
+export function hasAnnotationReferences(rt: Pick<Runtime, "bedtools">, assembly: string): boolean {
+  return isDoneFor(rt.bedtools, referencesKey(assembly));
+}
+
+/**
+ * Region annotation of each item against `assembly`'s GENCODE categories:
+ * category counts by the priority chain, and signed distances to the
+ * nearest TSS. Loads the reference files once per bedtools; reports one
+ * step per bedtools run (annotationStepTotal) and each item's result as it
+ * is ready. Checks for cancellation before each item.
+ */
+export async function runRegionAnnotation(
+  rt: Runtime,
+  assembly: string,
+  items: SummaryItem[],
+  o: { onStep?: AnnoStepCallback; onResult?: (anno: PeakAnno, item: SummaryItem) => void; signal?: AbortSignal } = {}
+): Promise<PeakAnno[]> {
+  abortIfCancelled(o.signal);
+  const paths = await onceFor(rt.bedtools, referencesKey(assembly), () => fetchAndMountAnnotation(rt, assembly, o.onStep));
+  const out: PeakAnno[] = [];
+  for (const item of items) {
+    abortIfCancelled(o.signal);
+    const anno = await annotatePeaks(rt.bedtools, item, paths, o.onStep);
+    out.push(anno);
+    o.onResult?.(anno, item);
+  }
+  return out;
 }

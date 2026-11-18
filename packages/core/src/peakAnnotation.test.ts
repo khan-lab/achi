@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { Bedtools } from "./runtime";
+import type { Bedtools, Runtime } from "./runtime";
+import { scanMotifsInline } from "./motifScan";
 import {
   ANNO_CATEGORIES,
   ANNOTATE_STEPS_PER_ITEM,
   DISTANCE_BINS,
   annotatePeaks,
   annotationStepTotal,
+  hasAnnotationReferences,
+  runRegionAnnotation,
   bucketDistance,
   parseClosestDistances,
 } from "./peakAnnotation";
@@ -107,5 +110,38 @@ describe("annotation progress steps", () => {
     expect(execCalls).toHaveLength(ANNOTATE_STEPS_PER_ITEM);
     expect(labels[0]).toBe("MCF7 only: TSS");
     expect(labels.at(-1)).toBe("MCF7 only: distance to nearest TSS");
+  });
+});
+
+describe("runRegionAnnotation", () => {
+  const files = ANNO_CATEGORIES.filter((c) => c.file).length;
+  const item = (id: string) => ({ id, name: id, color: "#000", version: "1", getRawText: async () => "chr1\t1\t2\n" });
+  const runtime = () => {
+    const loaded: string[] = [];
+    const rt: Runtime = { bedtools: { ...bt }, refdata: { text: async (path) => (loaded.push(path), "chr1\t1\t2\n") }, scanMotifs: scanMotifsInline };
+    return { rt, loaded };
+  };
+
+  it("loads the assembly's reference files once per bedtools, then annotates each item in order, reporting each result", async () => {
+    const { rt, loaded } = runtime();
+    expect(hasAnnotationReferences(rt, "hg38")).toBe(false);
+    const seen: string[] = [];
+    const steps: string[] = [];
+    const out = await runRegionAnnotation(rt, "hg38", [item("a"), item("b")], { onResult: (anno) => seen.push(anno.id), onStep: (l) => steps.push(l) });
+    expect(out.map((a) => a.id)).toEqual(["a", "b"]);
+    expect(seen).toEqual(["a", "b"]);
+    expect(steps).toHaveLength(annotationStepTotal(2, false));
+    expect(loaded).toHaveLength(files);
+    expect(loaded.every((p) => p.startsWith("refdata/hg38/anno/"))).toBe(true);
+    expect(hasAnnotationReferences(rt, "hg38")).toBe(true);
+    expect(hasAnnotationReferences(rt, "mm10")).toBe(false);
+    await runRegionAnnotation(rt, "hg38", [item("c")]);
+    expect(loaded).toHaveLength(files); // already mounted for this bedtools
+  });
+
+  it("stops before doing anything when the run is already cancelled", async () => {
+    const { rt, loaded } = runtime();
+    await expect(runRegionAnnotation(rt, "hg38", [item("a")], { signal: AbortSignal.abort() })).rejects.toMatchObject({ name: "AbortError" });
+    expect(loaded).toHaveLength(0);
   });
 });

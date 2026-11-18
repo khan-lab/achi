@@ -1,4 +1,4 @@
-import { loadRefText, type Bedtools, type Runtime } from "./runtime";
+import { abortIfCancelled, loadRefText, onceFor, type Bedtools, type Runtime } from "./runtime";
 import type { PipelineSetInput } from "./pipeline";
 
 /**
@@ -187,6 +187,11 @@ export async function fetchAndMountGenome(rt: Runtime, assembly: string): Promis
   return mountGenome(rt.bedtools, assembly, text);
 }
 
+/** The assembly's genome file, loaded and mounted once per bedtools; its mounted path. */
+export function mountedGenome(rt: Runtime, assembly: string): Promise<string> {
+  return onceFor(rt.bedtools, `genome:${assembly}`, () => fetchAndMountGenome(rt, assembly));
+}
+
 /**
  * Sort one input set with `-g <genome>` — genome-order, not lexicographic.
  * Deliberately separate from lib/pipeline.ts's `sortOne`: verified that
@@ -256,4 +261,62 @@ export async function computeJaccard(bt: Bedtools, aPath: string, bPath: string,
   const flagPart = overlapFlags ? ` ${overlapFlags}` : "";
   const result = await bt.exec(`bedtools jaccard -a ${aPath} -b ${bPath}${flagPart}`);
   return parseJaccardOutput(result.stdout);
+}
+
+// ---- the analysis, as the web app, CLI and MCP server run it ----
+
+/** The CLI's `intervene pairwise --compute {jaccard,fisher,reldist}`. */
+export type PairwiseStat = "jaccard" | "fisher" | "reldist";
+export type PairwiseValue = JaccardResult | FisherResult | ReldistResult;
+
+export interface PairwiseRequest {
+  stat: PairwiseStat;
+  /** Fisher and Reldist sort by, and Fisher tests against, this assembly's genome file; Jaccard needs none. */
+  assembly: string;
+  sets: PipelineSetInput[];
+  /** bedtools overlap flags (bedtoolsOptions.ts resolveOverlapFlags), applied by Jaccard and Fisher. */
+  overlapFlags: string;
+}
+
+/**
+ * One statistic for every ordered pair of sets (with overlap flags A→B and
+ * B→A differ). Each set is sorted once per bedtools (plainly for Jaccard,
+ * in genome order for Fisher and Reldist); `skip` leaves out pairs the
+ * caller already has. Reports each pair as it is ready; checks for
+ * cancellation before each step.
+ */
+export async function runPairwise(
+  rt: Runtime,
+  req: PairwiseRequest,
+  o: { skip?: (a: string, b: string) => boolean; onResult?: (a: string, b: string, result: PairwiseValue) => void; signal?: AbortSignal } = {}
+): Promise<{ a: string; b: string; result: PairwiseValue }[]> {
+  const bt = rt.bedtools;
+  const plain = req.stat === "jaccard";
+  abortIfCancelled(o.signal);
+  const genomePath = plain ? "" : await mountedGenome(rt, req.assembly);
+  const sorted = new Map<string, string>();
+  for (const s of req.sets) {
+    abortIfCancelled(o.signal);
+    const key = plain ? `jsort:${s.id}` : `gsort:${req.assembly}:${s.id}`;
+    const done = await onceFor(bt, key, () => (plain ? sortPlain(bt, s) : sortForGenome(bt, s, genomePath)));
+    sorted.set(s.id, done.sortedPath);
+  }
+  const out: { a: string; b: string; result: PairwiseValue }[] = [];
+  for (const a of req.sets) {
+    for (const b of req.sets) {
+      if (a.id === b.id || o.skip?.(a.id, b.id)) continue;
+      abortIfCancelled(o.signal);
+      const aPath = sorted.get(a.id)!;
+      const bPath = sorted.get(b.id)!;
+      const result =
+        req.stat === "jaccard"
+          ? await computeJaccard(bt, aPath, bPath, req.overlapFlags)
+          : req.stat === "fisher"
+            ? await computeFisher(bt, aPath, bPath, genomePath, req.overlapFlags)
+            : await computeReldist(bt, aPath, bPath);
+      out.push({ a: a.id, b: b.id, result });
+      o.onResult?.(a.id, b.id, result);
+    }
+  }
+  return out;
 }

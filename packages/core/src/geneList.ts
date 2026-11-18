@@ -1,4 +1,4 @@
-import { loadRefText, type Bedtools, type Runtime } from "./runtime";
+import { abortIfCancelled, loadRefText, onceFor, type Bedtools, type Runtime } from "./runtime";
 import type { SummaryItem } from "./types";
 
 /**
@@ -79,4 +79,28 @@ export async function computeGeneAssociations(bt: Bedtools, item: SummaryItem, g
 /** Deduplicated, alphabetically sorted gene symbols — what the gene panel displays/exports. The structured associations stay the source of truth. */
 export function uniqueGeneNames(associations: RegionGeneAssociation[]): string[] {
   return [...new Set(associations.map((a) => a.geneName))].sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Nearest gene by TSS for each item (`bedtools closest -d -t all` against
+ * the assembly's genes_tss.bed, mounted once per bedtools). Reports each
+ * item's associations as they are ready; checks for cancellation before
+ * each item.
+ */
+export async function runNearestGenes(
+  rt: Runtime,
+  assembly: string,
+  items: SummaryItem[],
+  o: { onResult?: (associations: RegionGeneAssociation[], item: SummaryItem) => void; signal?: AbortSignal } = {}
+): Promise<RegionGeneAssociation[][]> {
+  abortIfCancelled(o.signal);
+  const tssPath = await onceFor(rt.bedtools, `genes_tss:${assembly}`, () => fetchAndMountGeneTss(rt, assembly));
+  const out: RegionGeneAssociation[][] = [];
+  for (const item of items) {
+    abortIfCancelled(o.signal);
+    const associations = await computeGeneAssociations(rt.bedtools, item, tssPath);
+    out.push(associations);
+    o.onResult?.(associations, item);
+  }
+  return out;
 }

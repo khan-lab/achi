@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
-import {
-  fetchAndMountGeneTss,
-  computeGeneAssociations,
-  uniqueGeneNames,
-  type RegionGeneAssociation,
-} from "@achi/core/geneList";
+import { runNearestGenes, uniqueGeneNames, type RegionGeneAssociation } from "@achi/core/geneList";
 import type { SummaryItem } from "./SummaryPlot";
 import { registerExport } from "../lib/exportRegistry";
 import { geneListMethods } from "@achi/core/analysisExport";
@@ -17,7 +12,6 @@ import { webRuntime } from "../lib/runtime";
 // the same note in SummaryPlot.tsx/RegionAnnotationPlot.tsx for why a
 // plain useRef/useState pair would silently redo the bedtools closest
 // call every time.
-const geneTssPathCache = new Map<string, string>(); // assembly -> mounted path
 const associationsCache = new Map<string, RegionGeneAssociation[]>(); // cacheKey -> associations
 
 /**
@@ -29,7 +23,6 @@ const associationsCache = new Map<string, RegionGeneAssociation[]>(); // cacheKe
  */
 export function useNearestGenes(items: SummaryItem[]): { genesOf: (item: SummaryItem) => string[] | undefined; loading: boolean; error: string | null } {
   const assembly = useStore((s) => s.assembly);
-  const geneTssPathRef = useRef(geneTssPathCache);
   const [associationsState, setAssociationsState] = useState<Map<string, RegionGeneAssociation[]>>(
     () => new Map(associationsCache)
   );
@@ -42,26 +35,22 @@ export function useNearestGenes(items: SummaryItem[]): { genesOf: (item: Summary
   useEffect(() => {
     if (items.length < 1) return;
     let cancelled = false;
+    const abort = new AbortController();
 
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        let geneTssPath = geneTssPathRef.current.get(assembly);
-        if (!geneTssPath) {
-          geneTssPath = await fetchAndMountGeneTss(webRuntime, assembly);
-          geneTssPathRef.current.set(assembly, geneTssPath);
-        }
-
-        for (const item of items) {
-          if (cancelled) return;
-          const key = cacheKey(item);
-          if (associationsCache.has(key)) continue;
-          const associations = await computeGeneAssociations(webRuntime.bedtools, item, geneTssPath);
-          if (cancelled) return;
-          associationsCache.set(key, associations);
-          setAssociationsState((prev) => new Map(prev).set(key, associations));
-        }
+        const todo = items.filter((item) => !associationsCache.has(cacheKey(item)));
+        await runNearestGenes(webRuntime, assembly, todo, {
+          signal: abort.signal,
+          onResult: (associations, item) => {
+            if (cancelled) return;
+            const key = cacheKey(item);
+            associationsCache.set(key, associations);
+            setAssociationsState((prev) => new Map(prev).set(key, associations));
+          },
+        });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -71,6 +60,7 @@ export function useNearestGenes(items: SummaryItem[]): { genesOf: (item: Summary
 
     return () => {
       cancelled = true;
+      abort.abort();
     };
     // associationsCache (the module-level Map) is read for "already
     // computed?" checks only, see the same note in SummaryPlot.tsx's effect.

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseClosestGeneAssociations, uniqueGeneNames } from "./geneList";
+import { parseClosestGeneAssociations, runNearestGenes, uniqueGeneNames } from "./geneList";
+import { scanMotifsInline } from "./motifScan";
+import type { Runtime } from "./runtime";
 
 /**
  * Real captured `bedtools closest -d -t all -a <peaks> -b genes_tss.bed`
@@ -60,5 +62,32 @@ describe("uniqueGeneNames", () => {
 
   it("returns an empty list for no associations", () => {
     expect(uniqueGeneNames([])).toEqual([]);
+  });
+});
+
+describe("runNearestGenes", () => {
+  it("mounts the assembly's genes_tss.bed once per bedtools, then runs closest -d -t all for each item", async () => {
+    const loaded: string[] = [];
+    const calls: string[] = [];
+    const rt: Runtime = {
+      bedtools: {
+        dir: "/data",
+        reset: async () => {},
+        mount: async () => {},
+        unmount: async () => {},
+        exec: async (cmd) => (calls.push(cmd), { stdout: REAL_CLOSEST_STDOUT, stderr: "" }),
+      },
+      refdata: { text: async (path) => (loaded.push(path), "chr1\t686653\t686654\tOR4F16|ENSG00000284662.2\t0\t-\n") },
+      scanMotifs: scanMotifsInline,
+    };
+    const item = (id: string) => ({ id, name: id, color: "#000", version: "1", getRawText: async () => "chr1\t778470\t778639\n" });
+    const seen: string[] = [];
+    const out = await runNearestGenes(rt, "hg38", [item("a"), item("b")], { onResult: (_, it) => seen.push(it.id) });
+    expect(out).toHaveLength(2);
+    expect(out[0]).toEqual(parseClosestGeneAssociations(REAL_CLOSEST_STDOUT));
+    expect(seen).toEqual(["a", "b"]);
+    expect(calls).toEqual(["bedtools closest -d -t all -a /data/a.genelist.raw -b /data/hg38.genes_tss.bed", "bedtools closest -d -t all -a /data/b.genelist.raw -b /data/hg38.genes_tss.bed"]);
+    await runNearestGenes(rt, "hg38", [item("c")]);
+    expect(loaded).toEqual(["refdata/hg38/genes_tss.bed"]);
   });
 });

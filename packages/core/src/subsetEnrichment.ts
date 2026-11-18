@@ -1,4 +1,4 @@
-import { loadRefText, type Runtime } from "./runtime";
+import { abortIfCancelled, loadRefText, type Runtime } from "./runtime";
 import { EXTERNAL_ANNOTATIONS, type ExternalAnnotation } from "./externalAnnotations";
 import { parseIntersectCounts } from "./pipeline";
 import { benjaminiHochberg, fisherExact, mantelHaenszel, oddsRatio } from "./stats";
@@ -173,4 +173,27 @@ export async function universeHits(
     await bt.unmount([uName]);
   }
   return out;
+}
+
+/**
+ * Enrichment of each group (a subset mask, or a whole set's negative key:
+ * selection.ts inGroup) for each reference set, against the other regions
+ * of the analysis: the universe is every region of every subset, each
+ * reference set's overlaps are counted with `bedtools intersect -c`, and
+ * each group is tested with Fisher's exact test or, with `adjust`, a
+ * Cochran–Mantel–Haenszel test over region-length strata; q-values by
+ * Benjamini–Hochberg over every cell. One step per reference set.
+ */
+export async function runReferenceSetEnrichment(
+  rt: Runtime,
+  req: { subsets: { mask: number; regions: Interval[] }[]; groups: number[]; annotations: ExternalAnnotation[]; adjust: boolean },
+  o: { onStep?: StepCallback; signal?: AbortSignal } = {}
+): Promise<EnrichmentCell[]> {
+  abortIfCancelled(o.signal);
+  const universe = buildUniverse(req.subsets);
+  const hits = await universeHits(rt, universe, req.annotations, (label) => {
+    o.onStep?.(label);
+    abortIfCancelled(o.signal);
+  });
+  return unionEnrichment(universe, hits, req.groups, req.adjust);
 }

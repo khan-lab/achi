@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
-import { fetchAndMountGenome } from "@achi/core/pairwiseStats";
 import {
-  computeSummary,
-  mountRawForSummary,
+  runSetSummary,
   filterCanonicalChromosomes,
   sortChromosomesNaturally,
   getAggregateRow,
@@ -51,7 +49,6 @@ type Metric = "count" | "bp";
 // bedtools summary call each time a user glances at another tab and comes
 // back. Keyed by (assembly, item id, item version), so this still
 // self-invalidates correctly if the same id's content ever changes.
-const genomePathCache = new Map<string, string>();
 const summaryRowsCache = new Map<string, SummaryRow[]>();
 
 
@@ -69,7 +66,6 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
   const ref = svgRef ?? localRef;
 
   const [metric, setMetric] = useState<Metric>("count");
-  const genomePathRef = useRef(genomePathCache); // shared module-level Map, not a fresh one per mount
   const [summaryState, setSummaryState] = useState<Map<string, SummaryRow[]>>(() => new Map(summaryRowsCache));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,27 +76,22 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
   useEffect(() => {
     if (items.length < 1) return;
     let cancelled = false;
+    const abort = new AbortController();
 
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        let genomePath = genomePathRef.current.get(assembly);
-        if (!genomePath) {
-          genomePath = await fetchAndMountGenome(webRuntime, assembly);
-          genomePathRef.current.set(assembly, genomePath);
-        }
-
-        for (const item of items) {
-          if (cancelled) return;
-          const key = cacheKey(item);
-          if (summaryRowsCache.has(key)) continue;
-          const rawPath = await mountRawForSummary(webRuntime.bedtools, item.id, await item.getRawText());
-          const rows = await computeSummary(webRuntime.bedtools, rawPath, genomePath);
-          if (cancelled) return;
-          summaryRowsCache.set(key, rows);
-          setSummaryState((prev) => new Map(prev).set(key, rows));
-        }
+        const todo = items.filter((item) => !summaryRowsCache.has(cacheKey(item)));
+        await runSetSummary(webRuntime, assembly, todo, {
+          signal: abort.signal,
+          onResult: (rows, item) => {
+            if (cancelled) return;
+            const key = cacheKey(item);
+            summaryRowsCache.set(key, rows);
+            setSummaryState((prev) => new Map(prev).set(key, rows));
+          },
+        });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -110,6 +101,7 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
 
     return () => {
       cancelled = true;
+      abort.abort();
     };
     // summaryRowsCache (the module-level Map) is read for "already
     // computed?" checks only, see the same note in PairwiseHeatmap.tsx's effect.

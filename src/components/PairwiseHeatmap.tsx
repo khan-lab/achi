@@ -3,7 +3,7 @@ import { useStore, type PairwiseStat } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
 import { resolveOverlapFlags } from "@achi/core/bedtoolsOptions";
-import { fetchAndMountGenome, sortForGenome, sortPlain, computeFisher, computeJaccard, computeReldist, type FisherResult, type JaccardResult, type ReldistResult } from "@achi/core/pairwiseStats";
+import { runPairwise, type FisherResult, type JaccardResult, type ReldistResult } from "@achi/core/pairwiseStats";
 import { webRuntime } from "../lib/runtime";
 
 // Concrete colors (not CSS vars) so the exported standalone SVG/PNG render
@@ -80,9 +80,6 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
   const localRef = useRef<SVGSVGElement | null>(null);
   const ref = svgRef ?? localRef;
 
-  const genomePathRef = useRef<Map<string, string>>(new Map()); // assembly -> mounted path
-  const sortedPathRef = useRef<Map<string, string>>(new Map()); // set id -> genome-sorted path
-  const plainSortedPathRef = useRef<Map<string, string>>(new Map()); // set id -> plain-sorted path (Jaccard)
   const [jaccardCache, setJaccardCache] = useState<Map<string, JaccardResult>>(new Map());
   const [fisherCache, setFisherCache] = useState<Map<string, FisherResult>>(new Map());
   const [reldistCache, setReldistCache] = useState<Map<string, ReldistResult>>(new Map());
@@ -94,72 +91,30 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
   useEffect(() => {
     if (sets.length < 2) return;
     let cancelled = false;
+    const abort = new AbortController();
 
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        if (pairwiseStat === "jaccard") {
-          // No genome file needed (as in the CLI), so wrong-assembly sets still work here.
-          for (const s of sets) {
-            if (cancelled) return;
-            if (!plainSortedPathRef.current.has(s.id)) {
-              const { sortedPath } = await sortPlain(webRuntime.bedtools, { id: s.id, name: s.name, file: s.file });
-              plainSortedPathRef.current.set(s.id, sortedPath);
-            }
-          }
-          for (const a of sets) {
-            for (const b of sets) {
+        // Jaccard needs no genome file (as in the CLI), so wrong-assembly sets still work there.
+        const keyOf = (a: string, b: string) => (pairwiseStat === "reldist" ? pairKey(a, b) : fisherKey(a, b, overlapFlags));
+        const have = pairwiseStat === "jaccard" ? jaccardCache : pairwiseStat === "fisher" ? fisherCache : reldistCache;
+        await runPairwise(
+          webRuntime,
+          { stat: pairwiseStat, assembly, sets: sets.map((s) => ({ id: s.id, name: s.name, file: s.file })), overlapFlags },
+          {
+            signal: abort.signal,
+            skip: (a, b) => have.has(keyOf(a, b)),
+            onResult: (a, b, result) => {
               if (cancelled) return;
-              if (a.id === b.id) continue;
-              const key = fisherKey(a.id, b.id, overlapFlags);
-              if (jaccardCache.has(key)) continue;
-              const result = await computeJaccard(webRuntime.bedtools, plainSortedPathRef.current.get(a.id)!, plainSortedPathRef.current.get(b.id)!, overlapFlags);
-              if (cancelled) return;
-              setJaccardCache((prev) => new Map(prev).set(key, result));
-            }
+              const key = keyOf(a, b);
+              if (pairwiseStat === "jaccard") setJaccardCache((prev) => new Map(prev).set(key, result as JaccardResult));
+              else if (pairwiseStat === "fisher") setFisherCache((prev) => new Map(prev).set(key, result as FisherResult));
+              else setReldistCache((prev) => new Map(prev).set(key, result as ReldistResult));
+            },
           }
-          return;
-        }
-
-        let genomePath = genomePathRef.current.get(assembly);
-        if (!genomePath) {
-          genomePath = await fetchAndMountGenome(webRuntime, assembly);
-          genomePathRef.current.set(assembly, genomePath);
-        }
-
-        for (const s of sets) {
-          if (cancelled) return;
-          if (!sortedPathRef.current.has(s.id)) {
-            const { sortedPath } = await sortForGenome(webRuntime.bedtools, { id: s.id, name: s.name, file: s.file }, genomePath);
-            sortedPathRef.current.set(s.id, sortedPath);
-          }
-        }
-
-        for (const a of sets) {
-          for (const b of sets) {
-            if (cancelled) return;
-            if (a.id === b.id) continue;
-            const aPath = sortedPathRef.current.get(a.id)!;
-            const bPath = sortedPathRef.current.get(b.id)!;
-
-            if (pairwiseStat === "fisher") {
-              const key = fisherKey(a.id, b.id, overlapFlags);
-              if (!fisherCache.has(key)) {
-                const result = await computeFisher(webRuntime.bedtools, aPath, bPath, genomePath, overlapFlags);
-                if (cancelled) return;
-                setFisherCache((prev) => new Map(prev).set(key, result));
-              }
-            } else if (pairwiseStat === "reldist") {
-              const key = pairKey(a.id, b.id);
-              if (!reldistCache.has(key)) {
-                const result = await computeReldist(webRuntime.bedtools, aPath, bPath);
-                if (cancelled) return;
-                setReldistCache((prev) => new Map(prev).set(key, result));
-              }
-            }
-          }
-        }
+        );
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -169,6 +124,7 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
 
     return () => {
       cancelled = true;
+      abort.abort();
     };
     // jaccardCache/fisherCache/reldistCache are read for "already computed?" checks only
     // (to avoid redundant bedtools calls); including them would re-run this

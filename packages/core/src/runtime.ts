@@ -70,3 +70,35 @@ export async function loadRefText(rt: Pick<Runtime, "refdata">, path: string, wh
     throw new Error(`Could not load ${what}`, { cause });
   }
 }
+
+/** Work done once per owner (a bedtools, a reference-data source), by key. */
+const onceDone = new WeakMap<object, Map<string, { value: Promise<unknown>; done: boolean }>>();
+
+/**
+ * `load()` once per owner and key; later and concurrent callers share the
+ * same result. A failed load is forgotten, so the next call tries again.
+ * Keyed on the runtime part the work belongs to: a reference file mounted
+ * in a bedtools (owner rt.bedtools), or data read and prepared from
+ * reference data (owner rt.refdata).
+ */
+export function onceFor<T>(owner: object, key: string, load: () => Promise<T>): Promise<T> {
+  let byKey = onceDone.get(owner);
+  if (!byKey) onceDone.set(owner, (byKey = new Map()));
+  const cached = byKey.get(key);
+  if (cached) return cached.value as Promise<T>;
+  const entry = { value: load() as Promise<unknown>, done: false };
+  byKey.set(key, entry);
+  entry.value.then(
+    () => (entry.done = true),
+    () => byKey.delete(key)
+  );
+  return entry.value as Promise<T>;
+}
+
+/** Whether `onceFor(owner, key, …)` has finished successfully. */
+export function isDoneFor(owner: object, key: string): boolean {
+  return onceDone.get(owner)?.get(key)?.done ?? false;
+}
+
+/** Lets other work (a page repaint, a progress message) run during a long computation. */
+export const yieldToEventLoop = () => new Promise<void>((resolve) => setTimeout(resolve, 0));

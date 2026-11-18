@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseSummaryOutput, filterCanonicalChromosomes, sortChromosomesNaturally, getAggregateRow } from "./summaryStats";
+import { parseSummaryOutput, filterCanonicalChromosomes, sortChromosomesNaturally, getAggregateRow, runSetSummary } from "./summaryStats";
+import { scanMotifsInline } from "./motifScan";
+import type { Runtime } from "./runtime";
 
 /**
  * Real captured `bedtools summary -i -g` stdout (heart H3K27ac ENCODE
@@ -139,5 +141,31 @@ describe("getAggregateRow", () => {
 
   it("returns undefined when there's no 'all' row", () => {
     expect(getAggregateRow([])).toBeUndefined();
+  });
+});
+
+describe("runSetSummary", () => {
+  it("mounts the assembly's chrom.sizes once per bedtools, then runs bedtools summary for each item", async () => {
+    const loaded: string[] = [];
+    const calls: string[] = [];
+    const rt: Runtime = {
+      bedtools: {
+        dir: "/data",
+        reset: async () => {},
+        mount: async () => {},
+        unmount: async () => {},
+        exec: async (cmd) => (calls.push(cmd), { stdout: REAL_SUMMARY_STDOUT, stderr: "" }),
+      },
+      refdata: { text: async (path) => (loaded.push(path), "chr1\t248956422\n") },
+      scanMotifs: scanMotifsInline,
+    };
+    const item = (id: string) => ({ id, name: id, color: "#000", version: "1", getRawText: async () => "chr1\t1\t2\n" });
+    const seen: string[] = [];
+    const out = await runSetSummary(rt, "hg38", [item("a"), item("b")], { onResult: (_, it) => seen.push(it.id) });
+    expect(out[0]).toEqual(parseSummaryOutput(REAL_SUMMARY_STDOUT));
+    expect(seen).toEqual(["a", "b"]);
+    expect(calls).toEqual(["bedtools summary -i /data/a.summary.raw -g /data/hg38.chrom.sizes", "bedtools summary -i /data/b.summary.raw -g /data/hg38.chrom.sizes"]);
+    await runSetSummary(rt, "hg38", [item("c")]);
+    expect(loaded).toEqual(["refdata/hg38/hg38.chrom.sizes"]);
   });
 });

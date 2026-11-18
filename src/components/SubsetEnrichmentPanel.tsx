@@ -4,13 +4,7 @@ import { useChosenGroups, useStore } from "../state/store";
 import { chosenGroups } from "@achi/core/selection";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
-import {
-  buildUniverse,
-  testableAnnotations,
-  unionEnrichment,
-  universeHits,
-  type EnrichmentCell,
-} from "@achi/core/subsetEnrichment";
+import { runReferenceSetEnrichment, testableAnnotations, type EnrichmentCell } from "@achi/core/subsetEnrichment";
 import type { ExternalAnnotation } from "@achi/core/externalAnnotations";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
@@ -108,9 +102,7 @@ export function SubsetEnrichmentPanel() {
     setProgress({ done, total, label: "Loading reference sets" });
     const onStep = (label: string) => setProgress({ done: ++done, total, label });
     try {
-      const universe = buildUniverse(subsets);
-      const hits = await universeHits(webRuntime, universe, annotations, onStep);
-      const cells = unionEnrichment(universe, hits, chosen.map((s) => s.mask), adjust);
+      const cells = await runReferenceSetEnrichment(webRuntime, { subsets, groups: chosen.map((s) => s.mask), annotations, adjust }, { onStep });
       const r: RunResult = { key, adjust, masks: chosen.map((s) => s.mask), annotations, cells };
       lastResult = r;
       setResult(r);

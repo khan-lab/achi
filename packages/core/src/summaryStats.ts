@@ -1,4 +1,6 @@
-import type { Bedtools } from "./runtime";
+import { mountedGenome } from "./pairwiseStats";
+import { abortIfCancelled, type Bedtools, type Runtime } from "./runtime";
+import type { SummaryItem } from "./types";
 
 /**
  * `bedtools summary` support for the Summary tab (per-set, descriptive
@@ -94,4 +96,28 @@ export async function mountRawForSummary(bt: Bedtools, id: string, text: string)
   const name = `${id}.summary.raw`;
   await bt.mount([{ name, data: text }]);
   return `${bt.dir}/${name}`;
+}
+
+/**
+ * `bedtools summary` for each item against the assembly's genome file
+ * (mounted once per bedtools). Reports each item's rows as they are ready;
+ * checks for cancellation before each item.
+ */
+export async function runSetSummary(
+  rt: Runtime,
+  assembly: string,
+  items: SummaryItem[],
+  o: { onResult?: (rows: SummaryRow[], item: SummaryItem) => void; signal?: AbortSignal } = {}
+): Promise<SummaryRow[][]> {
+  abortIfCancelled(o.signal);
+  const genomePath = await mountedGenome(rt, assembly);
+  const out: SummaryRow[][] = [];
+  for (const item of items) {
+    abortIfCancelled(o.signal);
+    const rawPath = await mountRawForSummary(rt.bedtools, item.id, await item.getRawText());
+    const rows = await computeSummary(rt.bedtools, rawPath, genomePath);
+    out.push(rows);
+    o.onResult?.(rows, item);
+  }
+  return out;
 }

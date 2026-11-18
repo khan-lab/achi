@@ -1,4 +1,4 @@
-import { loadRefText, type Bedtools, type Runtime } from "./runtime";
+import { loadRefText, onceFor, type Bedtools, type Runtime } from "./runtime";
 import { parseIntersectCounts } from "./pipeline";
 
 /**
@@ -68,22 +68,14 @@ export function splitByBlacklistHits(bedText: string, hits: Uint8Array): Blackli
   return { nHits, nKept: kept.length, keptText: kept.length ? kept.join("\n") + "\n" : "" };
 }
 
-/** Mounted blacklist path per bedtools instance and assembly. */
-const mountedLists = new WeakMap<Bedtools, Map<string, string>>();
-
 /** Load and mount an assembly's blacklist once per bedtools instance; returns its mounted path. */
-export async function mountBlacklist(rt: Runtime, assembly: string): Promise<string> {
-  const bt = rt.bedtools;
-  let lists = mountedLists.get(bt);
-  if (!lists) mountedLists.set(bt, (lists = new Map()));
-  const cached = lists.get(assembly);
-  if (cached) return cached;
-  const data = await loadRefText(rt, blacklistPath(assembly), `the ${assembly} ENCODE blacklist`);
-  const name = `${assembly}.blacklist.bed`;
-  await bt.mount([{ name, data }]);
-  const path = `${bt.dir}/${name}`;
-  lists.set(assembly, path);
-  return path;
+export function mountBlacklist(rt: Runtime, assembly: string): Promise<string> {
+  return onceFor(rt.bedtools, `blacklist:${assembly}`, async () => {
+    const data = await loadRefText(rt, blacklistPath(assembly), `the ${assembly} ENCODE blacklist`);
+    const name = `${assembly}.blacklist.bed`;
+    await rt.bedtools.mount([{ name, data }]);
+    return `${rt.bedtools.dir}/${name}`;
+  });
 }
 
 /** One 0/1 flag per region of `bedText`: does it overlap the mounted blacklist by ≥ 1 bp. */
