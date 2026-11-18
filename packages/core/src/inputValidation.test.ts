@@ -9,6 +9,7 @@ import {
   checkFileSize,
   fittingAssemblies,
   normalizeRegionText,
+  loadChromSizes,
   parseChromSizes,
 } from "./inputValidation";
 
@@ -164,5 +165,19 @@ describe("parseChromSizes", () => {
   it("parses the vendored hg38 file", () => {
     expect(chromSizes.hg38.chr1).toBe(248956422);
     expect(chromSizes.hg38.chrM).toBe(16569);
+  });
+});
+
+describe("loadChromSizes", () => {
+  it("reads refdata/<assembly>/<assembly>.chrom.sizes through the runtime, once per reference-data source", async () => {
+    const asked: string[] = [];
+    const text = readFileSync(join(__dirname, "../../../public/refdata/hg38/hg38.chrom.sizes"), "utf8");
+    const refdata = { text: async (p: string) => (asked.push(p), text) };
+    const sizes = await loadChromSizes({ refdata }, "hg38");
+    expect(sizes).toEqual(parseChromSizes(text));
+    expect(sizes.chr1).toBe(248_956_422);
+    await loadChromSizes({ refdata }, "hg38");
+    expect(asked).toEqual(["refdata/hg38/hg38.chrom.sizes"]);
+    await expect(loadChromSizes({ refdata: { text: async () => Promise.reject(new Error("offline")) } }, "mm10")).rejects.toThrow("Could not load mm10.chrom.sizes");
   });
 });

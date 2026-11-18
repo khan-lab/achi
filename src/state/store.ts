@@ -1,11 +1,12 @@
 import { create } from "zustand";
 import { useMemo } from "react";
 import * as intervals from "@achi/core/intervals";
-import { computeSubsetsViaBedtools, forgetSet, subsetToBedText, type PipelineProgress } from "@achi/core/pipeline";
+import { forgetSet, type PipelineProgress } from "@achi/core/pipeline";
+import { labelSubsets, runBlacklistCheck, runIntersections, subsetFileText } from "@achi/core/intersections";
 import { resolveOverlapFlags, type OverlapPreset } from "@achi/core/bedtoolsOptions";
-import { MAX_SETS, PALETTE, type Interval, type RegionSet, type Subset } from "../types";
+import { MAX_SETS, PALETTE, type RegionSet, type Subset } from "../types";
 import type { ExternalAnnotation } from "@achi/core/externalAnnotations";
-import { blacklistHits, hasBlacklist, mountBlacklist, splitByBlacklistHits } from "@achi/core/blacklist";
+import { hasBlacklist, splitByBlacklistHits } from "@achi/core/blacklist";
 import { LIST_EXTENSION, computeListSubsets, listSetName, parseListText } from "@achi/core/lists";
 import {
   buildSettings,
@@ -32,7 +33,7 @@ import {
   MAX_FILE_BYTES,
   checkFileSize,
   normalizeRegionText,
-  parseChromSizes,
+  loadChromSizes as loadAssemblySizes,
   type ChromSizes,
   type InputFormat,
 } from "@achi/core/inputValidation";
@@ -175,28 +176,8 @@ interface StoreState {
   loadExampleSignal: () => Promise<void>;
 }
 
-function labelSubsets(raw: { mask: number; memberIds: string[]; regions: Interval[]; nRegions: number; nBp: number; items?: string[] }[], sets: LoadedSet[]): Subset[] {
-  const byId = new Map(sets.map((s) => [s.id, s]));
-  return raw.map((s) => {
-    const members = s.memberIds.map((id) => byId.get(id)).filter((s): s is LoadedSet => Boolean(s));
-    return {
-      mask: s.mask,
-      memberIds: s.memberIds,
-      label: members.length === 1 ? `${members[0].name} only` : members.map((m) => m.name).join(" ∩ "),
-      code: members.map((m) => m.code).join("·"),
-      degree: members.length,
-      regions: s.regions,
-      nRegions: s.nRegions,
-      nBp: s.nBp,
-      ...(s.items ? { items: s.items } : {}),
-    };
-  });
-}
-
 /** A subset's file content: BED text, or one name per line in list mode. */
-export function subsetFileText(s: Subset): string {
-  return s.items ? s.items.join("\n") + (s.items.length ? "\n" : "") : subsetToBedText(s);
-}
+export { subsetFileText };
 
 function download(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
@@ -241,18 +222,13 @@ function forgetBlacklist(id: string): void {
 async function checkBlacklist(sets: LoadedSet[], assembly: string, onProgress?: (p: PipelineProgress) => void): Promise<LoadedSet[]> {
   if (!hasBlacklist(assembly)) return sets.map((s) => ({ ...s, blacklistHits: null }));
   const todo = sets.filter((s) => !blacklistCache.has(blKey(s.id, assembly)));
-  let done = 0;
-  for (const s of todo) {
-    onProgress?.({ done, total: todo.length, label: `Checking ${s.name} against ENCODE problematic regions` });
-    try {
-      const path = await mountBlacklist(webRuntime, assembly);
-      blacklistCache.set(blKey(s.id, assembly), await blacklistHits(webRuntime.bedtools, s.id, await s.cleanFile.text(), path));
-    } catch (err) {
-      console.warn(`ENCODE problematic-regions check failed for ${s.name}`, err);
-      blacklistCache.set(blKey(s.id, assembly), null);
-    }
-    done++;
-  }
+  const checked = await runBlacklistCheck(
+    webRuntime,
+    assembly,
+    await Promise.all(todo.map(async (s) => ({ id: s.id, name: s.name, text: await s.cleanFile.text() }))),
+    { onProgress, onFailure: (s, err) => console.warn(`ENCODE problematic-regions check failed for ${s.name}`, err) }
+  );
+  for (const c of checked) blacklistCache.set(blKey(c.id, assembly), c.hits);
   return sets.map((s) => {
     const hits = blacklistCache.get(blKey(s.id, assembly));
     return { ...s, blacklistHits: hits ? hits.reduce((n, h) => n + h, 0) : null };
@@ -304,44 +280,24 @@ async function recompute(
     return { sets: await withCounts(sets), subsets: [], usedFallback: false, fallbackOverlapUnsupported: false };
   }
 
-  try {
-    const result = await computeSubsetsViaBedtools(
-      webRuntime.bedtools,
-      included.map((s) => ({ id: s.id, name: s.name, file: s.file, key: s.contentKey })),
-      overlapFlags,
-      onProgress
-    );
-    const byId = new Map(result.sets.map((r) => [r.id, r]));
-    const updatedSets = await withCounts(
-      sets.map((s) => {
-        const r = byId.get(s.id);
-        return r ? { ...s, regions: r.regions, nRegions: r.nRegions, nBp: r.nBp } : s;
-      })
-    );
-    return {
-      sets: updatedSets,
-      subsets: labelSubsets(result.subsets, updatedSets),
-      usedFallback: false,
-      fallbackOverlapUnsupported: false,
-    };
-  } catch (err) {
-    console.warn("bedtools WASM pipeline failed, falling back to pure-TS lib/intervals.ts", err);
-    const withRegions = await Promise.all(
-      included.map(async (s) => {
-        const regions = intervals.sortIntervals(intervals.parseBed(await s.file.text()));
-        return { ...s, regions, nRegions: regions.length, nBp: regions.reduce((bp, r) => bp + (r.end - r.start), 0) };
-      })
-    );
-    const updatedSets = sets.map((s) => withRegions.find((r) => r.id === s.id) ?? s);
-    // The TS fallback only implements the 1bp default (no -f/-r/-F equivalent).
-    const raw = intervals.computeSubsets(withRegions.map((s) => ({ id: s.id, regions: s.regions })));
-    return {
-      sets: updatedSets,
-      subsets: labelSubsets(raw, updatedSets),
-      usedFallback: true,
-      fallbackOverlapUnsupported: overlapFlags !== "",
-    };
-  }
+  const result = await runIntersections(
+    webRuntime,
+    { sets: included.map((s) => ({ id: s.id, name: s.name, file: s.file, key: s.contentKey })), overlapFlags },
+    { onProgress }
+  );
+  const byId = new Map(result.sets.map((r) => [r.id, r]));
+  const updatedSets = await withCounts(
+    sets.map((s) => {
+      const r = byId.get(s.id);
+      return r ? { ...s, regions: r.regions, nRegions: r.nRegions, nBp: r.nBp } : s;
+    })
+  );
+  return {
+    sets: updatedSets,
+    subsets: labelSubsets(result.subsets, updatedSets),
+    usedFallback: result.usedFallback,
+    fallbackOverlapUnsupported: result.fallbackOverlapUnsupported,
+  };
 }
 
 const EXTENSION = /\.(bed|txt|vcf|narrowPeak|broadPeak|bedGraph)(\.gz)?$/i;
@@ -544,8 +500,7 @@ export const useStore = create<StoreState>((set, get) => {
     const loaded = await Promise.all(
       missing.map(async (a) => {
         try {
-          const res = await fetch(`${window.location.origin}${import.meta.env.BASE_URL}refdata/${a}/${a}.chrom.sizes`);
-          return res.ok ? ([a, parseChromSizes(await res.text())] as const) : null;
+          return [a, await loadAssemblySizes(webRuntime, a)] as const;
         } catch {
           return null; // the assembly check is advisory — never block loading on it
         }

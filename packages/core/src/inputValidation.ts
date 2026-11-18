@@ -1,7 +1,8 @@
 /**
  * Input checks run on every file before it reaches bedtools (PLAN.md §8,
- * "Validation and safety"). Everything here is pure — no Aioli/WASM, no
- * fetch — so it is unit-tested directly in inputValidation.test.ts against
+ * "Validation and safety"). Everything here is pure, except loadChromSizes,
+ * which reads an assembly's chrom.sizes through the runtime; it is
+ * unit-tested directly in inputValidation.test.ts against
  * the real ENCODE fixtures and the vendored chrom.sizes files.
  *
  * Two jobs:
@@ -23,6 +24,7 @@
  *    a genome file or reference annotation (Fisher, reldist, Summary, region
  *    annotation, nearest gene), so these are warnings, not rejections.
  */
+import { loadRefText, onceFor, type Runtime } from "./runtime";
 
 export const MAX_FILE_BYTES = 100 * 1024 * 1024;
 export const MAX_REGIONS = 2_000_000;
@@ -218,4 +220,9 @@ export function checkAssembly(extents: Record<string, number>, sizes: ChromSizes
 /** Supported assemblies that a file fits with no unknown chromosomes and no coordinate past a chromosome end. */
 export function fittingAssemblies(extents: Record<string, number>, allSizes: Record<string, ChromSizes>): string[] {
   return SUPPORTED_ASSEMBLIES.filter((a) => allSizes[a] && checkAssembly(extents, allSizes[a]).fits);
+}
+
+/** An assembly's chromosome sizes (refdata/<assembly>/<assembly>.chrom.sizes), read once per reference-data source. */
+export function loadChromSizes(rt: Pick<Runtime, "refdata">, assembly: string): Promise<ChromSizes> {
+  return onceFor(rt.refdata, `chrom.sizes:${assembly}`, async () => parseChromSizes(await loadRefText(rt, `refdata/${assembly}/${assembly}.chrom.sizes`, `${assembly}.chrom.sizes`)));
 }
