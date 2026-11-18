@@ -5,10 +5,11 @@ import {
   computeGeneAssociations,
   uniqueGeneNames,
   type RegionGeneAssociation,
-} from "../lib/geneList";
+} from "@achi/core/geneList";
 import type { SummaryItem } from "./SummaryPlot";
 import { registerExport } from "../lib/exportRegistry";
 import { geneListMethods } from "@achi/core/analysisExport";
+import { webRuntime } from "../lib/runtime";
 
 // Module-level, not component state: this panel unmounts whenever
 // `selectedSubsets` empties out or `view` navigates to "summary" (App.tsx
@@ -48,7 +49,7 @@ export function useNearestGenes(items: SummaryItem[]): { genesOf: (item: Summary
       try {
         let geneTssPath = geneTssPathRef.current.get(assembly);
         if (!geneTssPath) {
-          geneTssPath = await fetchAndMountGeneTss(assembly);
+          geneTssPath = await fetchAndMountGeneTss(webRuntime, assembly);
           geneTssPathRef.current.set(assembly, geneTssPath);
         }
 
@@ -56,7 +57,7 @@ export function useNearestGenes(items: SummaryItem[]): { genesOf: (item: Summary
           if (cancelled) return;
           const key = cacheKey(item);
           if (associationsCache.has(key)) continue;
-          const associations = await computeGeneAssociations(item, geneTssPath);
+          const associations = await computeGeneAssociations(webRuntime.bedtools, item, geneTssPath);
           if (cancelled) return;
           associationsCache.set(key, associations);
           setAssociationsState((prev) => new Map(prev).set(key, associations));

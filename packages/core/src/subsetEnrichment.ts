@@ -1,9 +1,9 @@
-import * as bedtools from "./bedtools";
-import { EXTERNAL_ANNOTATIONS, type ExternalAnnotation } from "@achi/core/externalAnnotations";
+import { loadRefText, type Runtime } from "./runtime";
+import { EXTERNAL_ANNOTATIONS, type ExternalAnnotation } from "./externalAnnotations";
 import { parseIntersectCounts } from "./pipeline";
-import { benjaminiHochberg, fisherExact, mantelHaenszel, oddsRatio } from "@achi/core/stats";
-import type { Interval } from "../types";
-import { inGroup } from "@achi/core/selection";
+import { benjaminiHochberg, fisherExact, mantelHaenszel, oddsRatio } from "./stats";
+import type { Interval } from "./types";
+import { inGroup } from "./selection";
 
 /**
  * Subset enrichment for the built-in reference region sets — the null
@@ -22,7 +22,6 @@ import { inGroup } from "@achi/core/selection";
  * docs/methods.md.
  */
 
-const MOUNT_DIR = "/shared/data";
 const LENGTH_STRATA = 5;
 
 export interface EnrichmentUniverse {
@@ -131,16 +130,14 @@ export function unionEnrichment(
   return cells.map((c, i) => ({ ...c, q: q[i] }));
 }
 
-// ---- bedtools glue (runs against the WASM worker) ----
+// ---- bedtools glue ----
 
 const annotationTextCache = new Map<string, string>();
 
-async function annotationText(a: ExternalAnnotation): Promise<string> {
+async function annotationText(rt: Runtime, a: ExternalAnnotation): Promise<string> {
   const cached = annotationTextCache.get(a.id);
   if (cached !== undefined) return cached;
-  const res = await fetch(`${window.location.origin}${import.meta.env.BASE_URL}${a.path}`);
-  if (!res.ok) throw new Error(`Could not load ${a.name}`);
-  const text = await res.text();
+  const text = await loadRefText(rt, a.path!, a.name);
   annotationTextCache.set(a.id, text);
   return text;
 }
@@ -149,29 +146,31 @@ export type StepCallback = (label: string) => void;
 
 /** Hit flags of every universe region against each reference set: one `bedtools intersect -c` per set. */
 export async function universeHits(
+  rt: Runtime,
   universe: EnrichmentUniverse,
   annotations: ExternalAnnotation[],
   onStep?: StepCallback
 ): Promise<{ id: string; hits: Uint8Array }[]> {
   // Download every reference set at once (cached after the first run) rather than one per bedtools step.
-  await Promise.all(annotations.map(annotationText));
+  await Promise.all(annotations.map((a) => annotationText(rt, a)));
+  const bt = rt.bedtools;
   const uName = "enrichment.universe.bed";
-  await bedtools.mount([{ name: uName, data: universe.bedText }]);
+  await bt.mount([{ name: uName, data: universe.bedText }]);
   const out: { id: string; hits: Uint8Array }[] = [];
   try {
     for (const a of annotations) {
       const name = `enrichment.ref.${a.id}.bed`;
-      await bedtools.mount([{ name, data: await annotationText(a) }]);
+      await bt.mount([{ name, data: await annotationText(rt, a) }]);
       try {
-        const res = await bedtools.exec(`bedtools intersect -a ${MOUNT_DIR}/${uName} -b ${MOUNT_DIR}/${name} -c`);
+        const res = await bt.exec(`bedtools intersect -a ${bt.dir}/${uName} -b ${bt.dir}/${name} -c`);
         out.push({ id: a.id, hits: parseIntersectCounts(res.stdout, universe.owner.length) });
       } finally {
-        await bedtools.unmount([name]);
+        await bt.unmount([name]);
       }
       onStep?.(a.name);
     }
   } finally {
-    await bedtools.unmount([uName]);
+    await bt.unmount([uName]);
   }
   return out;
 }

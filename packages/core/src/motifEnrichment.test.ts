@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CPG_STRATA, GC_STRATA, compositionStrata, cpgRatio, gcPerMille, gcStrata, motifEnrichment, scanPlan } from "./motifEnrichment";
-import { backgroundOf, encodeSequence, hasHit, integerMatrix, logOddsMatrix, thresholdForP, type Background } from "@achi/core/pwm";
-import { benjaminiHochberg, mantelHaenszel } from "@achi/core/stats";
+import { backgroundOf, encodeSequence, hasHit, integerMatrix, logOddsMatrix, thresholdForP, type Background } from "./pwm";
+import { benjaminiHochberg, mantelHaenszel } from "./stats";
 
 /**
  * Motif enrichment: for each selected group and motif, the share of the
@@ -12,7 +12,7 @@ import { benjaminiHochberg, mantelHaenszel } from "@achi/core/stats";
  * Real data: hg38 sequence around example super-enhancers (150 K562, 150
  * HepG2; tests/fixtures/motifs) and JASPAR 2026 matrices.
  */
-const DIR = join(__dirname, "..", "..", "tests", "fixtures", "motifs");
+const DIR = join(__dirname, "..", "..", "..", "tests", "fixtures", "motifs");
 const expected: { background: Background; p: number; motifs: { id: string; name: string; pfm: number[][] }[] } = JSON.parse(readFileSync(join(DIR, "expected_moods.json"), "utf8"));
 const codes = readFileSync(join(DIR, "sequences.fa"), "utf8")
   .split(">")

@@ -10,7 +10,7 @@ import {
   unionEnrichment,
   universeHits,
   type EnrichmentCell,
-} from "../lib/subsetEnrichment";
+} from "@achi/core/subsetEnrichment";
 import type { ExternalAnnotation } from "@achi/core/externalAnnotations";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
@@ -18,6 +18,7 @@ import { TopRowsInput } from "./TopRowsInput";
 import { DEFAULT_TOP_ROWS, rankRows } from "@achi/core/heatmapRows";
 import { registerExport } from "../lib/exportRegistry";
 import { enrichmentMethods } from "@achi/core/analysisExport";
+import { webRuntime } from "../lib/runtime";
 
 // Concrete colours so exported SVG/PNG render without this page's CSS.
 const INK = "#101826";
@@ -108,7 +109,7 @@ export function SubsetEnrichmentPanel() {
     const onStep = (label: string) => setProgress({ done: ++done, total, label });
     try {
       const universe = buildUniverse(subsets);
-      const hits = await universeHits(universe, annotations, onStep);
+      const hits = await universeHits(webRuntime, universe, annotations, onStep);
       const cells = unionEnrichment(universe, hits, chosen.map((s) => s.mask), adjust);
       const r: RunResult = { key, adjust, masks: chosen.map((s) => s.mask), annotations, cells };
       lastResult = r;

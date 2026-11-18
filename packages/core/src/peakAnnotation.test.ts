@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
+import type { Bedtools } from "./runtime";
 import {
   ANNO_CATEGORIES,
   ANNOTATE_STEPS_PER_ITEM,
@@ -9,21 +10,23 @@ import {
   parseClosestDistances,
 } from "./peakAnnotation";
 
-// Stand-in for the WASM worker (progress-step tests below): every
+// Stand-in bedtools (progress-step tests below): every
 // intersect/closest returns one real closest line, so each bedtools call
 // is counted without running bedtools.
-const { execCalls } = vi.hoisted(() => ({ execCalls: [] as string[] }));
-vi.mock("./bedtools", () => ({
-  mount: vi.fn(async () => {}),
-  unmount: vi.fn(async () => {}),
-  exec: vi.fn(async (cmd: string) => {
+const execCalls: string[] = [];
+const bt: Bedtools = {
+  dir: "/shared/data",
+  reset: async () => {},
+  mount: async () => {},
+  unmount: async () => {},
+  exec: async (cmd) => {
     execCalls.push(cmd);
     return {
       stdout: "chr1\t778470\t778639\tPeak_75098\t58\t.\t3.46069\t5.84601\t3.66472\t134\tchr1\t686653\t686654\t.\t0\t-\t-91817\n",
       stderr: "",
     };
-  }),
-}));
+  },
+};
 
 /**
  * Real captured `bedtools closest -a <peaks> -b <tss_points> -D b -t
@@ -99,7 +102,7 @@ describe("annotation progress steps", () => {
     const labels: string[] = [];
     const item = { id: "s1", name: "MCF7 only", color: "#000", version: 1, getRawText: async () => "chr1\t1\t2\n" };
     const paths = Object.fromEntries(ANNO_CATEGORIES.filter((c) => c.file).map((c) => [c.key, `/shared/data/${c.file}`]));
-    await annotatePeaks(item as never, paths, (label) => labels.push(label));
+    await annotatePeaks(bt, item as never, paths, (label) => labels.push(label));
     expect(labels).toHaveLength(ANNOTATE_STEPS_PER_ITEM);
     expect(execCalls).toHaveLength(ANNOTATE_STEPS_PER_ITEM);
     expect(labels[0]).toBe("MCF7 only: TSS");

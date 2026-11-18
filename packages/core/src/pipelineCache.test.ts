@@ -1,23 +1,26 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { computeSubsetsViaBedtools, forgetSet, type PipelineSetInput } from "./pipeline";
+import type { Bedtools } from "./runtime";
 
 /**
  * Cache keying in computeSubsetsViaBedtools: a set's content can change
  * (ENCODE blacklist filter on/off), so results are cached per content key,
- * not per set id. bedtools is replaced by a tiny in-memory stand-in:
+ * not per set id. bedtools is a tiny in-memory stand-in:
  * `sort` returns the mounted text, `intersect -c` counts 1 bp overlaps.
  */
 
-const { fs, calls } = vi.hoisted(() => ({ fs: new Map<string, string>(), calls: [] as string[] }));
-vi.mock("./bedtools", () => ({
-  reset: vi.fn(async () => {}),
-  mount: vi.fn(async (files: { name: string; data: string }[]) => {
+const fs = new Map<string, string>();
+const calls: string[] = [];
+const bt: Bedtools = {
+  dir: "/shared/data",
+  reset: async () => {},
+  mount: async (files) => {
     for (const f of files) fs.set(`/shared/data/${f.name}`, f.data);
-  }),
-  unmount: vi.fn(async (names: string[]) => {
+  },
+  unmount: async (names) => {
     for (const n of names) fs.delete(`/shared/data/${n}`);
-  }),
-  exec: vi.fn(async (cmd: string) => {
+  },
+  exec: async (cmd) => {
     calls.push(cmd);
     const rows = (path: string) =>
       fs
@@ -34,10 +37,10 @@ vi.mock("./bedtools", () => ({
       return [...r, n].join("\t");
     });
     return { stdout: out.join("\n") + "\n", stderr: "" };
-  }),
-}));
+  },
+};
 
-const file = (text: string) => ({ text: async () => text }) as unknown as File;
+const file = (text: string) => ({ text: async () => text }) as unknown as Blob;
 const A_ALL = "chr1\t0\t100\nchr1\t1000\t1100\n"; // second region is the "blacklisted" one
 const A_FILTERED = "chr1\t0\t100\n";
 const B = "chr1\t50\t60\nchr1\t1050\t1060\n";
@@ -47,7 +50,7 @@ const run = (aText: string, aKey?: string) => {
     { id: "set-a", name: "A", file: file(aText), key: aKey },
     { id: "set-b", name: "B", file: file(B) },
   ];
-  return computeSubsetsViaBedtools(inputs);
+  return computeSubsetsViaBedtools(bt, inputs);
 };
 
 describe("computeSubsetsViaBedtools cache keys", () => {

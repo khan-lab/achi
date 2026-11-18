@@ -3,7 +3,8 @@ import { useStore, type PairwiseStat } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
 import { resolveOverlapFlags } from "@achi/core/bedtoolsOptions";
-import { fetchAndMountGenome, sortForGenome, sortPlain, computeFisher, computeJaccard, computeReldist, type FisherResult, type JaccardResult, type ReldistResult } from "../lib/pairwiseStats";
+import { fetchAndMountGenome, sortForGenome, sortPlain, computeFisher, computeJaccard, computeReldist, type FisherResult, type JaccardResult, type ReldistResult } from "@achi/core/pairwiseStats";
+import { webRuntime } from "../lib/runtime";
 
 // Concrete colors (not CSS vars) so the exported standalone SVG/PNG render
 // correctly outside this page's stylesheet.
@@ -103,7 +104,7 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
           for (const s of sets) {
             if (cancelled) return;
             if (!plainSortedPathRef.current.has(s.id)) {
-              const { sortedPath } = await sortPlain({ id: s.id, name: s.name, file: s.file });
+              const { sortedPath } = await sortPlain(webRuntime.bedtools, { id: s.id, name: s.name, file: s.file });
               plainSortedPathRef.current.set(s.id, sortedPath);
             }
           }
@@ -113,7 +114,7 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
               if (a.id === b.id) continue;
               const key = fisherKey(a.id, b.id, overlapFlags);
               if (jaccardCache.has(key)) continue;
-              const result = await computeJaccard(plainSortedPathRef.current.get(a.id)!, plainSortedPathRef.current.get(b.id)!, overlapFlags);
+              const result = await computeJaccard(webRuntime.bedtools, plainSortedPathRef.current.get(a.id)!, plainSortedPathRef.current.get(b.id)!, overlapFlags);
               if (cancelled) return;
               setJaccardCache((prev) => new Map(prev).set(key, result));
             }
@@ -123,14 +124,14 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
 
         let genomePath = genomePathRef.current.get(assembly);
         if (!genomePath) {
-          genomePath = await fetchAndMountGenome(assembly);
+          genomePath = await fetchAndMountGenome(webRuntime, assembly);
           genomePathRef.current.set(assembly, genomePath);
         }
 
         for (const s of sets) {
           if (cancelled) return;
           if (!sortedPathRef.current.has(s.id)) {
-            const { sortedPath } = await sortForGenome({ id: s.id, name: s.name, file: s.file }, genomePath);
+            const { sortedPath } = await sortForGenome(webRuntime.bedtools, { id: s.id, name: s.name, file: s.file }, genomePath);
             sortedPathRef.current.set(s.id, sortedPath);
           }
         }
@@ -145,14 +146,14 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
             if (pairwiseStat === "fisher") {
               const key = fisherKey(a.id, b.id, overlapFlags);
               if (!fisherCache.has(key)) {
-                const result = await computeFisher(aPath, bPath, genomePath, overlapFlags);
+                const result = await computeFisher(webRuntime.bedtools, aPath, bPath, genomePath, overlapFlags);
                 if (cancelled) return;
                 setFisherCache((prev) => new Map(prev).set(key, result));
               }
             } else if (pairwiseStat === "reldist") {
               const key = pairKey(a.id, b.id);
               if (!reldistCache.has(key)) {
-                const result = await computeReldist(aPath, bPath);
+                const result = await computeReldist(webRuntime.bedtools, aPath, bPath);
                 if (cancelled) return;
                 setReldistCache((prev) => new Map(prev).set(key, result));
               }

@@ -1,5 +1,5 @@
-import * as bedtools from "./bedtools";
-import type { SummaryItem } from "../components/SummaryPlot";
+import { loadRefText, type Bedtools, type Runtime } from "./runtime";
+import type { SummaryItem } from "./types";
 
 /**
  * ChIPseeker-style peak annotation (plotAnnoBar / plotDistToTSS) against
@@ -15,7 +15,6 @@ import type { SummaryItem } from "../components/SummaryPlot";
  * `lib/summaryStats.ts`'s `computeSummary`.
  */
 
-const MOUNT_DIR = "/shared/data";
 
 export interface AnnoCategoryDef {
   key: string;
@@ -107,26 +106,25 @@ export interface PeakAnno {
   distances: number[];
 }
 
-/** Fetch + mount every category reference BED for an assembly; returns each category's mounted path, keyed by category `key` (categories with no reference file, i.e. "distal_intergenic", are omitted). */
-export async function fetchAndMountAnnotation(assembly: string, onStep?: AnnoStepCallback): Promise<Record<string, string>> {
-  const base = `${window.location.origin}${import.meta.env.BASE_URL}refdata/${assembly}/anno`;
+/** Load + mount every category reference BED for an assembly; returns each category's mounted path, keyed by category `key` (categories with no reference file, i.e. "distal_intergenic", are omitted). */
+export async function fetchAndMountAnnotation(rt: Runtime, assembly: string, onStep?: AnnoStepCallback): Promise<Record<string, string>> {
+  const bt = rt.bedtools;
   const paths: Record<string, string> = {};
   for (const cat of ANNO_CATEGORIES) {
     if (!cat.file) continue;
-    const res = await fetch(`${base}/${cat.file}`);
-    if (!res.ok) throw new Error(`Could not load ${assembly}/anno/${cat.file}`);
+    const data = await loadRefText(rt, `refdata/${assembly}/anno/${cat.file}`, `${assembly}/anno/${cat.file}`);
     const mountName = `${assembly}.anno.${cat.file}`;
-    await bedtools.mount([{ name: mountName, data: await res.text() }]);
-    paths[cat.key] = `${MOUNT_DIR}/${mountName}`;
+    await bt.mount([{ name: mountName, data }]);
+    paths[cat.key] = `${bt.dir}/${mountName}`;
     onStep?.(`Loading GENCODE ${cat.label} reference`);
   }
   return paths;
 }
 
-export async function mountRawPeaks(id: string, text: string): Promise<string> {
+export async function mountRawPeaks(bt: Bedtools, id: string, text: string): Promise<string> {
   const name = `${id}.peaks.raw`;
-  await bedtools.mount([{ name, data: text }]);
-  return `${MOUNT_DIR}/${name}`;
+  await bt.mount([{ name, data: text }]);
+  return `${bt.dir}/${name}`;
 }
 
 /**
@@ -141,6 +139,7 @@ export async function mountRawPeaks(id: string, text: string): Promise<string> {
 let classifyRuns = 0;
 
 export async function classifyPeaks(
+  bt: Bedtools,
   rawPath: string,
   categoryPaths: Record<string, string>,
   onStep?: AnnoStepCallback
@@ -158,44 +157,45 @@ export async function classifyPeaks(
   for (const cat of ANNO_CATEGORIES) {
     if (!cat.file) continue;
     const catPath = categoryPaths[cat.key];
-    const hits = await bedtools.exec(`bedtools intersect -u -a ${remainingPath} -b ${catPath}`);
+    const hits = await bt.exec(`bedtools intersect -u -a ${remainingPath} -b ${catPath}`);
     counts[cat.key] = countBedLines(hits.stdout);
     onStep?.(cat.label);
 
-    const remaining = await bedtools.exec(`bedtools intersect -v -a ${remainingPath} -b ${catPath}`);
+    const remaining = await bt.exec(`bedtools intersect -v -a ${remainingPath} -b ${catPath}`);
     remainingText = remaining.stdout;
     const remainingName = `classify_${run}_remaining_${step++}.bed`;
-    await bedtools.mount([{ name: remainingName, data: remainingText }]);
+    await bt.mount([{ name: remainingName, data: remainingText }]);
     mounted.push(remainingName);
-    remainingPath = `${MOUNT_DIR}/${remainingName}`;
+    remainingPath = `${bt.dir}/${remainingName}`;
     onStep?.(`${cat.label} (remaining regions)`);
   }
 
   counts.distal_intergenic = countBedLines(remainingText);
-  await bedtools.unmount(mounted);
+  await bt.unmount(mounted);
   return counts;
 }
 
 /** Strand-aware signed distance from each peak to its nearest TSS (negative = upstream, positive = downstream of the nearest TSS's own strand). */
-export async function distanceToTSS(rawPath: string, tssPointsPath: string): Promise<number[]> {
-  const result = await bedtools.exec(`bedtools closest -a ${rawPath} -b ${tssPointsPath} -D b -t first`);
+export async function distanceToTSS(bt: Bedtools, rawPath: string, tssPointsPath: string): Promise<number[]> {
+  const result = await bt.exec(`bedtools closest -a ${rawPath} -b ${tssPointsPath} -D b -t first`);
   return parseClosestDistances(result.stdout);
 }
 
 /** One item's full peak-annotation record — the ChIPseeker-style "peakAnno" object; a `PeakAnno[]` is the "peakAnnoList" both plotAnnoBar and plotDistToTSS consume. */
 export async function annotatePeaks(
+  bt: Bedtools,
   item: SummaryItem,
   categoryPaths: Record<string, string>,
   onStep?: AnnoStepCallback
 ): Promise<PeakAnno> {
-  const rawPath = await mountRawPeaks(item.id, await item.getRawText());
-  // Sequential, not concurrent — every other bedtools.exec call site in
-  // this app awaits one at a time against the single Aioli worker; two
+  const rawPath = await mountRawPeaks(bt, item.id, await item.getRawText());
+  // Sequential, not concurrent — every other bedtools call site awaits one
+  // at a time (in the browser, against the single WebAssembly worker); two
   // command chains racing against the same virtual filesystem is untested
   // territory not worth risking here for a two-call sequence.
   const step = onStep && ((label: string) => onStep(`${item.name}: ${label}`));
-  const categoryCounts = await classifyPeaks(rawPath, categoryPaths, step);
-  const distances = await distanceToTSS(rawPath, categoryPaths.tss);
+  const categoryCounts = await classifyPeaks(bt, rawPath, categoryPaths, step);
+  const distances = await distanceToTSS(bt, rawPath, categoryPaths.tss);
   step?.("distance to nearest TSS");
   const total = Object.values(categoryCounts).reduce((sum, n) => sum + n, 0);
   return { id: item.id, name: item.name, color: item.color, total, categoryCounts, distances };

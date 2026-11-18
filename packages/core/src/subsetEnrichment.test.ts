@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseIntersectCounts, subsetsFromOverlaps } from "./pipeline";
-import { EXTERNAL_ANNOTATIONS } from "@achi/core/externalAnnotations";
+import { EXTERNAL_ANNOTATIONS } from "./externalAnnotations";
 import { buildUniverse, enrichmentCounts, lengthStrata, testableAnnotations, unionEnrichment } from "./subsetEnrichment";
-import type { Interval } from "../types";
+import type { Interval } from "./types";
 
 /**
  * Subset enrichment, input-sets background (docs/methods.md, "Subset
@@ -88,8 +88,8 @@ const hasBedtools = available("bedtools", ["--version"]);
 const hasR = available("Rscript", ["--version"]);
 
 describe.skipIf(!hasBedtools)("input-sets enrichment on real ENCODE subsets (native bedtools)", () => {
-  const FIXTURES_DIR = join(__dirname, "../../tests/fixtures/encode");
-  const PUBLIC_DIR = join(__dirname, "../../public");
+  const FIXTURES_DIR = join(__dirname, "../../../tests/fixtures/encode");
+  const PUBLIC_DIR = join(__dirname, "../../../public");
   const files = ["heart_h3k27ac_ENCFF059ERB.subsample.bed", "lung_h3k27ac_ENCFF314QTE.subsample.bed", "liver_h3k27ac_ENCFF805YRQ.subsample.bed"];
   const dir = mkdtempSync(join(tmpdir(), "achi-enrich-"));
   const sh = (args: string[]) => execFileSync("bedtools", args, { encoding: "utf8", maxBuffer: 1 << 28 });

@@ -1,5 +1,5 @@
-import * as bedtools from "./bedtools";
-import type { SummaryItem } from "../components/SummaryPlot";
+import { loadRefText, type Bedtools, type Runtime } from "./runtime";
+import type { SummaryItem } from "./types";
 
 /**
  * "Nearest gene by TSS" — for each region in a set, find every equally-
@@ -15,7 +15,6 @@ import type { SummaryItem } from "../components/SummaryPlot";
  * not built yet, but the shape doesn't need to change to support it.
  */
 
-const MOUNT_DIR = "/shared/data";
 
 export interface RegionGeneAssociation {
   region: { chrom: string; start: number; end: number };
@@ -25,20 +24,18 @@ export interface RegionGeneAssociation {
   distance: number;
 }
 
-/** Fetch + mount `genes_tss.bed` for an assembly; returns its mounted path. */
-export async function fetchAndMountGeneTss(assembly: string): Promise<string> {
-  const base = `${window.location.origin}${import.meta.env.BASE_URL}refdata/${assembly}`;
-  const res = await fetch(`${base}/genes_tss.bed`);
-  if (!res.ok) throw new Error(`Could not load ${assembly}/genes_tss.bed`);
+/** Load + mount `genes_tss.bed` for an assembly; returns its mounted path. */
+export async function fetchAndMountGeneTss(rt: Runtime, assembly: string): Promise<string> {
+  const data = await loadRefText(rt, `refdata/${assembly}/genes_tss.bed`, `${assembly}/genes_tss.bed`);
   const mountName = `${assembly}.genes_tss.bed`;
-  await bedtools.mount([{ name: mountName, data: await res.text() }]);
-  return `${MOUNT_DIR}/${mountName}`;
+  await rt.bedtools.mount([{ name: mountName, data }]);
+  return `${rt.bedtools.dir}/${mountName}`;
 }
 
-export async function mountRawRegions(id: string, text: string): Promise<string> {
+export async function mountRawRegions(bt: Bedtools, id: string, text: string): Promise<string> {
   const name = `${id}.genelist.raw`;
-  await bedtools.mount([{ name, data: text }]);
-  return `${MOUNT_DIR}/${name}`;
+  await bt.mount([{ name, data: text }]);
+  return `${bt.dir}/${name}`;
 }
 
 /**
@@ -73,9 +70,9 @@ export function parseClosestGeneAssociations(stdout: string): RegionGeneAssociat
   return out;
 }
 
-export async function computeGeneAssociations(item: SummaryItem, geneTssPath: string): Promise<RegionGeneAssociation[]> {
-  const rawPath = await mountRawRegions(item.id, await item.getRawText());
-  const result = await bedtools.exec(`bedtools closest -d -t all -a ${rawPath} -b ${geneTssPath}`);
+export async function computeGeneAssociations(bt: Bedtools, item: SummaryItem, geneTssPath: string): Promise<RegionGeneAssociation[]> {
+  const rawPath = await mountRawRegions(bt, item.id, await item.getRawText());
+  const result = await bt.exec(`bedtools closest -d -t all -a ${rawPath} -b ${geneTssPath}`);
   return parseClosestGeneAssociations(result.stdout);
 }
 

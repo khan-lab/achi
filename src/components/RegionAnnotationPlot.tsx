@@ -10,9 +10,10 @@ import {
   fetchAndMountAnnotation,
   annotatePeaks,
   type PeakAnno,
-} from "../lib/peakAnnotation";
+} from "@achi/core/peakAnnotation";
 import type { SummaryItem } from "./SummaryPlot";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
+import { webRuntime } from "../lib/runtime";
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -107,14 +108,14 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
       setProgress({ done: 0, total, label: categoryPaths ? `${todo[0].name}: starting` : "Loading GENCODE annotation" });
       try {
         if (!categoryPaths) {
-          categoryPaths = await fetchAndMountAnnotation(assembly, onStep);
+          categoryPaths = await fetchAndMountAnnotation(webRuntime, assembly, onStep);
           categoryPathsRef.current.set(assembly, categoryPaths);
         }
 
         for (const item of todo) {
           if (cancelled) return;
           const key = cacheKey(item);
-          const anno = await annotatePeaks(item, categoryPaths, onStep);
+          const anno = await annotatePeaks(webRuntime.bedtools, item, categoryPaths, onStep);
           if (cancelled) return;
           peakAnnoCache.set(key, anno);
           setPeakAnnoState((prev) => new Map(prev).set(key, anno));

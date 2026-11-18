@@ -1,4 +1,4 @@
-import * as bedtools from "./bedtools";
+import { loadRefText, type Bedtools, type Runtime } from "./runtime";
 import { parseIntersectCounts } from "./pipeline";
 
 /**
@@ -31,7 +31,6 @@ export const BLACKLIST_REGION_COUNTS: Record<(typeof BLACKLIST_ASSEMBLIES)[numbe
   mm10: 3435,
 };
 
-const MOUNT_DIR = "/shared/data";
 
 export function hasBlacklist(assembly: string): boolean {
   return (BLACKLIST_ASSEMBLIES as readonly string[]).includes(assembly);
@@ -69,30 +68,33 @@ export function splitByBlacklistHits(bedText: string, hits: Uint8Array): Blackli
   return { nHits, nKept: kept.length, keptText: kept.length ? kept.join("\n") + "\n" : "" };
 }
 
-const mountedLists = new Map<string, string>();
+/** Mounted blacklist path per bedtools instance and assembly. */
+const mountedLists = new WeakMap<Bedtools, Map<string, string>>();
 
-/** Fetch and mount an assembly's blacklist once; returns its mounted path. */
-export async function mountBlacklist(assembly: string): Promise<string> {
-  const cached = mountedLists.get(assembly);
+/** Load and mount an assembly's blacklist once per bedtools instance; returns its mounted path. */
+export async function mountBlacklist(rt: Runtime, assembly: string): Promise<string> {
+  const bt = rt.bedtools;
+  let lists = mountedLists.get(bt);
+  if (!lists) mountedLists.set(bt, (lists = new Map()));
+  const cached = lists.get(assembly);
   if (cached) return cached;
-  const res = await fetch(`${window.location.origin}${import.meta.env.BASE_URL}${blacklistPath(assembly)}`);
-  if (!res.ok) throw new Error(`Could not load the ${assembly} ENCODE blacklist`);
+  const data = await loadRefText(rt, blacklistPath(assembly), `the ${assembly} ENCODE blacklist`);
   const name = `${assembly}.blacklist.bed`;
-  await bedtools.mount([{ name, data: await res.text() }]);
-  const path = `${MOUNT_DIR}/${name}`;
-  mountedLists.set(assembly, path);
+  await bt.mount([{ name, data }]);
+  const path = `${bt.dir}/${name}`;
+  lists.set(assembly, path);
   return path;
 }
 
 /** One 0/1 flag per region of `bedText`: does it overlap the mounted blacklist by ≥ 1 bp. */
-export async function blacklistHits(id: string, bedText: string, blacklistMountPath: string): Promise<Uint8Array> {
+export async function blacklistHits(bt: Bedtools, id: string, bedText: string, blacklistMountPath: string): Promise<Uint8Array> {
   const name = `${id}.blacklist-check.bed`;
-  await bedtools.mount([{ name, data: bedText }]);
+  await bt.mount([{ name, data: bedText }]);
   try {
-    const out = await bedtools.exec(`bedtools intersect -a ${MOUNT_DIR}/${name} -b ${blacklistMountPath} -c`);
+    const out = await bt.exec(`bedtools intersect -a ${bt.dir}/${name} -b ${blacklistMountPath} -c`);
     const nRegions = bedText.split("\n").filter((l) => l.length > 0).length;
     return parseIntersectCounts(out.stdout, nRegions);
   } finally {
-    await bedtools.unmount([name]);
+    await bt.unmount([name]);
   }
 }

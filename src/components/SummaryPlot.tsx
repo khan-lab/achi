@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
-import { fetchAndMountGenome } from "../lib/pairwiseStats";
+import { fetchAndMountGenome } from "@achi/core/pairwiseStats";
 import {
   computeSummary,
   mountRawForSummary,
@@ -9,7 +9,11 @@ import {
   sortChromosomesNaturally,
   getAggregateRow,
   type SummaryRow,
-} from "../lib/summaryStats";
+} from "@achi/core/summaryStats";
+import type { SummaryItem } from "@achi/core/types";
+import { webRuntime } from "../lib/runtime";
+
+export type { SummaryItem };
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -50,29 +54,6 @@ type Metric = "count" | "bp";
 const genomePathCache = new Map<string, string>();
 const summaryRowsCache = new Map<string, SummaryRow[]>();
 
-/**
- * One bar-group/stat-card's worth of input to SummaryPlot — either a whole
- * input set (the standalone Summary tab) or, in future, a selected
- * combinatorial subset (not wired up yet — see git history). Both call
- * sites just need to supply raw BED text; the bedtools summary machinery
- * below doesn't care which.
- */
-export interface SummaryItem {
-  id: string;
-  /**
-   * Included in the computation cache key alongside `id` — bump/change
-   * this when the same `id` could later resolve to different content.
-   * Whole sets can reuse `id` (a set's file content is immutable once
-   * added); selected subsets change identity, size and content on every
-   * subset(s)/overlap-setting recompute even though their `mask` numbers
-   * are stable, so the caller passes something like
-   * `${mask}:${nRegions}:${nBp}` to avoid serving a stale cached result.
-   */
-  version: string;
-  name: string;
-  color: string;
-  getRawText: () => Promise<string>;
-}
 
 /**
  * Per-item descriptive statistics via `bedtools summary -i -g` — one call
@@ -106,7 +87,7 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
       try {
         let genomePath = genomePathRef.current.get(assembly);
         if (!genomePath) {
-          genomePath = await fetchAndMountGenome(assembly);
+          genomePath = await fetchAndMountGenome(webRuntime, assembly);
           genomePathRef.current.set(assembly, genomePath);
         }
 
@@ -114,8 +95,8 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
           if (cancelled) return;
           const key = cacheKey(item);
           if (summaryRowsCache.has(key)) continue;
-          const rawPath = await mountRawForSummary(item.id, await item.getRawText());
-          const rows = await computeSummary(rawPath, genomePath);
+          const rawPath = await mountRawForSummary(webRuntime.bedtools, item.id, await item.getRawText());
+          const rows = await computeSummary(webRuntime.bedtools, rawPath, genomePath);
           if (cancelled) return;
           summaryRowsCache.set(key, rows);
           setSummaryState((prev) => new Map(prev).set(key, rows));

@@ -1,4 +1,4 @@
-import * as bedtools from "./bedtools";
+import { loadRefText, type Bedtools, type Runtime } from "./runtime";
 import type { PipelineSetInput } from "./pipeline";
 
 /**
@@ -20,7 +20,6 @@ import type { PipelineSetInput } from "./pipeline";
  * fixtures and docs/provenance.md.
  */
 
-const MOUNT_DIR = "/shared/data";
 
 export interface FisherResult {
   twoTailP: number;
@@ -176,18 +175,16 @@ export function ksPValueVsUniform(bins: ReldistBin[]): number {
  * a cache keyed by assembly (as PairwiseHeatmap.tsx/SummaryPlot.tsx both
  * do) would then serve stale genome data after switching back.
  */
-export async function mountGenome(assembly: string, chromSizesText: string): Promise<string> {
+export async function mountGenome(bt: Bedtools, assembly: string, chromSizesText: string): Promise<string> {
   const name = `${assembly}.chrom.sizes`;
-  await bedtools.mount([{ name, data: chromSizesText }]);
-  return `${MOUNT_DIR}/${name}`;
+  await bt.mount([{ name, data: chromSizesText }]);
+  return `${bt.dir}/${name}`;
 }
 
-/** Fetch (from `public/refdata/<assembly>/<assembly>.chrom.sizes`) and mount an assembly's genome file in one step. */
-export async function fetchAndMountGenome(assembly: string): Promise<string> {
-  const base = `${window.location.origin}${import.meta.env.BASE_URL}refdata/${assembly}`;
-  const res = await fetch(`${base}/${assembly}.chrom.sizes`);
-  if (!res.ok) throw new Error(`Could not load ${assembly}.chrom.sizes`);
-  return mountGenome(assembly, await res.text());
+/** Load (`refdata/<assembly>/<assembly>.chrom.sizes`) and mount an assembly's genome file in one step. */
+export async function fetchAndMountGenome(rt: Runtime, assembly: string): Promise<string> {
+  const text = await loadRefText(rt, `refdata/${assembly}/${assembly}.chrom.sizes`, `${assembly}.chrom.sizes`);
+  return mountGenome(rt.bedtools, assembly, text);
 }
 
 /**
@@ -197,13 +194,13 @@ export async function fetchAndMountGenome(assembly: string): Promise<string> {
  * chromosome order (e.g. chr2 vs chr10), which `bedtools fisher -g`
  * requires to match its own genome file's order.
  */
-export async function sortForGenome(input: PipelineSetInput, genomePath: string): Promise<GenomeSortedSet> {
+export async function sortForGenome(bt: Bedtools, input: PipelineSetInput, genomePath: string): Promise<GenomeSortedSet> {
   const rawName = `${input.id}.gsort.raw`;
-  await bedtools.mount([{ name: rawName, data: await input.file.text() }]);
-  const sorted = await bedtools.exec(`bedtools sort -g ${genomePath} -i ${MOUNT_DIR}/${rawName}`);
+  await bt.mount([{ name: rawName, data: await input.file.text() }]);
+  const sorted = await bt.exec(`bedtools sort -g ${genomePath} -i ${bt.dir}/${rawName}`);
   const sortedName = `${input.id}.gsorted.bed`;
-  await bedtools.mount([{ name: sortedName, data: sorted.stdout }]);
-  return { id: input.id, sortedPath: `${MOUNT_DIR}/${sortedName}` };
+  await bt.mount([{ name: sortedName, data: sorted.stdout }]);
+  return { id: input.id, sortedPath: `${bt.dir}/${sortedName}` };
 }
 
 /**
@@ -215,18 +212,19 @@ export async function sortForGenome(input: PipelineSetInput, genomePath: string)
  * user picked for the UpSet/Venn subsets applies here too.
  */
 export async function computeFisher(
+  bt: Bedtools,
   aPath: string,
   bPath: string,
   genomePath: string,
   overlapFlags = ""
 ): Promise<FisherResult> {
   const flagPart = overlapFlags ? ` ${overlapFlags}` : "";
-  const result = await bedtools.exec(`bedtools fisher -a ${aPath} -b ${bPath} -g ${genomePath}${flagPart}`);
+  const result = await bt.exec(`bedtools fisher -a ${aPath} -b ${bPath} -g ${genomePath}${flagPart}`);
   return parseFisherOutput(result.stdout);
 }
 
-export async function computeReldist(aPath: string, bPath: string): Promise<ReldistResult> {
-  const result = await bedtools.exec(`bedtools reldist -a ${aPath} -b ${bPath}`);
+export async function computeReldist(bt: Bedtools, aPath: string, bPath: string): Promise<ReldistResult> {
+  const result = await bt.exec(`bedtools reldist -a ${aPath} -b ${bPath}`);
   const bins = parseReldistOutput(result.stdout);
   return { bins, median: medianFromReldistBins(bins), ksP: ksPValueVsUniform(bins) };
 }
@@ -237,14 +235,14 @@ export async function computeReldist(aPath: string, bPath: string): Promise<Reld
  * order. Unlike sortForGenome, a set whose chromosome names aren't in the
  * selected assembly still works — the CLI's Jaccard needs no genome either.
  */
-export async function sortPlain(input: PipelineSetInput): Promise<GenomeSortedSet> {
+export async function sortPlain(bt: Bedtools, input: PipelineSetInput): Promise<GenomeSortedSet> {
   const rawName = `${input.id}.jsort.raw`;
-  await bedtools.mount([{ name: rawName, data: await input.file.text() }]);
-  const sorted = await bedtools.exec(`bedtools sort -i ${MOUNT_DIR}/${rawName}`);
-  await bedtools.unmount([rawName]);
+  await bt.mount([{ name: rawName, data: await input.file.text() }]);
+  const sorted = await bt.exec(`bedtools sort -i ${bt.dir}/${rawName}`);
+  await bt.unmount([rawName]);
   const sortedName = `${input.id}.jsorted.bed`;
-  await bedtools.mount([{ name: sortedName, data: sorted.stdout }]);
-  return { id: input.id, sortedPath: `${MOUNT_DIR}/${sortedName}` };
+  await bt.mount([{ name: sortedName, data: sorted.stdout }]);
+  return { id: input.id, sortedPath: `${bt.dir}/${sortedName}` };
 }
 
 /**
@@ -254,8 +252,8 @@ export async function sortPlain(input: PipelineSetInput): Promise<GenomeSortedSe
  * output), so it is left out. Ordered: with -f/-F/-r the A→B and B→A values
  * differ.
  */
-export async function computeJaccard(aPath: string, bPath: string, overlapFlags = ""): Promise<JaccardResult> {
+export async function computeJaccard(bt: Bedtools, aPath: string, bPath: string, overlapFlags = ""): Promise<JaccardResult> {
   const flagPart = overlapFlags ? ` ${overlapFlags}` : "";
-  const result = await bedtools.exec(`bedtools jaccard -a ${aPath} -b ${bPath}${flagPart}`);
+  const result = await bt.exec(`bedtools jaccard -a ${aPath} -b ${bPath}${flagPart}`);
   return parseJaccardOutput(result.stdout);
 }

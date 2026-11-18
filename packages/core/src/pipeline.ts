@@ -1,6 +1,6 @@
-import * as bedtools from "./bedtools";
-import type { Interval } from "../types";
-import type { SweepSubset } from "@achi/core/intervals";
+import type { Bedtools } from "./runtime";
+import type { Interval } from "./types";
+import type { SweepSubset } from "./intervals";
 
 /**
  * Subset computation with real bedtools (PLAN.md §2, Decision A / §10
@@ -37,12 +37,11 @@ import type { SweepSubset } from "@achi/core/intervals";
  * fails to initialise, and only supports the 1bp default overlap mode.
  */
 
-const MOUNT_DIR = "/shared/data";
 
 export interface PipelineSetInput {
   id: string;
   name: string;
-  file: File;
+  file: Blob;
   /**
    * Identifies `file`'s content for the caches; defaults to `id`. A set's
    * content changes when the ENCODE blacklist filter is switched on, so
@@ -220,12 +219,13 @@ export function forgetSet(id: string): void {
 /**
  * Sort every input with real bedtools (no merge — regions are taken as
  * given), compare every ordered pair with `intersect -c`, and derive every
- * non-empty combination's subset. Runs entirely against the vendored WASM
- * bedtools; nothing is uploaded. `overlapFlags` is a pre-rendered flag
+ * non-empty combination's subset, with the given bedtools (WebAssembly in
+ * the browser, native in the CLI). `overlapFlags` is a pre-rendered flag
  * string (lib/bedtoolsOptions.ts's resolveOverlapFlags), applied to every
  * comparison like the CLI's `--bedtools-options`.
  */
 export async function computeSubsetsViaBedtools(
+  bt: Bedtools,
   inputs: PipelineSetInput[],
   overlapFlags = "",
   onProgress?: (p: PipelineProgress) => void
@@ -240,16 +240,16 @@ export async function computeSubsetsViaBedtools(
   const report = (label: string) => onProgress?.({ done, total, label });
 
   if (total > 0) {
-    // Fresh WebAssembly heap for every batch of work — see bedtools.reset().
-    await bedtools.reset();
+    // Fresh WebAssembly heap for every batch of work in the browser (Bedtools.reset).
+    await bt.reset();
     const mounted: string[] = [];
     try {
       for (const input of toSort) {
         report(`Sorting ${input.name}`);
         const rawName = `${keyOf(input)}.raw`;
-        await bedtools.mount([{ name: rawName, data: await input.file.text() }]);
-        const sorted = await bedtools.exec(`bedtools sort -i ${MOUNT_DIR}/${rawName}`);
-        await bedtools.unmount([rawName]);
+        await bt.mount([{ name: rawName, data: await input.file.text() }]);
+        const sorted = await bt.exec(`bedtools sort -i ${bt.dir}/${rawName}`);
+        await bt.unmount([rawName]);
         sortedCache.set(keyOf(input), { text: sorted.stdout, regions: parseBedText(sorted.stdout) });
         done++;
       }
@@ -257,29 +257,29 @@ export async function computeSubsetsViaBedtools(
       const sortedName = (id: string) => `${id}.sorted.bed`;
       const needed = new Set(pairs.flatMap(([a, b]) => [keyOf(a), keyOf(b)]));
       for (const id of needed) {
-        await bedtools.mount([{ name: sortedName(id), data: sortedCache.get(id)!.text }]);
+        await bt.mount([{ name: sortedName(id), data: sortedCache.get(id)!.text }]);
         mounted.push(sortedName(id));
       }
 
       const flagPart = overlapFlags ? ` ${overlapFlags}` : "";
       for (const [a, b] of pairs) {
         report(`Comparing ${a.name} with ${b.name}`);
-        const cmd = `bedtools intersect -a ${MOUNT_DIR}/${sortedName(keyOf(a))} -b ${MOUNT_DIR}/${sortedName(keyOf(b))} -c${flagPart}`;
+        const cmd = `bedtools intersect -a ${bt.dir}/${sortedName(keyOf(a))} -b ${bt.dir}/${sortedName(keyOf(b))} -c${flagPart}`;
         const expected = sortedCache.get(keyOf(a))!.regions.length;
         let hits: Uint8Array;
         try {
-          hits = parseIntersectCounts((await bedtools.exec(cmd)).stdout, expected);
+          hits = parseIntersectCounts((await bt.exec(cmd)).stdout, expected);
         } catch (err) {
           if (!(err instanceof IncompleteBedtoolsOutputError)) throw err;
           // Most likely the worker ran out of memory mid-batch: retry once on a fresh one.
-          await bedtools.reset();
-          hits = parseIntersectCounts((await bedtools.exec(cmd)).stdout, expected);
+          await bt.reset();
+          hits = parseIntersectCounts((await bt.exec(cmd)).stdout, expected);
         }
         hitCache.set(hitKey(keyOf(a), keyOf(b), overlapFlags), hits);
         done++;
       }
     } finally {
-      await bedtools.unmount(mounted);
+      await bt.unmount(mounted);
     }
   }
 

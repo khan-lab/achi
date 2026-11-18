@@ -1,4 +1,4 @@
-import * as bedtools from "./bedtools";
+import type { Bedtools } from "./runtime";
 
 /**
  * `bedtools summary` support for the Summary tab (per-set, descriptive
@@ -13,7 +13,6 @@ import * as bedtools from "./bedtools";
  * the docs — see summaryStats.test.ts's fixture.
  */
 
-const MOUNT_DIR = "/shared/data";
 
 export interface SummaryRow {
   chrom: string;
@@ -85,14 +84,14 @@ export function getAggregateRow(rows: SummaryRow[]): SummaryRow | undefined {
 }
 
 /** `genomePath` is the same mounted chrom.sizes path `mountGenome` (lib/pairwiseStats.ts) produces for the Pairwise Fisher/Reldist toggle — reused as-is, no second genome-mount helper needed. No sort step is needed first: verified empirically that `bedtools summary` produces identical output on unsorted input. */
-export async function computeSummary(rawPath: string, genomePath: string): Promise<SummaryRow[]> {
-  const result = await bedtools.exec(`bedtools summary -i ${rawPath} -g ${genomePath}`);
+export async function computeSummary(bt: Bedtools, rawPath: string, genomePath: string): Promise<SummaryRow[]> {
+  const result = await bt.exec(`bedtools summary -i ${rawPath} -g ${genomePath}`);
   return parseSummaryOutput(result.stdout);
 }
 
 /** Mount a set's raw file text onto the bedtools virtual filesystem for `computeSummary`. */
-export async function mountRawForSummary(id: string, text: string): Promise<string> {
+export async function mountRawForSummary(bt: Bedtools, id: string, text: string): Promise<string> {
   const name = `${id}.summary.raw`;
-  await bedtools.mount([{ name, data: text }]);
-  return `${MOUNT_DIR}/${name}`;
+  await bt.mount([{ name, data: text }]);
+  return `${bt.dir}/${name}`;
 }

@@ -2,10 +2,11 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { BLACKLIST_ASSEMBLIES, BLACKLIST_REGION_COUNTS, blacklistHits, blacklistPath, hasBlacklist, splitByBlacklistHits } from "./blacklist";
-import { checkAssembly, normalizeRegionText, parseChromSizes } from "@achi/core/inputValidation";
+import { checkAssembly, normalizeRegionText, parseChromSizes } from "./inputValidation";
 import { parseIntersectCounts } from "./pipeline";
+import type { Bedtools } from "./runtime";
 
 /**
  * ENCODE Blacklist v2 (lib/blacklist.ts): the vendored files, the pure
@@ -14,19 +15,21 @@ import { parseIntersectCounts } from "./pipeline";
  * `bedtools intersect -v` keeps and `-u` counts.
  */
 
-// Stand-in for the WASM worker, for checking the command blacklistHits runs.
-const { calls } = vi.hoisted(() => ({ calls: [] as string[] }));
-vi.mock("./bedtools", () => ({
-  mount: vi.fn(async () => {}),
-  unmount: vi.fn(async () => {}),
-  exec: vi.fn(async (cmd: string) => {
+// Stand-in bedtools, for checking the command blacklistHits runs.
+const calls: string[] = [];
+const bt: Bedtools = {
+  dir: "/shared/data",
+  reset: async () => {},
+  mount: async () => {},
+  unmount: async () => {},
+  exec: async (cmd) => {
     calls.push(cmd);
     return { stdout: "chr1\t10\t20\t0\nchr1\t100\t200\t2\nchr2\t5\t6\t0\n", stderr: "" };
-  }),
-}));
+  },
+};
 
-const PUBLIC_DIR = join(__dirname, "../../public");
-const FIXTURES_DIR = join(__dirname, "../../tests/fixtures/encode");
+const PUBLIC_DIR = join(__dirname, "../../../public");
+const FIXTURES_DIR = join(__dirname, "../../../tests/fixtures/encode");
 const FIXTURES = [
   "heart_h3k27ac_ENCFF059ERB.subsample.bed",
   "lung_h3k27ac_ENCFF314QTE.subsample.bed",
@@ -85,7 +88,7 @@ describe("splitByBlacklistHits", () => {
 describe("blacklistHits", () => {
   it("runs one bedtools intersect -c with plain 1 bp overlap (never the user's overlap options)", async () => {
     calls.length = 0;
-    const hits = await blacklistHits("set-1", "chr1\t10\t20\nchr1\t100\t200\nchr2\t5\t6\n", "/shared/data/hg38.blacklist.bed");
+    const hits = await blacklistHits(bt, "set-1", "chr1\t10\t20\nchr1\t100\t200\nchr2\t5\t6\n", "/shared/data/hg38.blacklist.bed");
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatch(/^bedtools intersect -a \S+ -b \/shared\/data\/hg38\.blacklist\.bed -c$/);
     expect([...hits]).toEqual([0, 1, 0]);

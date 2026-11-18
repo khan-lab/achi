@@ -22,7 +22,7 @@
  * ("chr1:1,001-2,000" = bases 1001..2000 = { start: 1000, end: 2000 }).
  */
 import { EXTERNAL_ANNOTATIONS, type ExternalAnnotation } from "@achi/core/externalAnnotations";
-import { blacklistPath, hasBlacklist } from "./blacklist";
+import { blacklistPath, hasBlacklist } from "@achi/core/blacklist";
 import type { ChromSizes } from "@achi/core/inputValidation";
 import type { Interval } from "../types";
 

@@ -49,3 +49,25 @@ export interface Subset {
 
 /** Most region sets that can be compared at once. */
 export const MAX_SETS = 8;
+
+/**
+ * One region set analysed on its own (summary statistics, annotation,
+ * nearest genes): a whole input set or a selected subset, supplied as raw
+ * BED text.
+ */
+export interface SummaryItem {
+  id: string;
+  /**
+   * Included in the computation cache key alongside `id` — bump/change
+   * this when the same `id` could later resolve to different content.
+   * Whole sets can reuse `id` (a set's file content is immutable once
+   * added); selected subsets change identity, size and content on every
+   * subset(s)/overlap-setting recompute even though their `mask` numbers
+   * are stable, so the caller passes something like
+   * `${mask}:${nRegions}:${nBp}` to avoid serving a stale cached result.
+   */
+  version: string;
+  name: string;
+  color: string;
+  getRawText: () => Promise<string>;
+}

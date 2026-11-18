@@ -3,13 +3,13 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { computeSubsets, sortIntervals, parseBed } from "@achi/core/intervals";
+import { computeSubsets, sortIntervals, parseBed } from "./intervals";
 import { generateTruthTable, parseIntersectCounts, subsetsFromOverlaps } from "./pipeline";
 import { parseFisherOutput, parseJaccardOutput, parseReldistOutput, medianFromReldistBins, ksPValueVsUniform } from "./pairwiseStats";
 import { parseSummaryOutput, filterCanonicalChromosomes, getAggregateRow } from "./summaryStats";
 import { ANNO_CATEGORIES, parseClosestDistances } from "./peakAnnotation";
 import { parseClosestGeneAssociations } from "./geneList";
-import type { Interval } from "../types";
+import type { Interval } from "./types";
 
 /**
  * Differential test (PLAN.md §2 / §10 Phase 2, extended for the
@@ -33,13 +33,13 @@ import type { Interval } from "../types";
  * plumbing bugs.
  */
 
-const FIXTURES_DIR = join(__dirname, "../../tests/fixtures/encode");
+const FIXTURES_DIR = join(__dirname, "../../../tests/fixtures/encode");
 const FIXTURE_FILES = [
   "heart_h3k27ac_ENCFF059ERB.subsample.bed",
   "lung_h3k27ac_ENCFF314QTE.subsample.bed",
   "liver_h3k27ac_ENCFF805YRQ.subsample.bed",
 ];
-const GENOME_FILE = join(__dirname, "../../public/refdata/hg38/hg38.chrom.sizes");
+const GENOME_FILE = join(__dirname, "../../../public/refdata/hg38/hg38.chrom.sizes");
 
 function bedtoolsAvailable(): boolean {
   try {
@@ -204,7 +204,7 @@ describeIfBedtools("differential test: pairwise-count algorithm vs the CLI's int
   const encodeIds = FIXTURE_FILES.map((f) => f.split("_")[0]);
   const encodePaths = FIXTURE_FILES.map((f, i) => sortInto(readFileSync(join(FIXTURES_DIR, f), "utf8"), `${encodeIds[i]}.sorted.bed`));
   // The 5-set example shipped with the app — exercises all 31 combinations.
-  const EXAMPLE_DIR = join(__dirname, "../../public/examples/hg38_ses");
+  const EXAMPLE_DIR = join(__dirname, "../../../public/examples/hg38_ses");
   const exampleIds = ["MCF7", "GM12878", "K562", "HepG2", "H1"];
   const examplePaths = exampleIds.map((id) => sortInto(readFileSync(join(EXAMPLE_DIR, `${id}.bed`), "utf8"), `${id}.sorted.bed`));
 
@@ -338,7 +338,7 @@ describeIfBedtools("differential test: lib/summaryStats.ts parser vs native bedt
 });
 
 describe("differential test: lib/peakAnnotation.ts's classification chain vs native bedtools", () => {
-  const ANNO_DIR = join(__dirname, "../../public/refdata/hg38/anno");
+  const ANNO_DIR = join(__dirname, "../../../public/refdata/hg38/anno");
 
   it("classifyPeaks's intersect -u/-v priority chain partitions a real fixture into exactly one category per peak", () => {
     const rawPath = join(FIXTURES_DIR, FIXTURE_FILES[0]);
@@ -393,7 +393,7 @@ describe("differential test: lib/peakAnnotation.ts's classification chain vs nat
 describe("differential test: lib/geneList.ts's parser vs native bedtools closest -d -t all", () => {
   it("parseClosestGeneAssociations agrees with real native bedtools output, including real ties, on a real fixture", () => {
     const rawPath = join(FIXTURES_DIR, FIXTURE_FILES[0]);
-    const genesPath = join(__dirname, "../../public/refdata/hg38/genes_tss.bed");
+    const genesPath = join(__dirname, "../../../public/refdata/hg38/genes_tss.bed");
     const stdout = execFileSync("bedtools", ["closest", "-d", "-t", "all", "-a", rawPath, "-b", genesPath], {
       encoding: "utf8",
     });
@@ -427,7 +427,7 @@ describeIfBedtools("differential test: Jaccard via native bedtools jaccard (as t
     parseJaccardOutput(execFileSync("bedtools", ["jaccard", "-a", a, "-b", b, ...flags], { encoding: "utf8" }));
   const heart = sortInto(readFileSync(join(FIXTURES_DIR, FIXTURE_FILES[0]), "utf8"), "heart.bed");
   const lung = sortInto(readFileSync(join(FIXTURES_DIR, FIXTURE_FILES[1]), "utf8"), "lung.bed");
-  const PUBLIC = join(__dirname, "../../public");
+  const PUBLIC = join(__dirname, "../../../public");
   const mcf7Raw = readFileSync(join(PUBLIC, "examples/hg38_ses/MCF7.bed"), "utf8");
   const gwasRaw = readFileSync(join(PUBLIC, "refdata/hg38/external/gwas_catalog.bed"), "utf8");
   const mcf7 = sortInto(mcf7Raw, "mcf7.bed");

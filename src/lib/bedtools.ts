@@ -1,3 +1,4 @@
+import type { Bedtools } from "@achi/core/runtime";
 import type { AioliExecResult, AioliInstance, AioliMountFile } from "../types/aioli";
 
 /**
@@ -218,3 +219,12 @@ export function exec(command: string): Promise<AioliExecResult> {
     return execOnce(fresh, command);
   });
 }
+
+/** This module as core's Bedtools interface (lib/runtime.ts passes it to core). */
+export const webBedtools: Bedtools = {
+  dir: "/shared/data",
+  mount: (files) => mount(files),
+  unmount,
+  exec,
+  reset,
+};

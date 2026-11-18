@@ -1,11 +1,11 @@
 import { create } from "zustand";
 import { useMemo } from "react";
 import * as intervals from "@achi/core/intervals";
-import { computeSubsetsViaBedtools, forgetSet, subsetToBedText, type PipelineProgress } from "../lib/pipeline";
+import { computeSubsetsViaBedtools, forgetSet, subsetToBedText, type PipelineProgress } from "@achi/core/pipeline";
 import { resolveOverlapFlags, type OverlapPreset } from "@achi/core/bedtoolsOptions";
 import { MAX_SETS, PALETTE, type Interval, type RegionSet, type Subset } from "../types";
 import type { ExternalAnnotation } from "@achi/core/externalAnnotations";
-import { blacklistHits, hasBlacklist, mountBlacklist, splitByBlacklistHits } from "../lib/blacklist";
+import { blacklistHits, hasBlacklist, mountBlacklist, splitByBlacklistHits } from "@achi/core/blacklist";
 import { LIST_EXTENSION, computeListSubsets, listSetName, parseListText } from "@achi/core/lists";
 import {
   buildSettings,
@@ -36,6 +36,7 @@ import {
   type ChromSizes,
   type InputFormat,
 } from "@achi/core/inputValidation";
+import { webRuntime } from "../lib/runtime";
 
 export type View = "upset" | "venn" | "pairwise" | "table" | "summary" | "browser" | "help";
 
@@ -244,8 +245,8 @@ async function checkBlacklist(sets: LoadedSet[], assembly: string, onProgress?: 
   for (const s of todo) {
     onProgress?.({ done, total: todo.length, label: `Checking ${s.name} against ENCODE problematic regions` });
     try {
-      const path = await mountBlacklist(assembly);
-      blacklistCache.set(blKey(s.id, assembly), await blacklistHits(s.id, await s.cleanFile.text(), path));
+      const path = await mountBlacklist(webRuntime, assembly);
+      blacklistCache.set(blKey(s.id, assembly), await blacklistHits(webRuntime.bedtools, s.id, await s.cleanFile.text(), path));
     } catch (err) {
       console.warn(`ENCODE problematic-regions check failed for ${s.name}`, err);
       blacklistCache.set(blKey(s.id, assembly), null);
@@ -305,6 +306,7 @@ async function recompute(
 
   try {
     const result = await computeSubsetsViaBedtools(
+      webRuntime.bedtools,
       included.map((s) => ({ id: s.id, name: s.name, file: s.file, key: s.contentKey })),
       overlapFlags,
       onProgress
