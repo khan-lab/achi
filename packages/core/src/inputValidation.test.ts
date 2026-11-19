@@ -9,8 +9,11 @@ import {
   checkFileSize,
   fittingAssemblies,
   normalizeRegionText,
+  defaultSetCode,
   loadChromSizes,
   parseChromSizes,
+  prepareRegionText,
+  setNameFromFileName,
 } from "./inputValidation";
 
 const FIXTURES_DIR = join(__dirname, "../../../tests/fixtures/encode");
@@ -179,5 +182,24 @@ describe("loadChromSizes", () => {
     await loadChromSizes({ refdata }, "hg38");
     expect(asked).toEqual(["refdata/hg38/hg38.chrom.sizes"]);
     await expect(loadChromSizes({ refdata: { text: async () => Promise.reject(new Error("offline")) } }, "mm10")).rejects.toThrow("Could not load mm10.chrom.sizes");
+  });
+});
+
+describe("prepareRegionText, setNameFromFileName and defaultSetCode", () => {
+  it("names a set after its file, without the region-file extension (gzipped too); code = first 3 letters, upper case", () => {
+    expect(setNameFromFileName("MCF7.bed")).toBe("MCF7");
+    expect(setNameFromFileName("ENCFF059ERB.narrowPeak.gz")).toBe("ENCFF059ERB");
+    expect(setNameFromFileName("clinvar.vcf")).toBe("clinvar");
+    expect(setNameFromFileName("peaks.tsv")).toBe("peaks.tsv");
+    expect(defaultSetCode("heart_h3k27ac")).toBe("HEA");
+  });
+  it("cleans a real ENCODE file to BED text and reports what it changed, as the upload check does", () => {
+    const text = readFileSync(join(__dirname, "../../../tests/fixtures/encode/heart_h3k27ac_ENCFF059ERB.subsample.bed"), "utf8");
+    const ok = prepareRegionText(text, "heart.bed");
+    expect(ok).toMatchObject({ ok: true, format: "bed", warnings: [] });
+    expect((ok as { bedText: string }).bedText.split("\n").filter(Boolean)).toHaveLength(2000);
+    const messy = prepareRegionText("chr1 10 20\nchr1\tx\t5\nchr1\t30\t30\n", "messy.bed");
+    expect(messy).toMatchObject({ ok: true, warnings: [expect.stringMatching(/^Skipped 1 malformed line — e\.g\. line 2: /), "1 space-separated line converted to tabs.", "1 zero-length interval (start = end) kept as-is."] });
+    expect(prepareRegionText("not a bed file\n", "x.bed")).toMatchObject({ ok: false, message: expect.stringMatching(/^x\.bed /) });
   });
 });

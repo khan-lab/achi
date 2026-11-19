@@ -1,0 +1,17 @@
+{
+  "name": "@achi/node",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Achi's runtime for Node: native bedtools, reference data downloaded from the Achi site and checked against its manifest, and input files from disk. Used by the achi CLI and the achi-mcp server.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@achi/core": "*"
+  }
+}

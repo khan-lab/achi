@@ -1,0 +1,24 @@
+{
+  "name": "achi",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Achi on the command line: compare, annotate and interpret genomic intervals with native bedtools, on your own computer.",
+  "scripts": {
+    "build": "vite build"
+  },
+  "bin": {
+    "achi": "./dist/achi.js"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@achi/core": "*",
+    "@achi/node": "*"
+  }
+}

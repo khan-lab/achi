@@ -197,3 +197,19 @@ export async function runReferenceSetEnrichment(
   });
   return unionEnrichment(universe, hits, req.groups, req.adjust);
 }
+
+export const REFERENCE_SET_TSV_HEAD = ["subset", "subset_code", "reference_set", "background", "test", "subset_hit", "subset_no_hit", "rest_hit", "rest_no_hit", "odds_ratio", "p", "q"];
+
+/** A run as TSV: the download, and what the analysis export takes. `groupOf` names a group by its key. */
+export function referenceSetTsv(
+  run: { adjust: boolean; cells: EnrichmentCell[]; annotations: ExternalAnnotation[] },
+  groupOf: (mask: number) => { label: string; code: string } | undefined
+): string {
+  const test = run.adjust ? "CMH (5 length strata)" : "Fisher exact";
+  const rows = run.cells.map((c) => {
+    const s = groupOf(c.mask);
+    const a = run.annotations.find((x) => x.id === c.annotationId);
+    return [s?.label ?? c.mask, s?.code ?? "", a?.name ?? c.annotationId, "input sets", test, ...c.table, c.oddsRatio, c.p, c.q].join("\t");
+  });
+  return [REFERENCE_SET_TSV_HEAD.join("\t"), ...rows].join("\n") + "\n";
+}

@@ -4,7 +4,7 @@ import { useChosenGroups, useStore } from "../state/store";
 import { chosenGroups } from "@achi/core/selection";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
-import { runReferenceSetEnrichment, testableAnnotations, type EnrichmentCell } from "@achi/core/subsetEnrichment";
+import { referenceSetTsv, runReferenceSetEnrichment, testableAnnotations, type EnrichmentCell } from "@achi/core/subsetEnrichment";
 import type { ExternalAnnotation } from "@achi/core/externalAnnotations";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
@@ -119,16 +119,7 @@ export function SubsetEnrichmentPanel() {
   const subsetOf = (mask: number) => chosenGroups([mask], subsets, sets.filter((s) => s.included))[0];
 
   /** The run as a TSV: also what the analysis export takes (lib/exportRegistry.ts). */
-  const tsvText = (r: RunResult) => {
-    const head = ["subset", "subset_code", "reference_set", "background", "test", "subset_hit", "subset_no_hit", "rest_hit", "rest_no_hit", "odds_ratio", "p", "q"];
-    const test = r.adjust ? "CMH (5 length strata)" : "Fisher exact";
-    const rows = r.cells.map((c) => {
-      const s = subsetOf(c.mask);
-      const a = r.annotations.find((x) => x.id === c.annotationId);
-      return [s?.label ?? c.mask, s?.code ?? "", a?.name ?? c.annotationId, "input sets", test, ...c.table, c.oddsRatio, c.p, c.q].join("\t");
-    });
-    return [head.join("\t"), ...rows].join("\n") + "\n";
-  };
+  const tsvText = (r: RunResult) => referenceSetTsv(r, subsetOf);
   const tsvRef = useRef(tsvText);
   useEffect(() => {
     tsvRef.current = tsvText;

@@ -32,8 +32,10 @@ import {
   SUPPORTED_ASSEMBLIES,
   MAX_FILE_BYTES,
   checkFileSize,
-  normalizeRegionText,
+  defaultSetCode,
   loadChromSizes as loadAssemblySizes,
+  prepareRegionText,
+  setNameFromFileName,
   type ChromSizes,
   type InputFormat,
 } from "@achi/core/inputValidation";
@@ -300,8 +302,6 @@ async function recompute(
   };
 }
 
-const EXTENSION = /\.(bed|txt|vcf|narrowPeak|broadPeak|bedGraph)(\.gz)?$/i;
-
 async function readUploadText(file: File): Promise<string> {
   if (!/\.gz$/i.test(file.name)) return file.text();
   // Browser-native gzip, no dependency: ENCODE and most pipelines ship .bed.gz.
@@ -332,22 +332,10 @@ async function prepareUpload(
   const tooBigUnzipped = checkFileSize(text.length);
   if (tooBigUnzipped) return { ok: false, message: `${file.name} (uncompressed) ${tooBigUnzipped}` };
 
-  try {
-    const n = normalizeRegionText(text, { fileName: file.name });
-    const warnings: string[] = [];
-    if (n.format === "vcf") warnings.push(`VCF converted to BED: ${plural(n.nRegions, "record")}, 0-based, spanning REF (or INFO END for symbolic alleles).`);
-    if (n.nSkipped) {
-      const ex = n.skippedExamples[0];
-      warnings.push(`Skipped ${plural(n.nSkipped, "malformed line")} — e.g. line ${ex.line}: ${ex.reason}.`);
-    }
-    if (n.nWhitespaceConverted) warnings.push(`${plural(n.nWhitespaceConverted, "space-separated line")} converted to tabs.`);
-    if (n.nZeroLength) warnings.push(`${plural(n.nZeroLength, "zero-length interval")} (start = end) kept as-is.`);
-    const cleaned = new File([n.bedText], file.name.replace(/\.gz$/i, ""), { type: "text/plain" });
-    return { ok: true, file: cleaned, format: n.format, extents: n.extents, warnings };
-  } catch (err) {
-    if (err instanceof InputValidationError) return { ok: false, message: `${file.name} ${err.message}` };
-    throw err;
-  }
+  const prepared = prepareRegionText(text, file.name);
+  if (!prepared.ok) return prepared;
+  const cleaned = new File([prepared.bedText], file.name.replace(/\.gz$/i, ""), { type: "text/plain" });
+  return { ok: true, file: cleaned, format: prepared.format, extents: prepared.extents, warnings: prepared.warnings };
 }
 
 /** List mode: read one name per line (lib/lists.ts). */
@@ -448,13 +436,13 @@ export const useStore = create<StoreState>((set, get) => {
         continue;
       }
       const sha256 = await sha256Hex(file).catch(() => "");
-      const cleanName = meta?.[i]?.name ?? (lists ? listSetName(file.name) : file.name.replace(EXTENSION, ""));
+      const cleanName = meta?.[i]?.name ?? (lists ? listSetName(file.name) : setNameFromFileName(file.name));
       const defaultColor = PALETTE[(existing.length + newSets.length) % PALETTE.length];
       const id = `set-${nextId++}`;
       newSets.push({
         id,
         name: cleanName,
-        code: meta?.[i]?.code ?? cleanName.slice(0, 3).toUpperCase(),
+        code: meta?.[i]?.code ?? defaultSetCode(cleanName),
         color: defaultColor,
         defaultColor,
         fileName: file.name,

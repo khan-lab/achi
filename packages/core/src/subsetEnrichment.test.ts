@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseIntersectCounts, subsetsFromOverlaps } from "./pipeline";
 import { EXTERNAL_ANNOTATIONS } from "./externalAnnotations";
-import { buildUniverse, enrichmentCounts, lengthStrata, runReferenceSetEnrichment, testableAnnotations, unionEnrichment } from "./subsetEnrichment";
+import { REFERENCE_SET_TSV_HEAD, buildUniverse, enrichmentCounts, lengthStrata, referenceSetTsv, runReferenceSetEnrichment, testableAnnotations, unionEnrichment } from "./subsetEnrichment";
 import { scanMotifsInline } from "./motifScan";
 import { memoryBedtools } from "./testkit";
 import type { Interval } from "./types";
@@ -216,5 +216,15 @@ describe("runReferenceSetEnrichment", () => {
     expect(loaded).toEqual([vista.path]);
     expect(steps).toEqual([vista.name]);
     expect(bt.files.size).toBe(0); // the universe and reference files are unmounted afterwards
+  });
+});
+
+describe("referenceSetTsv", () => {
+  it("writes one row per group and reference set, named by the group's label and code and the set's name", () => {
+    const vista = EXTERNAL_ANNOTATIONS.find((a) => a.id === "vista-enhancers-hg38")!;
+    const cells = [{ mask: 4, annotationId: vista.id, table: [3, 7, 1, 9] as [number, number, number, number], oddsRatio: 3.857, p: 0.02, q: 0.04 }];
+    const text = referenceSetTsv({ adjust: true, cells, annotations: [vista] }, (m) => (m === 4 ? { label: "K562 only", code: "K56" } : undefined));
+    expect(text).toBe([REFERENCE_SET_TSV_HEAD.join("\t"), ["K562 only", "K56", vista.name, "input sets", "CMH (5 length strata)", 3, 7, 1, 9, 3.857, 0.02, 0.04].join("\t")].join("\n") + "\n");
+    expect(referenceSetTsv({ adjust: false, cells, annotations: [vista] }, () => undefined).split("\n")[1].split("\t").slice(0, 5)).toEqual(["4", "", vista.name, "input sets", "Fisher exact"]);
   });
 });

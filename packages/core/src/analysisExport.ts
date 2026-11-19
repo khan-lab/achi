@@ -53,6 +53,14 @@ export interface AnalysisSettings {
   view: string;
   sets: SavedSet[];
   selected: SavedSubset[];
+  /** Run by the command-line tool (absent for the web app): its version and native bedtools'. */
+  runner?: Runner;
+}
+
+export interface Runner {
+  kind: "cli";
+  version: string;
+  bedtools: string;
 }
 
 export interface SettingsInput {
@@ -70,6 +78,7 @@ export interface SettingsInput {
   view: string;
   sets: SavedSet[];
   selected: SavedSubset[];
+  runner?: Runner;
 }
 
 export const APP_URL = "https://khan-lab.github.io/achi/";
@@ -90,6 +99,7 @@ export function buildSettings(i: SettingsInput): AnalysisSettings {
     view: i.view,
     sets: i.sets,
     selected: i.selected,
+    ...(i.runner ? { runner: i.runner } : {}),
   };
 }
 
@@ -188,19 +198,21 @@ export function methodsText(s: AnalysisSettings, extras: MethodsExtra[]): string
   const included = s.sets.filter((x) => x.included);
   const excluded = s.sets.filter((x) => !x.included);
   const describe = (x: SavedSet) => `${x.name} (${x.fileName}, ${fmt(x.n)} ${unit})`;
-  const tool = `Achi (build ${s.app.commit}, ${s.app.buildDate}; ${s.app.url}), which builds on Intervene (Khan and Mathelier, 2017)`;
+  const cli = s.runner?.kind === "cli" ? s.runner : null;
+  const tool = cli ? `the Achi command-line tool (version ${cli.version}; ${s.app.url})` : `Achi (build ${s.app.commit}, ${s.app.buildDate}; ${s.app.url})`;
+  const lineage = "which builds on Intervene (Khan and Mathelier, 2017)";
 
   const p: string[] = [];
   if (lists) {
     p.push(
-      `Lists of names were compared with ${tool}. All computation ran in the web browser; no data were uploaded. ` +
+      `Lists of names were compared with ${tool}, ${lineage}. All computation ran ${cli ? "on the local computer" : "in the web browser"}; no data were uploaded. ` +
         `The inputs were ${included.length} lists: ${included.map(describe).join("; ")}. ` +
         `Names were read one per line (first column), trimmed, and matched exactly (case-sensitive); repeated names within a list were counted once. ` +
         `Each name was assigned to the subset for exactly the combination of lists containing it.`,
     );
   } else {
     p.push(
-      `Genomic region sets were compared with ${tool}, which runs BEDTools v2.31.0 (Quinlan and Hall, 2010) compiled to WebAssembly in the web browser; no data were uploaded. ` +
+      `Genomic region sets were compared with ${tool}, ${lineage} and runs ${cli ? `native BEDTools v${cli.bedtools} (Quinlan and Hall, 2010) on the local computer` : "BEDTools v2.31.0 (Quinlan and Hall, 2010) compiled to WebAssembly in the web browser"}; no data were uploaded. ` +
         `The inputs were ${included.length} sets on the ${s.assembly} assembly: ${included.map(describe).join("; ")}. ` +
         `Overlap was defined as ${overlapRule(s)}. ` +
         (s.blacklistFilter
@@ -292,6 +304,8 @@ export function signalMethods(r: {
   nGroups: number;
   /** Public bigWigs: `level` when read privately from a summary layer, absent when read exactly. */
   public?: { name: string; host: string; level?: number }[];
+  /** Where it ran: "in the browser" (default) or "on the local computer" (command-line tool). */
+  where?: string;
 }): MethodsExtra {
   const p = r.params;
   const kb = (n: number) => (n >= 1000 ? `${+(n / 1000).toFixed(2)} kb` : `${n} bp`);
@@ -315,7 +329,7 @@ export function signalMethods(r: {
     .join("");
   return {
     methods:
-      `Signal profiles of ${r.nRegions.toLocaleString("en-US")} regions of the selected subsets were computed in the browser from the bigWig files ${r.tracks.join(", ")}, ` +
+      `Signal profiles of ${r.nRegions.toLocaleString("en-US")} regions of the selected subsets were computed ${r.where ?? "in the browser"} from the bigWig files ${r.tracks.join(", ")}, ` +
       `with Achi's reimplementation of deepTools computeMatrix (Ramírez et al., 2016; checked against deepTools 4.0.0) ${layout}. ` +
       `Each bin is the mean signal over its bases with data; bins without data were ${p.missingAsZero ? "counted as 0" : "treated as missing and left out of the averages"}. ` +
       `Profiles show the mean ± standard error per bin for each subset.${pub} ${sort}${kmeans}${test}`,
@@ -374,14 +388,14 @@ export function geneListMethods(assembly: string): MethodsExtra {
 }
 
 /** Motif enrichment (components/MotifEnrichmentPanel.tsx, lib/motifEnrichment.ts), as run. */
-export function motifMethods(r: { release: string; collection: string; nMotifs: number; half: number; p: number; nScanned: number; nUniverse: number; source: string; assembly: string }): MethodsExtra {
+export function motifMethods(r: { release: string; collection: string; nMotifs: number; half: number; p: number; nScanned: number; nUniverse: number; source: string; assembly: string; where?: string }): MethodsExtra {
   const sampled = r.nScanned < r.nUniverse;
   return {
     methods:
       `Motif enrichment used the ${fmt(r.nMotifs)} position frequency matrices of ${r.release} (${r.collection}). ` +
-      `For each region of the analysis, the ${2 * r.half} bp window centred on each region (${r.half} bp either side of the midpoint) was taken from the ${r.assembly} sequence (${r.source}) and scanned on both strands in the browser: ` +
+      `For each region of the analysis, the ${2 * r.half} bp window centred on each region (${r.half} bp either side of the midpoint) was taken from the ${r.assembly} sequence (${r.source}) and scanned on both strands ${r.where ?? "in the browser"}: ` +
       `matrices were converted to log-odds scores (natural log; pseudocount 0.8 distributed by the background) against the strand-symmetric base composition of the scanned windows, and a site was a window scoring at or above the exact threshold for p < ${r.p.toExponential(0)} under that background (score distribution by dynamic programming on scores rounded to 0.01 nat). ` +
-      `For each selected subset or whole set and each motif, the regions with at least one site were compared with ${sampled ? `the other regions of a random sample of ${fmt(10_000)} regions of the analysis (each selected group scanned in full, up to 5,000 regions)` : "all other regions of the analysis"} by the Cochran–Mantel–Haenszel test over five strata of GC content (quintiles of the windows' G+C), with continuity correction; ` +
+      `For each selected subset or whole set and each motif, the regions with at least one site were compared with ${sampled ? `the other regions of a random sample of ${fmt(10_000)} regions of the analysis (each selected group scanned in full, up to 5,000 regions)` : "all other regions of the analysis"} by the Cochran–Mantel–Haenszel test over 15 strata of base composition (quintiles of the windows' G+C crossed with tertiles of their observed/expected CpG), with continuity correction; ` +
       `the effect is reported as a common odds ratio, and p-values were adjusted with the Benjamini–Hochberg method across all tests of the run.`,
     references: [REF.jaspar2026],
   };

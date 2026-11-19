@@ -226,3 +226,44 @@ export function fittingAssemblies(extents: Record<string, number>, allSizes: Rec
 export function loadChromSizes(rt: Pick<Runtime, "refdata">, assembly: string): Promise<ChromSizes> {
   return onceFor(rt.refdata, `chrom.sizes:${assembly}`, async () => parseChromSizes(await loadRefText(rt, `refdata/${assembly}/${assembly}.chrom.sizes`, `${assembly}.chrom.sizes`)));
 }
+
+/** Region files are named after their file, without one of these extensions (gzipped too). */
+const REGION_EXTENSION = /\.(bed|txt|vcf|narrowPeak|broadPeak|bedGraph)(\.gz)?$/i;
+
+/** A region set's default name: its file name without the region-file extension ("MCF7.bed" -> "MCF7"). */
+export function setNameFromFileName(fileName: string): string {
+  return fileName.replace(REGION_EXTENSION, "");
+}
+
+/** A set's default 3-letter code, shown in plots: the first three letters of its name, upper case. */
+export function defaultSetCode(name: string): string {
+  return name.slice(0, 3).toUpperCase();
+}
+
+const plural = (n: number, word: string) => `${n.toLocaleString("en-US")} ${word}${n === 1 ? "" : "s"}`;
+
+/**
+ * An input file's text, already decompressed, checked and cleaned for use
+ * (normalizeRegionText), with a warning for each change made; or why it
+ * cannot be used, beginning with the file's name.
+ */
+export function prepareRegionText(
+  text: string,
+  fileName: string
+): { ok: true; bedText: string; format: InputFormat; extents: Record<string, number>; nRegions: number; warnings: string[] } | { ok: false; message: string } {
+  try {
+    const n = normalizeRegionText(text, { fileName });
+    const warnings: string[] = [];
+    if (n.format === "vcf") warnings.push(`VCF converted to BED: ${plural(n.nRegions, "record")}, 0-based, spanning REF (or INFO END for symbolic alleles).`);
+    if (n.nSkipped) {
+      const ex = n.skippedExamples[0];
+      warnings.push(`Skipped ${plural(n.nSkipped, "malformed line")} — e.g. line ${ex.line}: ${ex.reason}.`);
+    }
+    if (n.nWhitespaceConverted) warnings.push(`${plural(n.nWhitespaceConverted, "space-separated line")} converted to tabs.`);
+    if (n.nZeroLength) warnings.push(`${plural(n.nZeroLength, "zero-length interval")} (start = end) kept as-is.`);
+    return { ok: true, bedText: n.bedText, format: n.format, extents: n.extents, nRegions: n.nRegions, warnings };
+  } catch (err) {
+    if (err instanceof InputValidationError) return { ok: false, message: `${fileName} ${err.message}` };
+    throw err;
+  }
+}
