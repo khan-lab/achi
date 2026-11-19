@@ -18,6 +18,9 @@
     },
     {
       "path": "./packages/cli/tsconfig.json"
+    },
+    {
+      "path": "./packages/mcp/tsconfig.json"
     }
   ]
 }

@@ -1,0 +1,27 @@
+{
+  "name": "achi-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Achi as an MCP server: lets an AI assistant run Achi analyses on files on this computer, with native bedtools. Returns summaries by default.",
+  "scripts": {
+    "build": "vite build"
+  },
+  "bin": {
+    "achi-mcp": "./dist/achi-mcp.js"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@achi/core": "*",
+    "@achi/node": "*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "achi": "*",
+    "zod": "4.6.7"
+  }
+}
