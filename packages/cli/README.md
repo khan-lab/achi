@@ -44,6 +44,13 @@ Overlaps follow the Intervene command-line tool: `--overlap 1bp`
 "f=0.5,r=true"`. `--blacklist` removes regions overlapping the ENCODE
 blacklist first. `--assembly` is hg38 (default), hg19, mm10 or mm9.
 
+On a terminal, `achi run` shows one live line per stage (what it is doing,
+a progress bar, time elapsed and left) and ticks each stage off when it
+finishes; the summary at the end is in colour. When output goes to a file,
+a pipe or a log, it prints one plain line per step instead. `-q` prints
+nothing but the summary; `--no-color` (or `NO_COLOR=1`) turns colour off
+and `FORCE_COLOR=1` turns it on.
+
 ## Output
 
 The folder (`--out`, default `achi-results`) has the layout of the web

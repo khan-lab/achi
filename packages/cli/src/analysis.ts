@@ -40,7 +40,7 @@ import { SUPPORTED_ASSEMBLIES, defaultSetCode } from "@achi/core/inputValidation
 import { labelSubsets, runBlacklistCheck, runIntersections, subsetFileText } from "@achi/core/intersections";
 import { MOTIF_COLLECTIONS } from "@achi/core/motifCollections";
 import { pairwiseTsv, reldistBinsTsv, runPairwise, type FisherResult, type JaccardResult, type PairwiseStat, type ReldistResult } from "@achi/core/pairwiseStats";
-import { ANNO_CATEGORIES, annotationTsv, distanceToTssTsv, runRegionAnnotation } from "@achi/core/peakAnnotation";
+import { ANNO_CATEGORIES, annotationStepTotal, annotationTsv, distanceToTssTsv, hasAnnotationReferences, runRegionAnnotation } from "@achi/core/peakAnnotation";
 import { motifTsv, runMotifEnrichment } from "@achi/core/motifRun";
 import { chosenGroups, setKey, sharesRegions } from "@achi/core/selection";
 import type { ProfileParams } from "@achi/core/signalMatrix";
@@ -97,6 +97,16 @@ export interface AnalysisSummary {
   files: string[];
 }
 
+/** Where a run reports to: the CLI (plain lines, or a live line on a terminal) and the MCP server (stderr). */
+export interface Reporter {
+  /** A message worth keeping; "warn" for something the user should check. */
+  note(line: string, kind?: "warn"): void;
+  /** The current stage and step, with done/total when known. Without it, each new step is a note. */
+  progress?(p: { section: string; label: string; done?: number; total?: number; unit?: string }): void;
+  /** A stage named in progress() finished. */
+  stageDone?(section: string): void;
+}
+
 const SAFE = (s: string) => s.replace(/[^A-Za-z0-9._-]+/g, "_");
 const sha256File = async (path: string) => createHash("sha256").update(await readFile(path)).digest("hex");
 
@@ -125,7 +135,22 @@ export function resolveSelection(tokens: string[], sets: { name: string }[], sub
   return keys;
 }
 
-export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (line: string) => void = () => {}): Promise<AnalysisSummary> {
+export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, report: Reporter | ((line: string) => void) = () => {}): Promise<AnalysisSummary> {
+  const rep: Reporter = typeof report === "function" ? { note: report } : report;
+  const log = (line: string) => rep.note(line);
+  const warn = (line: string) => rep.note(line, "warn");
+  let lastStep = "";
+  /** A progress callback for one stage (core's onProgress shape). */
+  const stage =
+    (section: string) =>
+    (p: { label: string; done?: number; total?: number; unit?: string }): void => {
+      if (rep.progress) return rep.progress({ section, ...p });
+      const line = p.label === section ? section : `${section}: ${p.label}`;
+      if (line !== lastStep) rep.note((lastStep = line));
+    };
+  const stageDone = (section: string) => rep.stageDone?.(section);
+  /** A stage starts (its clock and live line begin before its first step reports). */
+  const begin = (section: string) => stage(section)({ label: section });
   // ---- settings from a web export ----
   let saved: AnalysisSettings | null = null;
   if (o.settings) {
@@ -159,7 +184,7 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
   for (const [i, path] of o.files.entries()) {
     const r = await readInputFile(path);
     if (!r.ok) throw new Error(r.message);
-    r.warnings.forEach((w) => log(`${r.fileName}: ${w}`));
+    r.warnings.forEach((w) => warn(`${r.fileName}: ${w}`));
     const name = o.names?.[i] ?? r.name;
     inputs.push({ ...r, id: `set-${i + 1}`, name, code: o.names ? defaultSetCode(name) : r.code, path, sha256: await sha256File(path), text: await r.file.text() });
   }
@@ -170,7 +195,9 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
   const removed = new Map<string, number>();
   const files = new Map(inputs.map((s) => [s.id, { file: s.file, text: s.text, key: s.id }]));
   if (blacklist) {
-    const checked = await runBlacklistCheck(rt, assembly, inputs, { onProgress: (p) => log(p.label) });
+    begin("ENCODE blacklist");
+    const checked = await runBlacklistCheck(rt, assembly, inputs, { onProgress: stage("ENCODE blacklist") });
+    stageDone("ENCODE blacklist");
     for (const c of checked) {
       if (!c.hits) throw new Error(`The ENCODE blacklist check failed for ${inputs.find((s) => s.id === c.id)!.name}.`);
       const s = files.get(c.id)!;
@@ -181,12 +208,13 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
   }
 
   // ---- intersections ----
-  let lastLabel = "";
+  begin("Intersections");
   const result = await runIntersections(
     rt,
     { sets: inputs.map((s) => ({ id: s.id, name: s.name, file: files.get(s.id)!.file, key: files.get(s.id)!.key })), overlapFlags },
-    { fallback: false, onProgress: (p) => p.label !== lastLabel && log((lastLabel = p.label)) }
+    { fallback: false, onProgress: stage("Intersections") }
   );
+  stageDone("Intersections");
   const byId = new Map(result.sets.map((r) => [r.id, r]));
   const sets: RegionSet[] = inputs.map((s) => {
     const r = byId.get(s.id)!;
@@ -198,7 +226,7 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
   let keys: number[];
   if (saved && !o.select.length) {
     const sel = selectionFromSettings(saved, sets.map((s) => s.name));
-    sel.missing.forEach((m) => log(`The saved selection "${m}" has no set or subset here; left out.`));
+    sel.missing.forEach((m) => warn(`The saved selection "${m}" has no set or subset here; left out.`));
     keys = sel.masks;
   } else keys = resolveSelection(o.select, sets, subsets);
   const groups = chosenGroups(keys, subsets, sets);
@@ -213,9 +241,12 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
 
   // ---- nearest genes ----
   if (o.genes) {
-    log("Nearest genes");
     const items = groups.map((g) => ({ id: `group${g.mask}`, version: "1", name: g.label, color: "", getRawText: async () => subsetFileText(g) }));
-    const all = await runNearestGenes(rt, assembly, items);
+    const genesStage = stage("Nearest genes");
+    let nGenes = 0;
+    genesStage({ label: items[0]?.name ?? "", done: 0, total: items.length, unit: "groups" });
+    const all = await runNearestGenes(rt, assembly, items, { onResult: (_a, item) => genesStage({ label: item.name, done: ++nGenes, total: items.length, unit: "groups" }) });
+    stageDone("Nearest genes");
     for (const [i, a] of all.entries()) {
       const genes = uniqueGeneNames(a);
       await write(`genes/${SAFE(items[i].name)}.genes.txt`, genes.join("\n") + (genes.length ? "\n" : ""));
@@ -228,8 +259,11 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
   const overview: Record<string, string[]> = {};
   const pct = (n: number, total: number) => `${total ? Math.round((100 * n) / total) : 0}%`;
   if (o.summary) {
-    log("Summary");
-    const rows = await runSetSummary(rt, assembly, groupItems);
+    const summaryStage = stage("Summary");
+    let nSummary = 0;
+    summaryStage({ label: groupItems[0]?.name ?? "", done: 0, total: groupItems.length, unit: "groups" });
+    const rows = await runSetSummary(rt, assembly, groupItems, { onResult: (_r, item) => summaryStage({ label: item.name, done: ++nSummary, total: groupItems.length, unit: "groups" }) });
+    stageDone("Summary");
     await write("tables/summary.tsv", summaryTsv(groupItems, rows));
     extras.push(summaryMethods(assembly));
     overview.summary = groupItems.map((g, i) => {
@@ -240,8 +274,15 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
     });
   }
   if (o.annotate) {
-    let last = "";
-    const annos = await runRegionAnnotation(rt, assembly, groupItems, { onStep: (l) => l.split(":")[0] !== last && log(`Annotation: ${(last = l.split(":")[0])}`) });
+    begin("Region annotation");
+    const annoStage = stage("Region annotation");
+    const annoTotal = annotationStepTotal(groupItems.length, hasAnnotationReferences(rt, assembly));
+    let annoSteps = 0;
+    // Steps are "<group>: <category>" once the references are loaded; show the group.
+    const annos = await runRegionAnnotation(rt, assembly, groupItems, {
+      onStep: (l) => annoStage({ label: groupItems.some((g) => l.startsWith(`${g.name}: `)) ? l.slice(0, l.indexOf(": ")) : "Loading GENCODE categories", done: ++annoSteps, total: annoTotal, unit: "steps" }),
+    });
+    stageDone("Region annotation");
     await write("tables/annotation.tsv", annotationTsv(annos));
     await write("tables/distance_to_tss.tsv", distanceToTssTsv(annos));
     extras.push(annotationMethods(assembly));
@@ -258,13 +299,17 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
     );
   }
   if (o.pairwise?.length) {
-    if (inputs.length < 2) log("Pairwise statistics need two or more sets; skipped.");
+    if (inputs.length < 2) warn("Pairwise statistics need two or more sets; skipped.");
     else {
       const pairSets = inputs.map((s) => ({ id: files.get(s.id)!.key, name: s.name, file: files.get(s.id)!.file }));
       const nameOf = (id: string) => pairSets.find((s) => s.id === id)?.name ?? id;
       for (const stat of o.pairwise) {
-        log(`Pairwise ${stat}`);
-        const results = await runPairwise(rt, { stat, assembly, sets: pairSets, overlapFlags });
+        const pairStage = stage(`Pairwise ${stat}`);
+        const nPairs = pairSets.length * (pairSets.length - 1);
+        let donePairs = 0;
+        pairStage({ label: `${pairSets[0].name} → ${pairSets[1].name}`, done: 0, total: nPairs, unit: "pairs" });
+        const results = await runPairwise(rt, { stat, assembly, sets: pairSets, overlapFlags }, { onResult: (a, b) => pairStage({ label: `${nameOf(a)} → ${nameOf(b)}`, done: ++donePairs, total: nPairs, unit: "pairs" }) });
+        stageDone(`Pairwise ${stat}`);
         await write(`tables/pairwise_${stat}.tsv`, pairwiseTsv(stat, pairSets, results));
         if (stat === "reldist") await write("tables/pairwise_reldist_bins.tsv", reldistBinsTsv(pairSets, results));
         const pair = (r: { a: string; b: string }) => `${nameOf(r.a)} → ${nameOf(r.b)}`;
@@ -282,9 +327,17 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
   // ---- reference-set enrichment ----
   if (o.enrich) {
     const annotations = testableAnnotations(assembly, sets);
-    if (!annotations.length) log(`No reference sets to test for ${assembly}.`);
+    if (!annotations.length) warn(`No reference sets to test for ${assembly}.`);
     else {
-      const cells = await runReferenceSetEnrichment(rt, { subsets, groups: keys, annotations, adjust: o.enrich.adjust }, { onStep: (l) => log(`Reference set: ${l}`) });
+      begin("Reference sets");
+      const cells = await runReferenceSetEnrichment(rt, { subsets, groups: keys, annotations, adjust: o.enrich.adjust }, {
+        onStep: (() => {
+          const refStage = stage("Reference sets");
+          let done = 0;
+          return (l: string) => refStage({ label: l, done: ++done, total: annotations.length, unit: "reference sets" });
+        })(),
+      });
+      stageDone("Reference sets");
       await write("tables/enrichment_reference_sets.tsv", referenceSetTsv({ adjust: o.enrich.adjust, cells, annotations }, groupOf));
       extras.push(enrichmentMethods({ adjust: o.enrich.adjust, referenceNames: annotations.map((a) => a.name) }));
       findings.enrichment = cells
@@ -299,8 +352,9 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
   if (o.go) {
     const great = { ...GREAT_RUN_DEFAULTS, background: o.go.background };
     const goGroups = groups.map((g) => ({ mask: g.mask, label: g.label, regions: g.regions, whole: g.whole, scoreSource: o.go!.method === "cistromego" ? files.get(g.memberIds[0])?.text : undefined }));
-    let last = "";
-    const run = await runGoEnrichment(rt, { method: o.go.method, ns: o.go.ns, assembly, groups: goGroups, allSubsets: subsets, great, cgo: CISTROMEGO_DEFAULTS }, { onProgress: (p) => p.label !== last && log((last = p.label)) });
+    begin("GO enrichment");
+    const run = await runGoEnrichment(rt, { method: o.go.method, ns: o.go.ns, assembly, groups: goGroups, allSubsets: subsets, great, cgo: CISTROMEGO_DEFAULTS }, { onProgress: stage("GO enrichment") });
+    stageDone("GO enrichment");
     await write(`tables/${goFileStem(run)}.tsv`, goTsv(run));
     extras.push(goMethods({ method: run.method, background: run.background, namespace: goNamespaceLabel(run.ns), ...(run.method === "great" ? { great } : { cgo: CISTROMEGO_DEFAULTS }) }));
     findings.go = run.groups.flatMap((g) => g.rows.filter((r) => r.significant).slice(0, 3).map((r) => `${g.label}: ${r.id} ${r.name} (q ${fmt(r.q)})`)).slice(0, 10);
@@ -311,13 +365,14 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
     const collection = MOTIF_COLLECTIONS.find((c) => c.id === o.motifs!.collection);
     if (!collection) throw new Error(`Unknown motif collection ${o.motifs.collection}; choose one of ${MOTIF_COLLECTIONS.map((c) => c.id).join(", ")}.`);
     const source = localTwoBitSource(o.motifs.genome);
-    let last = "";
+    begin("Motif enrichment");
     const run = await runMotifEnrichment(
       rt,
       { assembly, collection, subsets, groups: keys, half: o.motifs.half, p: o.motifs.p, source },
-      { onProgress: (p) => p.label !== last && log((last = p.label)) }
+      { onProgress: stage("Motif enrichment") }
     );
-    if (run.nNoSequence) log(`${run.nNoSequence} regions had no sequence in ${basename(o.motifs.genome)} and were left out.`);
+    stageDone("Motif enrichment");
+    if (run.nNoSequence) warn(`${run.nNoSequence} regions had no sequence in ${basename(o.motifs.genome)} and were left out.`);
     await write("tables/motif_enrichment_jaspar.tsv", motifTsv(run, (k) => groupOf(k)?.label ?? String(k)));
     extras.push(motifMethods({ release: run.release, collection: collection.methods, nMotifs: run.motifs.length, half: run.half, p: run.p, nScanned: run.nScanned, nUniverse: run.nUniverse, source: run.source, assembly, where: "on the local computer" }));
     findings.motifs = run.cells
@@ -338,7 +393,7 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
         open: async () => openBigWig(Object.assign(await openAsBlob(path), { name: basename(path) })),
       };
     });
-    let last = "";
+    begin("Signal profiles");
     const run = await runSignalProfiles(
       {
         assembly,
@@ -350,8 +405,9 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
         tracks,
         cap: MAX_SIGNAL_ROWS,
       },
-      { onProgress: (p) => p.label !== last && log((last = p.label)) }
+      { onProgress: stage("Signal profiles") }
     );
+    stageDone("Signal profiles");
     if (run.sampledFrom) log(`Signal: a fixed sample of ${run.regions.length} of ${run.sampledFrom} regions.`);
     for (const [i, t] of run.tracks.entries()) await write(`tables/signal_matrix_${SAFE(t.name)}.tsv`, signalMatrixTsv(run, i));
     await write("tables/signal_region_means.tsv", signalRegionMeansTsv(run));

@@ -14,7 +14,8 @@ import type { SignalSort } from "@achi/core/signalRun";
 import { defaultThreads } from "@achi/node/motifThreads";
 import { DEFAULT_SITE, defaultCacheDir, nodeRefData } from "@achi/node/refdata";
 import { createNodeRuntime } from "@achi/node/runtime";
-import { runAnalysis, type AnalysisSummary } from "./analysis";
+import { runAnalysis, type AnalysisSummary, type Reporter } from "./analysis";
+import { LiveProgress, colorWanted, painter, type Paint } from "./terminal";
 
 export const VERSION = "0.1.0";
 
@@ -22,6 +23,11 @@ export interface Io {
   out: (text: string) => void;
   err: (text: string) => void;
   env: Record<string, string | undefined>;
+  /** Whether stdout / stderr is a terminal (colour, and the live progress line on stderr). Unset: plain text. */
+  outTty?: boolean;
+  errTty?: boolean;
+  /** stderr's width in characters, for the progress line. */
+  columns?: () => number;
 }
 
 export interface MainOptions {
@@ -74,6 +80,8 @@ Options for run:
       --reference-point <p>    start, center (default), end
       --sort <s>               desc (default), asc, keep;   --clusters <k>  k-means clusters of the rows
   -q, --quiet                  no progress messages
+      --no-color               no colour (also NO_COLOR=1); colour and the live progress line
+                               appear only on a terminal
 
 Reference data and tools:
       --refdata-url <url>      the Achi site reference data is downloaded from (default ${DEFAULT_SITE})
@@ -118,6 +126,7 @@ const OPTIONS = {
   sort: { type: "string" },
   clusters: { type: "string" },
   quiet: { type: "boolean", short: "q" },
+  "no-color": { type: "boolean" },
   "refdata-url": { type: "string" },
   "refdata-dir": { type: "string" },
   "cache-dir": { type: "string" },
@@ -141,14 +150,15 @@ function num(name: string, value: string | undefined, fallback: number, ok: (n: 
   return n;
 }
 
-function printSummary(s: AnalysisSummary, io: Io) {
+function printSummary(s: AnalysisSummary, io: Io, p: Paint) {
+  const heading = (k: string) => p("bold", `${k}:`);
   const lines = [
-    `Achi: ${s.sets.length} set${s.sets.length === 1 ? "" : "s"} on ${s.assembly}${s.overlapFlags ? ` (bedtools ${s.overlapFlags})` : ""}`,
-    ...s.sets.map((x) => `  ${x.name}: ${x.regions.toLocaleString("en-US")} regions${x.blacklistRemoved !== undefined ? ` (${x.blacklistRemoved.toLocaleString("en-US")} removed by the ENCODE blacklist)` : ""}`),
-    `${s.subsets.length} non-empty subsets; analysed: ${s.groups.join("; ")}`,
-    ...Object.entries(s.overview).flatMap(([k, v]) => [`${k}:`, ...v.map((f) => `  ${f}`)]),
-    ...Object.entries(s.findings).flatMap(([k, v]) => [`${k}: ${v.length ? "" : "nothing with q < 0.05"}`, ...v.map((f) => `  ${f}`)]),
-    `Wrote ${s.files.length} files to ${s.out}`,
+    `${p("bold", "Achi:")} ${s.sets.length} set${s.sets.length === 1 ? "" : "s"} on ${s.assembly}${s.overlapFlags ? ` (bedtools ${s.overlapFlags})` : ""}`,
+    ...s.sets.map((x) => `  ${p("cyan", x.name)}: ${x.regions.toLocaleString("en-US")} regions${x.blacklistRemoved !== undefined ? ` (${x.blacklistRemoved.toLocaleString("en-US")} removed by the ENCODE blacklist)` : ""}`),
+    `${s.subsets.length} non-empty subsets; analysed: ${s.groups.map((g) => p("cyan", g)).join("; ")}`,
+    ...Object.entries(s.overview).flatMap(([k, v]) => [heading(k), ...v.map((f) => `  ${f}`)]),
+    ...Object.entries(s.findings).flatMap(([k, v]) => [`${heading(k)} ${v.length ? "" : p("dim", "nothing with q < 0.05")}`, ...v.map((f) => `  ${f}`)]),
+    `Wrote ${s.files.length} files to ${p("green", s.out)}`,
   ];
   io.out(lines.join("\n") + "\n");
 }
@@ -165,17 +175,30 @@ function pairwiseStats(value: string | undefined): PairwiseStat[] | undefined {
 }
 
 export async function main(argv: string[], io: Io, mo: MainOptions = {}): Promise<number> {
+  // Until the options are parsed (a usage error), colour follows the environment alone.
+  let errPaint = painter(colorWanted(io.errTty, io.env));
+  let live: LiveProgress | null = null;
   try {
     const { values: v, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: true });
+    const noColor = v["no-color"] ? false : undefined;
+    const outPaint = painter(colorWanted(io.outTty, io.env, noColor));
+    errPaint = painter(colorWanted(io.errTty, io.env, noColor));
     if (v.version) return io.out(`achi ${VERSION}\n`), 0;
     const [command, ...rest] = positionals;
-    if (v.help || !command) return io.out(USAGE), command || v.help ? 0 : 2;
+    if (v.help || !command) return io.out(USAGE.replace(/^(\S[^\n]*:)$/gm, (h) => outPaint("bold", h))), command || v.help ? 0 : 2;
     const refdataOpts = {
       baseUrl: v["refdata-url"] ?? io.env.ACHI_REFDATA_URL,
       localDir: v["refdata-dir"] ?? io.env.ACHI_REFDATA_DIR,
       cacheDir: v["cache-dir"] ?? io.env.ACHI_CACHE_DIR,
     };
-    const log = v.quiet ? () => {} : (line: string) => io.err(`${line}\n`);
+    // Progress and notes on stderr: nothing with -q; a live line on a terminal (not a "dumb" one); else one plain line per step.
+    if (!v.quiet && io.errTty && io.env.TERM !== "dumb") live = new LiveProgress({ write: io.err, paint: errPaint, columns: io.columns ?? (() => 80) });
+    const reporter: Reporter = v.quiet
+      ? { note: () => {} }
+      : live
+        ? { note: (line, kind) => live!.note(line, kind), progress: (p) => live!.update(p), stageDone: (section) => live!.stageDone(section) }
+        : { note: (line, kind) => io.err(`${kind === "warn" ? `${errPaint("yellow", "warning:")} ` : ""}${line}\n`) };
+    const log = (line: string) => reporter.note(line);
 
     if (command === "data") {
       const [sub, assembly] = rest;
@@ -192,7 +215,9 @@ export async function main(argv: string[], io: Io, mo: MainOptions = {}): Promis
       if (sub === "get" && assembly) {
         if (!(SUPPORTED_ASSEMBLIES as readonly string[]).includes(assembly)) throw new UsageError(`Unknown assembly ${assembly}; choose one of ${SUPPORTED_ASSEMBLIES.join(", ")}.`);
         if (refdataOpts.localDir) throw new UsageError("--refdata-dir reads a local copy; there is nothing to download.");
-        const got = await rd.fetchAssembly(assembly, (p, i, n) => log(`${i + 1}/${n} ${p}`));
+        const got = await rd.fetchAssembly(assembly, (p, i, n) => (reporter.progress ? reporter.progress({ section: `Reference data for ${assembly}`, label: p, done: i, total: n, unit: "files" }) : log(`${i + 1}/${n} ${p}`)));
+        reporter.stageDone?.(`Reference data for ${assembly}`);
+        live?.done();
         io.out(`${assembly}: ${got.files.length} files (${(got.bytes / 1e6).toFixed(0)} MB) checked and kept in ${rd.cacheDir}\n`);
         return 0;
       }
@@ -264,16 +289,18 @@ export async function main(argv: string[], io: Io, mo: MainOptions = {}): Promis
             : undefined,
           version: VERSION,
         },
-        log
+        reporter
       );
-      printSummary(summary, io);
+      live?.done();
+      printSummary(summary, io, outPaint);
       return 0;
     } finally {
       await rt.close();
     }
   } catch (err) {
+    live?.fail();
     const usage = err instanceof UsageError || (err as { code?: string }).code?.startsWith("ERR_PARSE_ARGS");
-    io.err(`achi: ${err instanceof Error ? err.message : String(err)}\n`);
+    io.err(`${errPaint("red", "achi:")} ${err instanceof Error ? err.message : String(err)}\n`);
     return usage ? 2 : 1;
   }
 }

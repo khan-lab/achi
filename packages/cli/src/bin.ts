@@ -9,6 +9,17 @@ import { main } from "./cli";
 
 if (isMotifWorker()) runMotifWorker();
 else
-  main(process.argv.slice(2), { out: (t) => process.stdout.write(t), err: (t) => process.stderr.write(t), env: process.env }, { motifWorker: new URL(import.meta.url) }).then((code) => {
+  main(
+    process.argv.slice(2),
+    {
+      out: (t) => process.stdout.write(t),
+      err: (t) => process.stderr.write(t),
+      env: process.env,
+      outTty: process.stdout.isTTY,
+      errTty: process.stderr.isTTY,
+      columns: () => process.stderr.columns || 80,
+    },
+    { motifWorker: new URL(import.meta.url) }
+  ).then((code) => {
     process.exitCode = code;
   });

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { main, type Io } from "./cli";
+import { stripAnsi } from "./terminal";
 
 /**
  * The achi command. The parity tests run the web app's example analysis
@@ -29,10 +30,10 @@ const describeIfBedtools = hasBedtools ? describe : describe.skip;
 const TWO_BIT = process.env.ACHI_TEST_HG38_2BIT;
 const itIf2bit = TWO_BIT && existsSync(TWO_BIT) ? it : it.skip;
 
-function io() {
+function io(term: Partial<Io> = {}) {
   let out = "";
   let err = "";
-  const x: Io = { out: (t) => void (out += t), err: (t) => void (err += t), env: {} };
+  const x: Io = { out: (t) => void (out += t), err: (t) => void (err += t), env: {}, ...term };
   return { io: x, out: () => out, err: () => err };
 }
 const fixture = (f: string) => (f.endsWith(".gz") ? gunzipSync(readFileSync(join(PARITY, f))) : readFileSync(join(PARITY, f))).toString("utf8");
@@ -157,6 +158,40 @@ describeIfBedtools("achi run: same results as the web app", () => {
     expect(await main(["run", EXAMPLES[0], "--pairwise", "jaccard", "--refdata-dir", PUBLIC, "--out", out, "--force"], a.io)).toBe(0);
     expect(a.err()).toMatch(/Pairwise statistics need two or more sets; skipped\./);
     expect(existsSync(join(out, "tables/pairwise_jaccard.tsv"))).toBe(false);
+  }, 60_000);
+
+  it("on a terminal: a live progress line that ticks off each stage, colour on stdout; the same text as without", async () => {
+    const plain = io();
+    const args = ["run", ...EXAMPLES, ...SELECT, "--summary", "--pairwise", "jaccard", "--refdata-dir", PUBLIC, "--force"];
+    expect(await main([...args, "--out", outDir()], plain.io)).toBe(0);
+    // Not a terminal: one plain line per step, no escape codes.
+    expect(plain.err()).toMatch(/^Intersections: /m);
+    expect(plain.err()).toMatch(/^Pairwise jaccard: MCF7 → GM12878\n/m);
+    expect(plain.err()).not.toMatch(/\x1b/);
+
+    const term = io({ outTty: true, errTty: true, columns: () => 100 });
+    expect(await main([...args, "--out", outDir()], term.io)).toBe(0);
+    const ticks = stripAnsi(term.err()).split(/\r|\n/).filter((l) => /^[✓✗] /.test(l));
+    expect(ticks.map((l) => l.replace(/ {2}\S+$/, ""))).toEqual(["✓ Intersections", "✓ Summary", "✓ Pairwise jaccard"]);
+    expect(term.err().endsWith("\n")).toBe(true);
+    expect(term.out()).toMatch(/\x1b\[1mAchi:\x1b\[22m/);
+    const lines = (t: string) => stripAnsi(t).split("\n").filter((l) => !l.startsWith("Wrote "));
+    expect(lines(term.out())).toEqual(lines(plain.out()));
+
+    const noColor = io({ outTty: true, errTty: true, env: { NO_COLOR: "1" } });
+    expect(await main([...args, "--out", outDir()], noColor.io)).toBe(0);
+    expect(noColor.out()).not.toMatch(/\x1b/);
+    expect(noColor.err().replaceAll("\r\x1b[2K", "")).not.toMatch(/\x1b/); // only the line clearing
+    const flag = io({ outTty: true, errTty: true });
+    expect(await main([...args, "--no-color", "--out", outDir()], flag.io)).toBe(0);
+    expect(flag.out()).not.toMatch(/\x1b/);
+  }, 120_000);
+
+  it("on a terminal: an error clears the progress line and is marked in red", async () => {
+    const a = io({ errTty: true, env: { FORCE_COLOR: "1" } });
+    expect(await main(["run", ...EXAMPLES, "--select", "Liver", "--refdata-dir", PUBLIC, "--out", outDir(), "--force"], a.io)).toBe(1);
+    expect(a.err()).toMatch(/\x1b\[31machi:\x1b\[39m No set or subset called "Liver"/);
+    expect(stripAnsi(a.err())).toMatch(/\n?✓ Intersections {2}\S+\n/);
   }, 60_000);
 
   it("refuses an unknown group, naming the sets and subsets it has", async () => {
