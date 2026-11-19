@@ -110,6 +110,22 @@ that overlap every other member (`bedtools intersect -u`) and no non-member
 each ordered pair of sets is compared once with `bedtools intersect -c`
 (56 runs instead of 1,785 for eight sets), with identical results.
 
+## Command line and AI assistants
+
+The same analyses run outside the browser, with native bedtools, through
+two companion tools built on the same code:
+
+- **`achi`**, a command-line tool for pipelines and large files:
+  `achi run a.bed b.bed c.bed --enrich --go great --out results` writes the
+  same files as the web app's "Export analysis", and `--settings` reruns an
+  analysis exported from the web app. See [packages/cli](packages/cli/README.md).
+- **`achi-mcp`**, an MCP server that lets an AI assistant run analyses on
+  files on your computer. Tool results reach the model's provider, so it
+  returns summaries by default. See [packages/mcp](packages/mcp/README.md).
+
+Both need Node.js 20.19+ and bedtools 2.31+. Build them with
+`npm run build:cli` and `npm run build:mcp`.
+
 ## Running it locally
 
 Requires [Node.js](https://nodejs.org/) 20.19+ or 22.12+.

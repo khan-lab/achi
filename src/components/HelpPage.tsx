@@ -509,6 +509,25 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           seconds to add on a typical laptop.
         </p>
 
+        <h3 id="cli">Command line and AI assistants</h3>
+        <p>
+          The same analyses run outside the browser with native bedtools, for pipelines and files larger than the
+          browser handles. <code>achi run</code> intersects region files and runs the analyses you choose, writing
+          the same files as <em>Export analysis</em>; <code>achi run --settings settings.json</code> reruns an
+          analysis exported here. <code>achi-mcp</code> lets an AI assistant run analyses on files on your
+          computer; what it returns reaches the model's provider, so it returns summaries unless you allow
+          region-level output. Both need Node.js 20.19+ and bedtools 2.31+; see the{" "}
+          <a href={`${SOURCE_CODE_URL}/tree/main/packages/cli`} target="_blank" rel="noreferrer">
+            command-line tool
+          </a>{" "}
+          and{" "}
+          <a href={`${SOURCE_CODE_URL}/tree/main/packages/mcp`} target="_blank" rel="noreferrer">
+            MCP server
+          </a>{" "}
+          on GitHub. They download only Achi's own reference data, checked against this site's checksums; your
+          files stay on your computer.
+        </p>
+
         <h3 id="cite">How to cite</h3>
         <p>Achi builds on Intervene. If Achi helps your work, please cite:</p>
         <blockquote className="citation">{INTERVENE_CITATION}</blockquote>

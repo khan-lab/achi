@@ -1,0 +1,38 @@
+name: Test
+
+# Every push and pull request: the test suite (with native bedtools, so the
+# differential tests and the CLI/MCP parity tests run), type check, lint,
+# and the web, CLI and MCP builds. Deployment stays in deploy.yml.
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Ubuntu 24.04 packages bedtools 2.31.1, the version the CLI needs (>= 2.31).
+      - name: Install bedtools
+        run: sudo apt-get update && sudo apt-get install -y bedtools && bedtools --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Type check and lint
+        run: npx tsc -b && npm run lint
+
+      - name: Build the web app, CLI and MCP server
+        run: npm run build && npm run build:cli && npm run build:mcp
