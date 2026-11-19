@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { medianFromReldistBins, parseFisherOutput, parseJaccardOutput, parseReldistOutput, ksPValueVsUniform, runPairwise } from "./pairwiseStats";
+import { medianFromReldistBins, pairwiseTsv, parseFisherOutput, parseJaccardOutput, parseReldistOutput, ksPValueVsUniform, reldistBinsTsv, runPairwise, type ReldistResult } from "./pairwiseStats";
 import { scanMotifsInline } from "./motifScan";
 import type { Runtime } from "./runtime";
 
@@ -285,5 +285,53 @@ describe("runPairwise", () => {
     expect(calls).toContain("bedtools reldist -a /data/a.gsorted.bed -b /data/b.gsorted.bed");
     expect(loaded).toEqual(["refdata/hg38/hg38.chrom.sizes"]);
     expect(calls.filter((c) => c.startsWith("bedtools sort -g"))).toHaveLength(3);
+  });
+});
+
+describe("pairwiseTsv and reldistBinsTsv", () => {
+  const names = [
+    { id: "s1", name: "Heart" },
+    { id: "s2", name: "Lung" },
+  ];
+  const lines = (tsv: string) => {
+    expect(tsv.endsWith("\n")).toBe(true);
+    return tsv.slice(0, -1).split("\n");
+  };
+
+  it("Jaccard: one row per ordered pair, by set name, with bedtools' four values", () => {
+    const j = parseJaccardOutput(REAL_JACCARD_STDOUT);
+    const tsv = pairwiseTsv("jaccard", names, [
+      { a: "s1", b: "s2", result: j },
+      { a: "s2", b: "s1", result: j },
+    ]);
+    expect(lines(tsv)).toEqual([
+      "set_a\tset_b\tintersection_bp\tunion_bp\tjaccard\tn_intersections",
+      "Heart\tLung\t11097\t2063638\t0.0053774\t20",
+      "Lung\tHeart\t11097\t2063638\t0.0053774\t20",
+    ]);
+  });
+
+  it("Fisher: the odds ratio and two-tailed p, with bedtools' inf as Inf and -nan as NA", () => {
+    const tsv = pairwiseTsv("fisher", names, [
+      { a: "s1", b: "s2", result: parseFisherOutput(REAL_FISHER_STDOUT) },
+      { a: "s2", b: "s1", result: parseFisherOutput(REAL_FISHER_INF_STDOUT) },
+      { a: "s1", b: "s1", result: parseFisherOutput(REAL_FISHER_NAN_STDOUT) },
+    ]);
+    expect(lines(tsv)).toEqual(["set_a\tset_b\todds_ratio\tp_two_tail", "Heart\tLung\t15.732\t1.7981e-17", "Lung\tHeart\tInf\t3.2651e-18", "Heart\tHeart\tNA\t1"]);
+  });
+
+  it("Reldist: the median relative distance and the KS p against uniform; the bins in their own table", () => {
+    const bins = parseReldistOutput(REAL_RELDIST_STDOUT);
+    const r: ReldistResult = { bins, median: medianFromReldistBins(bins), ksP: ksPValueVsUniform(bins) };
+    const tsv = pairwiseTsv("reldist", names, [{ a: "s1", b: "s2", result: r }]);
+    expect(lines(tsv)).toEqual(["set_a\tset_b\tmedian_reldist\tks_p_vs_uniform", `Heart\tLung\t${r.median}\t${r.ksP}`]);
+    const binRows = lines(reldistBinsTsv(names, [{ a: "s1", b: "s2", result: r }]));
+    expect(binRows[0]).toBe("set_a\tset_b\treldist\tcount\ttotal\tfraction");
+    expect(binRows.slice(1, 3)).toEqual(["Heart\tLung\t0\t144\t1963\t0.073", "Heart\tLung\t0.01\t89\t1963\t0.045"]);
+    expect(binRows).toHaveLength(bins.length + 1);
+  });
+
+  it("names an unknown set by its id rather than dropping the row", () => {
+    expect(lines(pairwiseTsv("jaccard", names, [{ a: "s1", b: "x", result: parseJaccardOutput(REAL_JACCARD_STDOUT) }]))[1]).toMatch(/^Heart\tx\t/);
   });
 });

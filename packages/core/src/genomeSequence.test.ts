@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { centreWindow, twoBitBlobSource, type SeqWindow } from "./genomeSequence";
+import { BlobFile } from "generic-filehandle2";
+import { centreWindow, twoBitBlobSource, twoBitHandleSource, type SeqWindow } from "./genomeSequence";
 
 /**
  * Genome sequence for motif scanning, from a .2bit on the user's computer.
@@ -44,5 +45,18 @@ describe("twoBitBlobSource (a .2bit on the user's computer)", () => {
     expect(got[0]!.slice(0, 100)).toBe("N".repeat(100));
     expect(got[3]!.toUpperCase()).toBe(truth(WINDOWS_A[1]));
     expect(got[4]).toBeNull();
+  });
+});
+
+describe("twoBitHandleSource (a .2bit through any file handle: the CLI's file on disk)", () => {
+  it("reads the same windows as the Blob source, several at a time, in order, with progress, under the label given", async () => {
+    const windows = Array.from({ length: 450 }, (_, i) => WINDOWS_A[i % 3]);
+    const progress: number[] = [];
+    const src = twoBitHandleSource(new BlobFile(new Blob([BYTES])), "local .2bit mini.2bit", { concurrency: 8 });
+    expect(src.label).toBe("local .2bit mini.2bit");
+    const got = await src.read(windows, { onProgress: (p) => progress.push(p.done) });
+    windows.forEach((w, i) => expect(got[i]!.toUpperCase()).toBe(truth(w)));
+    expect(progress).toEqual([200, 400]);
+    expect(twoBitBlobSource(new Blob([BYTES]), "mini.2bit").label).toBe(src.label);
   });
 });

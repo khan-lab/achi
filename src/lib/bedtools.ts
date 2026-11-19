@@ -25,6 +25,23 @@ function aioliScriptUrl(): string {
 let scriptLoadPromise: Promise<void> | null = null;
 let cli: AioliInstance | null = null;
 let initPromise: Promise<AioliInstance> | null = null;
+/**
+ * Whether the current WebAssembly instance carries state from an earlier
+ * command that changes what later commands print. The 2.31.0 build runs
+ * every command in one instance, and two commands leave state behind
+ * (measured on the hg38 example, 2026-11-19):
+ *  - `closest`: the first `closest -D b` in an instance matches native
+ *    bedtools; after any earlier closest it skips overlapping features
+ *    (54 instead of 629 K562 super-enhancers at distance 0 to the nearest
+ *    TSS, although 625 overlap one).
+ *  - `summary`: leaves the output precision at 9 significant digits, so a
+ *    later `jaccard` prints 0.053218491 instead of 0.0532185.
+ * So after either, the next command that prints computed numbers runs in a
+ * fresh instance. `intersect` and `sort` print coordinates and counts only.
+ */
+let tainted = false;
+const LEAVES_STATE = /^bedtools (closest|summary)\b/;
+const PRINTS_NUMBERS = /^bedtools (closest|summary|jaccard|fisher|reldist)\b/;
 
 function loadAioliScript(): Promise<void> {
   if (window.Aioli) return Promise.resolve();
@@ -126,6 +143,7 @@ export async function teardown(): Promise<void> {
   }
   cli = null;
   initPromise = null;
+  tainted = false;
 }
 
 async function recoverAndRemount(): Promise<AioliInstance> {
@@ -206,17 +224,21 @@ async function execOnce(instance: AioliInstance, command: string): Promise<Aioli
  */
 export function exec(command: string): Promise<AioliExecResult> {
   return enqueue(async () => {
-    const instance = await init();
-    let result: AioliExecResult;
+    let instance = tainted && PRINTS_NUMBERS.test(command) ? await recoverAndRemount() : await init();
     try {
-      result = await execOnce(instance, command);
-    } catch {
-      // A crashed WebAssembly instance (e.g. out of memory) is unusable — start over once.
-      return execOnce(await recoverAndRemount(), command);
+      let result: AioliExecResult;
+      try {
+        result = await execOnce(instance, command);
+      } catch {
+        // A crashed WebAssembly instance (e.g. out of memory) is unusable — start over once.
+        return await execOnce(await recoverAndRemount(), command);
+      }
+      if (!looksCorrupted(result)) return result;
+      instance = await recoverAndRemount();
+      return await execOnce(instance, command);
+    } finally {
+      if (LEAVES_STATE.test(command)) tainted = true;
     }
-    if (!looksCorrupted(result)) return result;
-    const fresh = await recoverAndRemount();
-    return execOnce(fresh, command);
   });
 }
 

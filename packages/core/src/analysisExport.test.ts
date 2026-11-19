@@ -6,9 +6,11 @@ import {
   buildSettings,
   compareInputs,
   enrichmentMethods,
+  annotationMethods,
   geneListMethods,
   goMethods,
   methodsText,
+  pairwiseMethods,
   signalMethods,
   motifMethods,
   parseSettings,
@@ -16,6 +18,7 @@ import {
   setsTsv,
   sha256Hex,
   subsetsTsv,
+  summaryMethods,
   type SettingsInput,
 } from "./analysisExport";
 import { computeListSubsets, parseListText } from "./lists";
@@ -321,5 +324,37 @@ describe("methods text from the command-line tool", () => {
     const params = { mode: "scale" as const, referencePoint: "center" as const, upstream: 5000, downstream: 5000, body: 5000, binSize: 200, missingAsZero: false };
     expect(signalMethods({ params, nRegions: 10, tracks: ["a"], sort: "desc", k: 0, nGroups: 2, where: "on the local computer" }).methods).toMatch(/were computed on the local computer from/);
     expect(signalMethods({ params, nRegions: 10, tracks: ["a"], sort: "desc", k: 0, nGroups: 2 }).methods).toMatch(/were computed in the browser from/);
+  });
+});
+
+describe("methods paragraphs of the pairwise, annotation and summary analyses", () => {
+  it("pairwise: names each statistic run, its bedtools call, the overlap options and that p-values are not corrected", () => {
+    const all = pairwiseMethods({ stats: ["jaccard", "fisher", "reldist"], assembly: "hg38", overlapFlags: "-f 0.50 -r" }).methods;
+    expect(all).toMatch(/Every ordered pair of input sets/);
+    expect(all).toMatch(/bedtools jaccard -f 0\.50 -r/);
+    expect(all).toMatch(/bedtools fisher -f 0\.50 -r against the hg38 genome file/);
+    expect(all).toMatch(/two-tailed/);
+    expect(all).toMatch(/not corrected for multiple testing/);
+    expect(all).toMatch(/bedtools reldist/);
+    expect(all).toMatch(/uniform distribution on \[0, 0\.5\)/);
+    expect(all).toMatch(/Kolmogorov–Smirnov/);
+    const j = pairwiseMethods({ stats: ["jaccard"], assembly: "hg38", overlapFlags: "" }).methods;
+    expect(j).toMatch(/bedtools jaccard, after bedtools sort/);
+    expect(j).not.toMatch(/fisher|reldist/);
+  });
+
+  it("annotation: the 11 categories in priority order, the GENCODE release, and the distance to the nearest TSS", () => {
+    const m = annotationMethods("hg38").methods;
+    expect(m).toMatch(/GENCODE v50 protein-coding transcripts \(hg38\)/);
+    expect(m).toMatch(/TSS, core promoter \(within 1 kb of a TSS\), promoter-proximal \(1–3 kb\), 5′ UTR, first coding exon, other coding exon, 3′ UTR, first intron, other intron, immediate downstream \(within 3 kb past the transcript end\) and distal intergenic/);
+    expect(m).toMatch(/bedtools closest -D b -t first/);
+    expect(annotationMethods("mm10").methods).toMatch(/GENCODE vM25/);
+  });
+
+  it("summary: bedtools summary against the assembly's chromosome sizes, descriptive only", () => {
+    const m = summaryMethods("mm10").methods;
+    expect(m).toMatch(/bedtools summary/);
+    expect(m).toMatch(/mm10 chromosome sizes/);
+    expect(m).not.toMatch(/p-value|test/);
   });
 });

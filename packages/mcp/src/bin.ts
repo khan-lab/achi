@@ -5,6 +5,7 @@
  * goes to stderr; stdout carries the protocol.
  */
 import { parseArgs } from "node:util";
+import { isMotifWorker, runMotifWorker } from "@achi/node/motifThreads";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { DEFAULT_SITE } from "@achi/node/refdata";
 import { VERSION, createServer } from "./server";
@@ -29,29 +30,36 @@ Options:
 Environment: ACHI_REFDATA_URL, ACHI_REFDATA_DIR, ACHI_CACHE_DIR, ACHI_BEDTOOLS.
 `;
 
-const { values: v } = parseArgs({
-  options: {
-    "allow-regions": { type: "boolean" },
-    "out-root": { type: "string" },
-    "refdata-url": { type: "string" },
-    "refdata-dir": { type: "string" },
-    "cache-dir": { type: "string" },
-    bedtools: { type: "string" },
-    version: { type: "boolean", short: "v" },
-    help: { type: "boolean", short: "h" },
-  },
-  strict: true,
-});
-if (v.version) process.stdout.write(`achi-mcp ${VERSION}\n`);
-else if (v.help) process.stdout.write(HELP);
-else {
-  const env = process.env;
-  const server = createServer({
-    allowRegions: v["allow-regions"] ?? false,
-    outRoot: v["out-root"],
-    bedtools: v.bedtools ?? env.ACHI_BEDTOOLS,
-    refdata: { baseUrl: v["refdata-url"] ?? env.ACHI_REFDATA_URL, localDir: v["refdata-dir"] ?? env.ACHI_REFDATA_DIR, cacheDir: v["cache-dir"] ?? env.ACHI_CACHE_DIR },
-    log: (line) => process.stderr.write(`${line}\n`),
+async function start() {
+  const { values: v } = parseArgs({
+    options: {
+      "allow-regions": { type: "boolean" },
+      "out-root": { type: "string" },
+      "refdata-url": { type: "string" },
+      "refdata-dir": { type: "string" },
+      "cache-dir": { type: "string" },
+      bedtools: { type: "string" },
+      version: { type: "boolean", short: "v" },
+      help: { type: "boolean", short: "h" },
+    },
+    strict: true,
   });
-  await server.connect(new StdioServerTransport());
+  if (v.version) process.stdout.write(`achi-mcp ${VERSION}\n`);
+  else if (v.help) process.stdout.write(HELP);
+  else {
+    const env = process.env;
+    const server = createServer({
+      allowRegions: v["allow-regions"] ?? false,
+      outRoot: v["out-root"],
+      bedtools: v.bedtools ?? env.ACHI_BEDTOOLS,
+      refdata: { baseUrl: v["refdata-url"] ?? env.ACHI_REFDATA_URL, localDir: v["refdata-dir"] ?? env.ACHI_REFDATA_DIR, cacheDir: v["cache-dir"] ?? env.ACHI_CACHE_DIR },
+      motifWorker: new URL(import.meta.url),
+      log: (line) => process.stderr.write(`${line}\n`),
+    });
+    await server.connect(new StdioServerTransport());
+  }
 }
+
+// The bundled file also runs the motif scan when started as a worker thread (@achi/node/motifThreads).
+if (isMotifWorker()) runMotifWorker();
+else await start();

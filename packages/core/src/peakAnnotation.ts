@@ -234,3 +234,24 @@ export async function runRegionAnnotation(
   }
   return out;
 }
+
+// ---- tables (the CLI and MCP server write these; the same numbers as the two charts) ----
+
+const fraction = (n: number, total: number) => (total ? String(n / total) : "NA");
+
+/** One row per group and category, in priority order: regions assigned to it and their fraction of the group's regions. */
+export function annotationTsv(annos: PeakAnno[]): string {
+  const rows = annos.flatMap((a) => ANNO_CATEGORIES.map((c) => [a.name, c.label, a.categoryCounts[c.key] ?? 0, fraction(a.categoryCounts[c.key] ?? 0, a.total)].join("\t")));
+  return [["group", "category", "regions", "fraction"].join("\t"), ...rows].join("\n") + "\n";
+}
+
+/** One row per group and signed-distance bin: regions in the bin and their fraction of the group's regions (as the distance-to-TSS chart). */
+export function distanceToTssTsv(annos: PeakAnno[]): string {
+  const rows = annos.flatMap((a) =>
+    DISTANCE_BINS.map((bin) => {
+      const n = a.distances.filter((d) => bucketDistance(d) === bin.label).length;
+      return [a.name, bin.label, n, fraction(n, a.total)].join("\t");
+    })
+  );
+  return [["group", "distance_to_tss", "regions", "fraction"].join("\t"), ...rows].join("\n") + "\n";
+}

@@ -6,6 +6,8 @@ import {
   ANNOTATE_STEPS_PER_ITEM,
   DISTANCE_BINS,
   annotatePeaks,
+  annotationTsv,
+  distanceToTssTsv,
   annotationStepTotal,
   hasAnnotationReferences,
   runRegionAnnotation,
@@ -143,5 +145,33 @@ describe("runRegionAnnotation", () => {
     const { rt, loaded } = runtime();
     await expect(runRegionAnnotation(rt, "hg38", [item("a")], { signal: AbortSignal.abort() })).rejects.toMatchObject({ name: "AbortError" });
     expect(loaded).toHaveLength(0);
+  });
+});
+
+describe("annotationTsv and distanceToTssTsv", () => {
+  const anno = (name: string, counts: Record<string, number>, distances: number[]) => ({
+    id: name,
+    name,
+    color: "#000",
+    total: Object.values(counts).reduce((a, b) => a + b, 0),
+    categoryCounts: counts,
+    distances,
+  });
+  const a = anno("Heart only", { tss: 1, "5utr": 1, distal_intergenic: 2 }, [-250000, -500, 500, 150000]);
+  const empty = anno("Lung only", {}, []);
+  const lines = (tsv: string) => tsv.slice(0, -1).split("\n");
+
+  it("one row per group and category, in priority order, with the count and the fraction of the group's regions", () => {
+    const rows = lines(annotationTsv([a, empty]));
+    expect(rows[0]).toBe("group\tcategory\tregions\tfraction");
+    expect(rows).toHaveLength(1 + 2 * ANNO_CATEGORIES.length);
+    expect(rows.slice(1, 1 + ANNO_CATEGORIES.length)).toEqual(ANNO_CATEGORIES.map((c) => `Heart only\t${c.label}\t${{ tss: 1, "5utr": 1, distal_intergenic: 2 }[c.key] ?? 0}\t${({ tss: 0.25, "5utr": 0.25, distal_intergenic: 0.5 } as Record<string, number>)[c.key] ?? 0}`));
+    expect(rows.at(-1)).toBe("Lung only\tDistal intergenic\t0\tNA");
+  });
+
+  it("one row per group and distance bin: regions in the bin and their fraction of the group's regions (as the chart)", () => {
+    const rows = lines(distanceToTssTsv([a]));
+    expect(rows[0]).toBe("group\tdistance_to_tss\tregions\tfraction");
+    expect(rows.slice(1)).toEqual(DISTANCE_BINS.map((b) => `Heart only\t${b.label}\t${["≤ -100kb", "-1..0kb", "0..1kb", "> 100kb"].includes(b.label) ? 1 : 0}\t${["≤ -100kb", "-1..0kb", "0..1kb", "> 100kb"].includes(b.label) ? 0.25 : 0}`));
   });
 });

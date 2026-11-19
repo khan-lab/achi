@@ -28,3 +28,29 @@ How they were made (2026-11-19):
   file.
 
 gzip -9 -n; the tests compare the decompressed bytes.
+
+## Pairwise statistics, summary and annotation (added later the same day)
+
+The web app shows these as charts and has no table download for them, so
+these tables were made in the app's page instead: the same example analysis
+and selection loaded in the app (mcp-cli branch, after phase 5, with the
+bedtools wrapper fix below), then, in the page, the core calls its views
+make with the app's own runtime (bedtools in WebAssembly), written with
+@achi/core's table writers:
+
+- web_summary.tsv: runSetSummary on the three selected groups, as the
+  "Summary of selected subsets and sets" card (summaryTsv).
+- web_annotation.tsv, web_distance_to_tss.tsv: runRegionAnnotation on the
+  same groups, as the "Region annotation of selected subsets and sets" card
+  (annotationTsv, distanceToTssTsv).
+- web_pairwise_{jaccard,fisher,reldist}.tsv, web_pairwise_reldist_bins.tsv:
+  runPairwise on the four input sets, as the Pairwise view (pairwiseTsv,
+  reldistBinsTsv).
+
+Making these found two cases where the WebAssembly bedtools gave different
+output from native bedtools because one instance runs every command, and
+some commands leave state behind: a second `bedtools closest -D b` skipped
+overlapping TSSs (wrong distance-to-TSS chart), and `bedtools summary` left
+the print precision at 9 digits (Jaccard printed as 0.053218491 instead of
+0.0532185). src/lib/bedtools.ts now runs such commands in a fresh instance;
+with that, all seven tables are byte-identical to the CLI's.

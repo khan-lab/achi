@@ -1,0 +1,11 @@
+# The container (packaging/docker/Dockerfile) builds from package.json,
+# package-lock.json and packages/ only; keep everything else out of the
+# build context.
+**/node_modules
+**/dist
+public
+tests
+src
+docs
+design
+.git

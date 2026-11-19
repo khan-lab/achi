@@ -387,6 +387,43 @@ export function geneListMethods(assembly: string): MethodsExtra {
   };
 }
 
+/** Pairwise statistics between the input sets (the Pairwise view; the CLI's --pairwise), for the statistics run. */
+export function pairwiseMethods(r: { stats: ("jaccard" | "fisher" | "reldist")[]; assembly: string; overlapFlags: string }): MethodsExtra {
+  const flags = r.overlapFlags.trim() ? ` ${r.overlapFlags.trim()}` : "";
+  const parts: string[] = [];
+  if (r.stats.includes("jaccard"))
+    parts.push(`the Jaccard index, base pairs covered by both sets divided by base pairs covered by either (bedtools jaccard${flags}, after bedtools sort; each set's own overlapping regions merged)`);
+  if (r.stats.includes("fisher"))
+    parts.push(
+      `Fisher's exact test of overlap, two-tailed, on the counts of regions in and not in each set (bedtools fisher${flags} against the ${r.assembly} genome file, sets sorted in its chromosome order), with the odds ratio; p-values are not corrected for multiple testing`
+    );
+  if (r.stats.includes("reldist"))
+    parts.push(
+      `the relative distance of each region of the first set to its two flanking regions of the second (bedtools reldist), whose 50-bin histogram was compared with the uniform distribution on [0, 0.5) expected of unrelated sets by a one-sample Kolmogorov–Smirnov test, with the median relative distance`
+    );
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join("; ")}; and ${parts.at(-1)}` : parts[0];
+  return { methods: `Every ordered pair of input sets was compared by ${list}.`, references: [] };
+}
+
+/** Region annotation (the Annotation view; the CLI's --annotate). */
+export function annotationMethods(assembly: string): MethodsExtra {
+  return {
+    methods:
+      `Regions of each selected subset were assigned to one of 11 categories of GENCODE ${GENCODE[assembly] ?? ""} protein-coding transcripts (${assembly}), the first that applies in the order ` +
+      `TSS, core promoter (within 1 kb of a TSS), promoter-proximal (1–3 kb), 5′ UTR, first coding exon, other coding exon, 3′ UTR, first intron, other intron, immediate downstream (within 3 kb past the transcript end) and distal intergenic ` +
+      `(bedtools intersect, at least 1 bp overlap). The signed distance of each region to its nearest TSS (negative upstream, by the TSS's strand) was computed with bedtools closest -D b -t first.`,
+    references: [],
+  };
+}
+
+/** Per-chromosome summary (the Summary view; the CLI's --summary). */
+export function summaryMethods(assembly: string): MethodsExtra {
+  return {
+    methods: `For each selected subset, the number of regions, the base pairs they cover and their minimum, maximum and mean length were tabulated per chromosome and genome-wide with bedtools summary against the ${assembly} chromosome sizes.`,
+    references: [],
+  };
+}
+
 /** Motif enrichment (components/MotifEnrichmentPanel.tsx, lib/motifEnrichment.ts), as run. */
 export function motifMethods(r: { release: string; collection: string; nMotifs: number; half: number; p: number; nScanned: number; nUniverse: number; source: string; assembly: string; where?: string }): MethodsExtra {
   const sampled = r.nScanned < r.nUniverse;

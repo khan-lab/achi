@@ -6,6 +6,8 @@
 import { readFile, stat } from "node:fs/promises";
 import { basename } from "node:path";
 import { gunzipSync } from "node:zlib";
+import { LocalFile } from "generic-filehandle2";
+import { twoBitHandleSource, type SequenceSource } from "@achi/core/genomeSequence";
 import { checkFileSize, defaultSetCode, prepareRegionText, setNameFromFileName, type InputFormat } from "@achi/core/inputValidation";
 
 export type InputFile =
@@ -30,4 +32,9 @@ export async function readInputFile(path: string): Promise<InputFile> {
   if (!prepared.ok) return prepared;
   const name = setNameFromFileName(fileName);
   return { ok: true, name, code: defaultSetCode(name), fileName, file: new Blob([prepared.bedText]), format: prepared.format, nRegions: prepared.nRegions, warnings: prepared.warnings };
+}
+
+/** A .2bit on disk for the motif scan, read through a file handle (much faster on Node than a Blob), 8 windows at a time. */
+export function localTwoBitSource(path: string): SequenceSource {
+  return twoBitHandleSource(new LocalFile(path), `local .2bit ${basename(path)}`, { concurrency: 8 });
 }

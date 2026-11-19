@@ -36,6 +36,8 @@ export interface ServerOptions {
   outRoot?: string;
   refdata?: NodeRefDataOptions;
   bedtools?: string;
+  /** The bundled achi-mcp.js, which runs the motif scan when started as a worker thread; without it the scan runs on one thread. */
+  motifWorker?: string | URL;
   /** For progress lines (stderr); stdout is the protocol. */
   log?: (line: string) => void;
 }
@@ -54,6 +56,7 @@ function summaryText(s: AnalysisSummary): string {
     ...s.sets.map((x) => `- ${x.name}: ${x.regions.toLocaleString("en-US")} regions${x.blacklistRemoved !== undefined ? `, ${x.blacklistRemoved.toLocaleString("en-US")} removed by the ENCODE blacklist` : ""}${x.warnings.length ? ` (${x.warnings.join(" ")})` : ""}`),
     `Non-empty subsets: ${s.subsets.map((x) => `${x.label} (${x.regions.toLocaleString("en-US")})`).join("; ") || "none"}`,
     `Groups analysed: ${s.groups.join("; ")}`,
+    ...Object.entries(s.overview).flatMap(([k, v]) => [`${k}:`, ...v.map((f) => `- ${f}`)]),
     ...Object.entries(s.findings).flatMap(([k, v]) => [`${k}: ${v.length ? "top results with q < 0.05" : "nothing with q < 0.05"}`, ...v.map((f) => `- ${f}`)]),
     `Full results (${s.files.length} files, including methods.md): ${s.out}`,
   ].join("\n");
@@ -72,7 +75,7 @@ export function createServer(o: ServerOptions): McpServer {
     }
   );
   let runtime: Promise<NodeRuntime> | null = null;
-  const rt = () => (runtime ??= createNodeRuntime({ bedtools: o.bedtools, refdata: o.refdata }).catch((e) => ((runtime = null), Promise.reject(e))));
+  const rt = () => (runtime ??= createNodeRuntime({ bedtools: o.bedtools, refdata: o.refdata, motifWorker: o.motifWorker }).catch((e) => ((runtime = null), Promise.reject(e))));
   const outputs = new Set<string>();
   const log = o.log ?? (() => {});
   const fail = (err: unknown) => ({ content: [{ type: "text" as const, text: `Achi: ${err instanceof Error ? err.message : String(err)}` }], isError: true });
@@ -82,7 +85,7 @@ export function createServer(o: ServerOptions): McpServer {
     {
       title: "Run an Achi analysis",
       description:
-        "Intersect 1–8 genomic region files on this computer and optionally run analyses on chosen groups: nearest genes, enrichment for bundled reference sets (ENCODE cCREs, VISTA, CpG islands, ClinVar, GWAS Catalog...), GO enrichment (GREAT-like or Cistrome-GO-like), JASPAR motif enrichment (needs the assembly's .2bit), and bigWig signal profiles. " +
+        "Intersect 1–8 genomic region files on this computer and optionally run analyses: pairwise statistics between the sets (Jaccard, Fisher, reldist); on chosen groups, a per-chromosome summary, annotation by GENCODE category and distance to TSS, nearest genes, enrichment for bundled reference sets (ENCODE cCREs, VISTA, CpG islands, ClinVar, GWAS Catalog...), GO enrichment (GREAT-like or Cistrome-GO-like), JASPAR motif enrichment (needs the assembly's .2bit), and bigWig signal profiles. " +
         "Groups are set names (whole sets), subset labels such as 'HepG2 only' or 'K562 ∩ HepG2', or 'sets'/'subsets'. Writes the same files as the web app's Export analysis. " +
         PRIVACY,
       inputSchema: {
@@ -93,6 +96,9 @@ export function createServer(o: ServerOptions): McpServer {
         bedtools_options: z.string().optional().describe("As Intervene's --bedtools-options, e.g. 'f=0.5,r=true' (overrides overlap)"),
         blacklist: z.boolean().default(false).describe("Remove regions overlapping the ENCODE blacklist first (hg38, hg19, mm10)"),
         select: z.array(z.string()).optional().describe("Groups for the analyses, in order (default: every set)"),
+        summary: z.boolean().default(false).describe("Regions, base pairs and region lengths of each group, per chromosome (bedtools summary)"),
+        annotate: z.boolean().default(false).describe("Each group's regions by GENCODE category (promoter, exon, intron, intergenic...) and distance to the nearest TSS"),
+        pairwise: z.array(z.enum(["jaccard", "fisher", "reldist"])).optional().describe("Statistics between every ordered pair of input sets (needs 2 or more files)"),
         genes: z.boolean().default(false).describe("Nearest gene (by TSS) of each group's regions"),
         enrich: z.boolean().default(false).describe("Enrichment of each group for the bundled reference sets"),
         length_adjust: z.boolean().default(true).describe("enrich: CMH over region-length strata (true) or Fisher's exact test (false)"),
@@ -154,6 +160,9 @@ export function createServer(o: ServerOptions): McpServer {
             bedtoolsOptions: a.bedtools_options ?? "",
             blacklist: a.blacklist,
             select: a.select ?? [],
+            summary: a.summary,
+            annotate: a.annotate,
+            pairwise: a.pairwise,
             genes: a.genes,
             enrich: a.enrich ? { adjust: a.length_adjust } : undefined,
             go: a.go && { method: a.go.method, ns: a.go.namespace, background: a.go.background },

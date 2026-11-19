@@ -320,3 +320,40 @@ export async function runPairwise(
   }
   return out;
 }
+
+// ---- tables (the CLI and MCP server write these; the same rows as the heatmap's cells) ----
+
+/** A number as R reads it: NaN as NA, ±Infinity as Inf / -Inf. */
+const tsvNum = (x: number) => (Number.isNaN(x) ? "NA" : x === Infinity ? "Inf" : x === -Infinity ? "-Inf" : String(x));
+
+const PAIRWISE_HEAD: Record<PairwiseStat, string[]> = {
+  jaccard: ["intersection_bp", "union_bp", "jaccard", "n_intersections"],
+  fisher: ["odds_ratio", "p_two_tail"],
+  reldist: ["median_reldist", "ks_p_vs_uniform"],
+};
+
+/** One row per ordered pair of sets, in the order runPairwise gives them; sets named by `sets`' names (their id when not listed). */
+export function pairwiseTsv(stat: PairwiseStat, sets: { id: string; name: string }[], results: { a: string; b: string; result: PairwiseValue }[]): string {
+  const name = (id: string) => sets.find((s) => s.id === id)?.name ?? id;
+  const values = (r: PairwiseValue): number[] => {
+    if (stat === "jaccard") {
+      const j = r as JaccardResult;
+      return [j.intersection, j.union, j.jaccard, j.nIntersections];
+    }
+    if (stat === "fisher") {
+      const f = r as FisherResult;
+      return [f.ratio, f.twoTailP];
+    }
+    const d = r as ReldistResult;
+    return [d.median, d.ksP];
+  };
+  const rows = results.map(({ a, b, result }) => [name(a), name(b), ...values(result).map(tsvNum)].join("\t"));
+  return [["set_a", "set_b", ...PAIRWISE_HEAD[stat]].join("\t"), ...rows].join("\n") + "\n";
+}
+
+/** bedtools reldist's histogram for every ordered pair. */
+export function reldistBinsTsv(sets: { id: string; name: string }[], results: { a: string; b: string; result: PairwiseValue }[]): string {
+  const name = (id: string) => sets.find((s) => s.id === id)?.name ?? id;
+  const rows = results.flatMap(({ a, b, result }) => (result as ReldistResult).bins.map((x) => [name(a), name(b), x.reldist, x.count, x.total, x.fraction].map((v) => (typeof v === "number" ? tsvNum(v) : v)).join("\t")));
+  return [["set_a", "set_b", "reldist", "count", "total", "fraction"].join("\t"), ...rows].join("\n") + "\n";
+}

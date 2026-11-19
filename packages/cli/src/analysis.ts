@@ -12,38 +12,43 @@ import { existsSync, openAsBlob } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import {
+  annotationMethods,
   buildSettings,
   enrichmentMethods,
   geneListMethods,
   goMethods,
   methodsText,
   motifMethods,
+  pairwiseMethods,
   parseSettings,
   selectionFromSettings,
   setsTsv,
   signalMethods,
   subsetFilePath,
   subsetsTsv,
+  summaryMethods,
   type AnalysisSettings,
   type MethodsExtra,
 } from "@achi/core/analysisExport";
 import { openBigWig } from "@achi/core/bigwigSource";
 import { hasBlacklist, splitByBlacklistHits } from "@achi/core/blacklist";
 import { resolveOverlapFlags, type OverlapPreset } from "@achi/core/bedtoolsOptions";
-import { twoBitBlobSource } from "@achi/core/genomeSequence";
 import { CISTROMEGO_DEFAULTS, GREAT_RUN_DEFAULTS, goFileStem, goNamespaceLabel, goTsv, runGoEnrichment, type GoBackground, type GoMethod } from "@achi/core/goEnrichment";
 import { runNearestGenes, uniqueGeneNames } from "@achi/core/geneList";
 import type { GoNamespace } from "@achi/core/great";
 import { SUPPORTED_ASSEMBLIES, defaultSetCode } from "@achi/core/inputValidation";
 import { labelSubsets, runBlacklistCheck, runIntersections, subsetFileText } from "@achi/core/intersections";
 import { MOTIF_COLLECTIONS } from "@achi/core/motifCollections";
+import { pairwiseTsv, reldistBinsTsv, runPairwise, type FisherResult, type JaccardResult, type PairwiseStat, type ReldistResult } from "@achi/core/pairwiseStats";
+import { ANNO_CATEGORIES, annotationTsv, distanceToTssTsv, runRegionAnnotation } from "@achi/core/peakAnnotation";
 import { motifTsv, runMotifEnrichment } from "@achi/core/motifRun";
 import { chosenGroups, setKey, sharesRegions } from "@achi/core/selection";
 import type { ProfileParams } from "@achi/core/signalMatrix";
 import { MAX_SIGNAL_ROWS, runSignalProfiles, signalMatrixTsv, signalRegionMeansTsv, signalStatsTsv, type SignalSort } from "@achi/core/signalRun";
+import { getAggregateRow, runSetSummary, summaryTsv } from "@achi/core/summaryStats";
 import { referenceSetTsv, runReferenceSetEnrichment, testableAnnotations } from "@achi/core/subsetEnrichment";
 import { MAX_SETS, type RegionSet, type Subset } from "@achi/core/types";
-import { readInputFile, type InputFile } from "@achi/node/files";
+import { localTwoBitSource, readInputFile, type InputFile } from "@achi/node/files";
 import type { NodeRuntime } from "@achi/node/runtime";
 
 export interface AnalysisOptions {
@@ -64,6 +69,12 @@ export interface AnalysisOptions {
   /** A web export's settings.json: its assembly, overlap rule, blacklist filter and selection are used. */
   settings?: string;
   genes?: boolean;
+  /** Pairwise statistics between the input sets (as the Pairwise view). */
+  pairwise?: PairwiseStat[];
+  /** Region annotation of each group (GENCODE categories and distance to the nearest TSS). */
+  annotate?: boolean;
+  /** bedtools summary of each group, per chromosome. */
+  summary?: boolean;
   enrich?: { adjust: boolean };
   go?: { method: GoMethod; ns: GoNamespace; background: GoBackground };
   motifs?: { genome: string; half: number; p: number; collection: string };
@@ -79,8 +90,10 @@ export interface AnalysisSummary {
   sets: { name: string; file: string; regions: number; bp: number; blacklistRemoved?: number; warnings: string[] }[];
   subsets: { label: string; regions: number }[];
   groups: string[];
-  /** The most significant results of each analysis run (q < 0.05, at most 10 each); full tables are in the files. */
+  /** The most significant results of each test run (q < 0.05, at most 10 each); full tables are in the files. */
   findings: Record<string, string[]>;
+  /** Descriptive results (pairwise statistics, annotation, summary), a few lines each; full tables are in the files. */
+  overview: Record<string, string[]>;
   files: string[];
 }
 
@@ -193,6 +206,8 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
   const extras: MethodsExtra[] = [];
   const findings: Record<string, string[]> = {};
   const fmt = (x: number) => (x === 0 ? "<1e-300" : x < 0.001 ? x.toExponential(1) : x.toPrecision(2));
+  /** A descriptive value (not a p-value): bedtools' inf and nan as Inf and NA. */
+  const val = (x: number) => (Number.isNaN(x) ? "NA" : !Number.isFinite(x) ? "Inf" : x === 0 ? "0" : Math.abs(x) < 0.001 ? x.toExponential(1) : x.toPrecision(2));
 
   for (const s of subsets) await write(subsetFilePath(s, "regions"), subsetFileText(s));
 
@@ -206,6 +221,62 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
       await write(`genes/${SAFE(items[i].name)}.genes.txt`, genes.join("\n") + (genes.length ? "\n" : ""));
     }
     extras.push(geneListMethods(assembly));
+  }
+
+  // ---- per-group summary and annotation, pairwise statistics between the sets ----
+  const groupItems = groups.map((g) => ({ id: `group${g.mask}`, version: "1", name: g.label, color: "", getRawText: async () => subsetFileText(g) }));
+  const overview: Record<string, string[]> = {};
+  const pct = (n: number, total: number) => `${total ? Math.round((100 * n) / total) : 0}%`;
+  if (o.summary) {
+    log("Summary");
+    const rows = await runSetSummary(rt, assembly, groupItems);
+    await write("tables/summary.tsv", summaryTsv(groupItems, rows));
+    extras.push(summaryMethods(assembly));
+    overview.summary = groupItems.map((g, i) => {
+      const all = getAggregateRow(rows[i]);
+      return all && all.numIvls > 0
+        ? `${g.name}: ${all.numIvls.toLocaleString("en-US")} regions, ${all.totalIvlBp.toLocaleString("en-US")} bp, mean length ${Math.round(all.mean).toLocaleString("en-US")} bp (${all.min.toLocaleString("en-US")}–${all.max.toLocaleString("en-US")})`
+        : `${g.name}: no regions`;
+    });
+  }
+  if (o.annotate) {
+    let last = "";
+    const annos = await runRegionAnnotation(rt, assembly, groupItems, { onStep: (l) => l.split(":")[0] !== last && log(`Annotation: ${(last = l.split(":")[0])}`) });
+    await write("tables/annotation.tsv", annotationTsv(annos));
+    await write("tables/distance_to_tss.tsv", distanceToTssTsv(annos));
+    extras.push(annotationMethods(assembly));
+    overview.annotation = annos.map(
+      (a) =>
+        `${a.name}: ${
+          ANNO_CATEGORIES.map((c) => ({ label: c.label, n: a.categoryCounts[c.key] ?? 0 }))
+            .filter((c) => c.n > 0)
+            .sort((x, y) => y.n - x.n)
+            .slice(0, 3)
+            .map((c) => `${c.label} ${pct(c.n, a.total)}`)
+            .join(", ") || "no regions"
+        }`
+    );
+  }
+  if (o.pairwise?.length) {
+    if (inputs.length < 2) log("Pairwise statistics need two or more sets; skipped.");
+    else {
+      const pairSets = inputs.map((s) => ({ id: files.get(s.id)!.key, name: s.name, file: files.get(s.id)!.file }));
+      const nameOf = (id: string) => pairSets.find((s) => s.id === id)?.name ?? id;
+      for (const stat of o.pairwise) {
+        log(`Pairwise ${stat}`);
+        const results = await runPairwise(rt, { stat, assembly, sets: pairSets, overlapFlags });
+        await write(`tables/pairwise_${stat}.tsv`, pairwiseTsv(stat, pairSets, results));
+        if (stat === "reldist") await write("tables/pairwise_reldist_bins.tsv", reldistBinsTsv(pairSets, results));
+        const pair = (r: { a: string; b: string }) => `${nameOf(r.a)} → ${nameOf(r.b)}`;
+        overview[`pairwise ${stat}`] =
+          stat === "jaccard"
+            ? [...results].sort((x, y) => (y.result as JaccardResult).jaccard - (x.result as JaccardResult).jaccard).slice(0, 10).map((r) => `${pair(r)}: Jaccard ${val((r.result as JaccardResult).jaccard)}`)
+            : stat === "fisher"
+              ? [...results].sort((x, y) => (x.result as FisherResult).twoTailP - (y.result as FisherResult).twoTailP).slice(0, 10).map((r) => `${pair(r)}: odds ratio ${val((r.result as FisherResult).ratio)}, p ${fmt((r.result as FisherResult).twoTailP)}`)
+              : [...results].sort((x, y) => (x.result as ReldistResult).ksP - (y.result as ReldistResult).ksP).slice(0, 10).map((r) => `${pair(r)}: median relative distance ${val((r.result as ReldistResult).median)}, KS p ${fmt((r.result as ReldistResult).ksP)}`);
+      }
+      extras.push(pairwiseMethods({ stats: o.pairwise, assembly, overlapFlags }));
+    }
   }
 
   // ---- reference-set enrichment ----
@@ -239,7 +310,7 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
   if (o.motifs) {
     const collection = MOTIF_COLLECTIONS.find((c) => c.id === o.motifs!.collection);
     if (!collection) throw new Error(`Unknown motif collection ${o.motifs.collection}; choose one of ${MOTIF_COLLECTIONS.map((c) => c.id).join(", ")}.`);
-    const source = twoBitBlobSource(await openAsBlob(o.motifs.genome), basename(o.motifs.genome));
+    const source = localTwoBitSource(o.motifs.genome);
     let last = "";
     const run = await runMotifEnrichment(
       rt,
@@ -334,6 +405,7 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, log: (lin
     subsets: subsets.filter((s) => s.nRegions > 0).map((s) => ({ label: s.label, regions: s.nRegions })),
     groups: groups.map((g) => g.label),
     findings,
+    overview,
     files: written,
   };
 }

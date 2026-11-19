@@ -2,7 +2,8 @@
 
 Lets an AI assistant (Claude Desktop, Claude Code or any MCP client) run
 [Achi](https://khan-lab.github.io/achi/) analyses on region files on your
-computer: intersections, nearest genes, reference-set, GO and motif
+computer: intersections, pairwise statistics between the sets, per-chromosome
+summaries, region annotation, nearest genes, reference-set, GO and motif
 enrichment, and signal profiles, computed with native bedtools by the same
 code as the web app and the `achi` command-line tool.
 

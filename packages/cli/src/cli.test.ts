@@ -80,7 +80,7 @@ describe("achi: usage", () => {
     expect(b.out()).toMatch(/achi run \[options\] <file>/);
   });
   it("exits 2 with a reason for a usage error", async () => {
-    for (const args of [["frobnicate"], ["run", "--motifs", EXAMPLES[0]], ["run", "--go", "magic", EXAMPLES[0]], ["run", "--assembly", "hg37", EXAMPLES[0]], ["run", "--no-such-option"]]) {
+    for (const args of [["frobnicate"], ["run", "--motifs", EXAMPLES[0]], ["run", "--go", "magic", EXAMPLES[0]], ["run", "--assembly", "hg37", EXAMPLES[0]], ["run", "--no-such-option"], ["run", "--pairwise", "spearman", EXAMPLES[0]], ["run", "--threads", "0", EXAMPLES[0]]]) {
       const a = io();
       expect(await main(args, a.io)).toBe(2);
       expect(a.err()).toMatch(/^achi: /);
@@ -133,6 +133,31 @@ describeIfBedtools("achi run: same results as the web app", () => {
     const m = sameResults(readFileSync(join(out, "tables/motif_enrichment_jaspar.tsv"), "utf8"), fixture("web_motifs_jaspar.tsv.gz"));
     console.info(`parity: motifs ${m.lastDigit} of ${m.cells} cells differ in the last digit`);
   }, 600_000);
+
+  it("writes the summary, annotation and pairwise tables the web app computes, byte for byte", async () => {
+    const out = outDir();
+    const a = io();
+    const code = await main(["run", ...EXAMPLES, ...SELECT, "--summary", "--annotate", "--pairwise", "all", "--refdata-dir", PUBLIC, "--out", out, "--force", "-q"], a.io);
+    expect(a.err()).toBe("");
+    expect(code).toBe(0);
+    for (const t of ["summary", "annotation", "distance_to_tss", "pairwise_jaccard", "pairwise_fisher", "pairwise_reldist", "pairwise_reldist_bins"])
+      expect(readFileSync(join(out, `tables/${t}.tsv`), "utf8"), t).toBe(fixture(`web_${t}.tsv`));
+    const methods = readFileSync(join(out, "methods.md"), "utf8");
+    expect(methods).toMatch(/bedtools summary against the hg38 chromosome sizes/);
+    expect(methods).toMatch(/one of 11 categories of GENCODE v50 protein-coding transcripts/);
+    expect(methods).toMatch(/Every ordered pair of input sets was compared by the Jaccard index/);
+    expect(a.out()).toMatch(/\nsummary:\n {2}K562 \(all\): 1,003 regions, /);
+    expect(a.out()).toMatch(/\nannotation:\n {2}K562 \(all\): TSS 62%/);
+    expect(a.out()).toMatch(/\npairwise fisher:\n {2}MCF7 → HepG2: odds ratio 20, p 1\.5e-160\n/);
+  }, 120_000);
+
+  it("skips pairwise statistics with one set, saying so", async () => {
+    const out = outDir();
+    const a = io();
+    expect(await main(["run", EXAMPLES[0], "--pairwise", "jaccard", "--refdata-dir", PUBLIC, "--out", out, "--force"], a.io)).toBe(0);
+    expect(a.err()).toMatch(/Pairwise statistics need two or more sets; skipped\./);
+    expect(existsSync(join(out, "tables/pairwise_jaccard.tsv"))).toBe(false);
+  }, 60_000);
 
   it("refuses an unknown group, naming the sets and subsets it has", async () => {
     const a = io();

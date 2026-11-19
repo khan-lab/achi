@@ -38,7 +38,7 @@ const text = (r: Awaited<ReturnType<Client["callTool"]>>) => (r.content as { typ
 describe("isRegionLevel", () => {
   it("marks subset BEDs, gene lists, signal matrices and region means; not statistics tables or methods", () => {
     for (const p of ["subsets/MCF.bed", "genes/K562_only.genes.txt", "tables/signal_matrix_K562.tsv", "tables/signal_region_means.tsv", "x/clusters.bed"]) expect(isRegionLevel(p)).toBe(true);
-    for (const p of ["tables/enrichment_reference_sets.tsv", "tables/achi-go-BP-greatlike-genome.tsv", "tables/signal_tests.tsv", "tables/subsets.tsv", "methods.md", "settings.json"]) expect(isRegionLevel(p)).toBe(false);
+    for (const p of ["tables/enrichment_reference_sets.tsv", "tables/achi-go-BP-greatlike-genome.tsv", "tables/signal_tests.tsv", "tables/subsets.tsv", "tables/summary.tsv", "tables/annotation.tsv", "tables/distance_to_tss.tsv", "tables/pairwise_fisher.tsv", "tables/pairwise_reldist_bins.tsv", "methods.md", "settings.json"]) expect(isRegionLevel(p)).toBe(false);
   });
 });
 
@@ -87,6 +87,19 @@ describeIfBedtools("run_analysis and read_result_file", () => {
     const bed = await client.callTool({ name: "read_result_file", arguments: { path: "subsets/MCF.bed", max_lines: 2 } });
     expect(bed.isError).toBeFalsy();
     expect(text(bed)).toMatch(/^chr\w+\t\d+\t\d+/);
+  }, 120_000);
+
+  it("runs the summary, annotation and pairwise statistics, returning a few lines of each", async () => {
+    const client = await connect(false);
+    const r = await client.callTool({ name: "run_analysis", arguments: { files: EXAMPLES, select: ["HepG2 only"], summary: true, annotate: true, pairwise: ["jaccard", "fisher"] } });
+    const t = text(r);
+    expect(t).toMatch(/\nsummary:\n- HepG2 only: 929 regions, /);
+    expect(t).toMatch(/\nannotation:\n- HepG2 only: /);
+    expect(t).toMatch(/\npairwise jaccard:\n- /);
+    expect(t).toMatch(/\npairwise fisher:\n- MCF7 → HepG2: odds ratio 20, p 1\.5e-160/);
+    expect(t).not.toMatch(/pairwise reldist/);
+    const table = await client.callTool({ name: "read_result_file", arguments: { path: "tables/pairwise_fisher.tsv", max_lines: 2 } });
+    expect(text(table)).toBe("set_a\tset_b\todds_ratio\tp_two_tail\nMCF7\tGM12878\t9.597\t1.0437e-56\n… 12 more lines in " + text(table).split("more lines in ")[1]);
   }, 120_000);
 
   it("reports a problem as a tool error the assistant can read", async () => {

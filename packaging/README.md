@@ -14,8 +14,13 @@ Nothing here is published automatically. Steps for a release, in order:
    request to bioconda-recipes. It depends on bioconda's bedtools (>= 2.31) and
    conda-forge's nodejs (>= 20.19), both MIT.
 5. **Container**: `docker build -f packaging/docker/Dockerfile -t achi .` from the
-   repository root (micromamba base with bioconda bedtools 2.31.1 and Node.js 22).
-   Not yet built or tested: no Docker daemon was available when it was written.
+   repository root (micromamba base with bioconda bedtools 2.31.1 and Node.js 22;
+   480 MB). Built and tested on 2026-11-19 (linux/arm64, Docker 29.2): the
+   example analysis with every option, including threaded motif scanning, gave
+   the same tables as the web app, and `achi-mcp` answered over stdio. Until the
+   site is deployed, mount a copy of `public/` and pass `--refdata-dir`:
+   `docker run --rm -v "$PWD":/data -v /path/to/achi/public:/refdata:ro achi run a.bed b.bed --refdata-dir /refdata`.
+   Not yet built for linux/amd64.
 
 Both tools are single bundled files (`npm run build:cli`, `npm run build:mcp`)
 with no runtime dependencies beyond Node.js and bedtools.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSummaryOutput, filterCanonicalChromosomes, sortChromosomesNaturally, getAggregateRow, runSetSummary } from "./summaryStats";
+import { parseSummaryOutput, filterCanonicalChromosomes, sortChromosomesNaturally, getAggregateRow, runSetSummary, summaryTsv } from "./summaryStats";
 import { scanMotifsInline } from "./motifScan";
 import type { Runtime } from "./runtime";
 
@@ -167,5 +167,19 @@ describe("runSetSummary", () => {
     expect(calls).toEqual(["bedtools summary -i /data/a.summary.raw -g /data/hg38.chrom.sizes", "bedtools summary -i /data/b.summary.raw -g /data/hg38.chrom.sizes"]);
     await runSetSummary(rt, "hg38", [item("c")]);
     expect(loaded).toEqual(["refdata/hg38/hg38.chrom.sizes"]);
+  });
+});
+
+describe("summaryTsv", () => {
+  it("per group: the canonical chromosomes in number order, then bedtools' row for the whole genome; NA where a chromosome has no regions", () => {
+    const rows = parseSummaryOutput(REAL_SUMMARY_STDOUT);
+    const tsv = summaryTsv([{ name: "Heart" }], [rows]);
+    expect(tsv.endsWith("\n")).toBe(true);
+    const lines = tsv.slice(0, -1).split("\n");
+    expect(lines[0]).toBe("group\tchrom\tchrom_length\tregions\ttotal_bp\tchrom_frac_genome\tfrac_all_regions\tfrac_all_bp\tmin_bp\tmax_bp\tmean_bp");
+    expect(lines.slice(1).map((l) => l.split("\t")[1])).toEqual([...Array.from({ length: 22 }, (_, i) => `chr${i + 1}`), "chrX", "chrY", "chrM", "all"]);
+    expect(lines[1]).toBe("Heart\tchr1\t248956422\t199\t106080\t0.07757377\t0.0995\t0.108066038\t136\t4168\t533.065326633");
+    expect(lines.find((l) => l.includes("\tchrY\t"))).toBe("Heart\tchrY\t57227415\t0\t0\t0.017831821\t0\t0\tNA\tNA\tNA");
+    expect(lines.at(-1)).toBe("Heart\tall\t3209286105\t2000\t981622\t1\t1\t1\t135\t4668\t490.811");
   });
 });

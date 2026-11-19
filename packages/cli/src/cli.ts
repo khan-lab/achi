@@ -5,11 +5,13 @@
 import { parseArgs } from "node:util";
 import type { OverlapPreset } from "@achi/core/bedtoolsOptions";
 import type { GoBackground, GoMethod } from "@achi/core/goEnrichment";
+import type { PairwiseStat } from "@achi/core/pairwiseStats";
 import type { GoNamespace } from "@achi/core/great";
 import { SUPPORTED_ASSEMBLIES } from "@achi/core/inputValidation";
 import { DEFAULT_COLLECTION, MOTIF_COLLECTIONS } from "@achi/core/motifCollections";
 import { validateProfileParams, type ProfileParams } from "@achi/core/signalMatrix";
 import type { SignalSort } from "@achi/core/signalRun";
+import { defaultThreads } from "@achi/node/motifThreads";
 import { DEFAULT_SITE, defaultCacheDir, nodeRefData } from "@achi/node/refdata";
 import { createNodeRuntime } from "@achi/node/runtime";
 import { runAnalysis, type AnalysisSummary } from "./analysis";
@@ -20,6 +22,11 @@ export interface Io {
   out: (text: string) => void;
   err: (text: string) => void;
   env: Record<string, string | undefined>;
+}
+
+export interface MainOptions {
+  /** The bundled achi.js, which runs the motif scan when started as a worker thread (bin.ts); without it the scan runs on one thread. */
+  motifWorker?: string | URL;
 }
 
 const USAGE = `achi ${VERSION}: compare, annotate and interpret genomic intervals on this computer.
@@ -45,6 +52,10 @@ Options for run:
                                or "K562 (all)"), a subset label ("HepG2 only", "K562 ∩ HepG2"),
                                "sets" (every set, the default) or "subsets" (every subset)
       --settings <file>        use a web export's settings.json (assembly, overlap, blacklist, selection)
+      --summary                regions, base pairs and region lengths of each group, per chromosome
+      --annotate               each group's regions by GENCODE category, and their distance to the nearest TSS
+      --pairwise <stats>       statistics between every ordered pair of input sets, comma-separated:
+                               jaccard, fisher, reldist (or "all")
       --genes                  nearest gene (by TSS) of each group's regions
       --enrich                 enrichment of each group for the bundled reference sets
       --no-length-adjust       ... with Fisher's exact test instead of CMH over length strata
@@ -56,6 +67,7 @@ Options for run:
       --motif-window <bp>      bases each side of the centre: 50, 100 (default), 250, 500
       --motif-p <p>            site p-value (default 1e-4)
       --motif-collection <id>  ${MOTIF_COLLECTIONS.map((c) => c.id).join(", ")} (default ${DEFAULT_COLLECTION})
+      --threads <n>            threads for the motif scan (default ${defaultThreads()} on this computer)
       --signal <file.bw>       signal profiles over this bigWig; repeat for more
       --signal-mode <m>        scale (default) or reference
       --upstream, --downstream, --body, --bin <bp>   profile layout (defaults: scale 5000/5000/5000/200, reference 2000/2000/-/50)
@@ -81,6 +93,10 @@ const OPTIONS = {
   blacklist: { type: "boolean" },
   select: { type: "string", short: "s", multiple: true },
   settings: { type: "string" },
+  summary: { type: "boolean" },
+  annotate: { type: "boolean" },
+  pairwise: { type: "string" },
+  threads: { type: "string" },
   genes: { type: "boolean" },
   enrich: { type: "boolean" },
   "no-length-adjust": { type: "boolean" },
@@ -130,13 +146,25 @@ function printSummary(s: AnalysisSummary, io: Io) {
     `Achi: ${s.sets.length} set${s.sets.length === 1 ? "" : "s"} on ${s.assembly}${s.overlapFlags ? ` (bedtools ${s.overlapFlags})` : ""}`,
     ...s.sets.map((x) => `  ${x.name}: ${x.regions.toLocaleString("en-US")} regions${x.blacklistRemoved !== undefined ? ` (${x.blacklistRemoved.toLocaleString("en-US")} removed by the ENCODE blacklist)` : ""}`),
     `${s.subsets.length} non-empty subsets; analysed: ${s.groups.join("; ")}`,
+    ...Object.entries(s.overview).flatMap(([k, v]) => [`${k}:`, ...v.map((f) => `  ${f}`)]),
     ...Object.entries(s.findings).flatMap(([k, v]) => [`${k}: ${v.length ? "" : "nothing with q < 0.05"}`, ...v.map((f) => `  ${f}`)]),
     `Wrote ${s.files.length} files to ${s.out}`,
   ];
   io.out(lines.join("\n") + "\n");
 }
 
-export async function main(argv: string[], io: Io): Promise<number> {
+const PAIRWISE_STATS: PairwiseStat[] = ["jaccard", "fisher", "reldist"];
+
+function pairwiseStats(value: string | undefined): PairwiseStat[] | undefined {
+  if (value === undefined) return undefined;
+  const asked = value.split(",").map((x) => x.trim()).filter(Boolean);
+  if (asked.includes("all")) return PAIRWISE_STATS;
+  for (const x of asked) if (!(PAIRWISE_STATS as string[]).includes(x)) throw new UsageError(`--pairwise takes ${PAIRWISE_STATS.join(", ")} or all; got "${x}".`);
+  if (!asked.length) throw new UsageError(`--pairwise takes ${PAIRWISE_STATS.join(", ")} or all.`);
+  return PAIRWISE_STATS.filter((x) => asked.includes(x));
+}
+
+export async function main(argv: string[], io: Io, mo: MainOptions = {}): Promise<number> {
   try {
     const { values: v, positionals } = parseArgs({ args: argv, options: OPTIONS, allowPositionals: true, strict: true });
     if (v.version) return io.out(`achi ${VERSION}\n`), 0;
@@ -190,7 +218,15 @@ export async function main(argv: string[], io: Io): Promise<number> {
     if (v.motifs && !v.genome) throw new UsageError("--motifs needs --genome <the assembly's .2bit>.");
     const go = v.go === undefined ? undefined : oneOf("go", v.go, ["great", "cistromego"] as const, "great");
 
-    const rt = await createNodeRuntime({ bedtools: v.bedtools ?? io.env.ACHI_BEDTOOLS, refdata: { ...refdataOpts, onDownload: (p, b) => log(`downloaded ${p} (${(b / 1e6).toFixed(1)} MB)`) } });
+    const pairwise = pairwiseStats(v.pairwise);
+    const threads = v.threads === undefined ? undefined : num("threads", v.threads, 1, (n) => Number.isInteger(n) && n >= 1 && n <= 64);
+
+    const rt = await createNodeRuntime({
+      bedtools: v.bedtools ?? io.env.ACHI_BEDTOOLS,
+      refdata: { ...refdataOpts, onDownload: (p, b) => log(`downloaded ${p} (${(b / 1e6).toFixed(1)} MB)`) },
+      motifWorker: mo.motifWorker,
+      threads,
+    });
     try {
       const summary = await runAnalysis(
         rt,
@@ -205,6 +241,9 @@ export async function main(argv: string[], io: Io): Promise<number> {
           blacklist: v.blacklist ?? false,
           select: v.select ?? [],
           settings: v.settings,
+          summary: v.summary,
+          annotate: v.annotate,
+          pairwise,
           genes: v.genes,
           enrich: v.enrich ? { adjust: !v["no-length-adjust"] } : undefined,
           go: go && {

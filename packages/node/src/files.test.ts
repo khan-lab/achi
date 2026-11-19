@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
-import { readInputFile } from "./files";
+import { localTwoBitSource, readInputFile } from "./files";
 
 /** Input files from disk, as the web app reads uploads: gzip by name, the same size limits, cleaned to BED. Real ENCODE fixture. */
 const FIXTURE = join(__dirname, "../../../tests/fixtures/encode/heart_h3k27ac_ENCFF059ERB.subsample.bed");
@@ -28,5 +28,15 @@ describe("readInputFile", () => {
     writeFileSync(join(dir, "words.bed"), "hello world\n");
     expect(await readInputFile(join(dir, "words.bed"))).toMatchObject({ ok: false, message: expect.stringMatching(/^words\.bed /) });
     expect(await readInputFile(join(dir, "missing.bed"))).toMatchObject({ ok: false, message: expect.stringMatching(/^missing\.bed could not be read/) });
+  });
+});
+
+describe("localTwoBitSource", () => {
+  it("reads windows from a .2bit on disk, labelled as the web app labels a local .2bit", async () => {
+    const src = localTwoBitSource(join(__dirname, "../../../tests/fixtures/twobit/mini.2bit"));
+    expect(src.label).toBe("local .2bit mini.2bit");
+    const fasta = readFileSync(join(__dirname, "../../../tests/fixtures/twobit/mini.fa"), "utf8");
+    const chr22 = fasta.split(">").find((b) => b.startsWith("chr22"))!.split("\n").slice(1).join("");
+    expect((await src.read([{ chrom: "chr22", start: 100, end: 300 }]))[0]).toBe(chr22.slice(100, 300));
   });
 });

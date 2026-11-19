@@ -121,3 +121,20 @@ export async function runSetSummary(
   }
   return out;
 }
+
+/**
+ * One row per group and chromosome, as the Summary chart shows them (the
+ * canonical chromosomes in number order), then bedtools' row for the whole
+ * genome ("all"); min, max and mean are NA for a chromosome with no regions.
+ */
+export function summaryTsv(items: { name: string }[], rows: SummaryRow[][]): string {
+  const head = ["group", "chrom", "chrom_length", "regions", "total_bp", "chrom_frac_genome", "frac_all_regions", "frac_all_bp", "min_bp", "max_bp", "mean_bp"];
+  const lines = items.flatMap((item, i) => {
+    const r = rows[i] ?? [];
+    const all = getAggregateRow(r);
+    return [...sortChromosomesNaturally(filterCanonicalChromosomes(r)), ...(all ? [all] : [])].map((x) =>
+      [item.name, x.chrom, x.chromLength, x.numIvls, x.totalIvlBp, x.chromFracGenome, x.fracAllIvls, x.fracAllBp, ...[x.min, x.max, x.mean].map((v) => (v < 0 ? "NA" : v))].join("\t")
+    );
+  });
+  return [head.join("\t"), ...lines].join("\n") + "\n";
+}
