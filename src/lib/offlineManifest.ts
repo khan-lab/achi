@@ -38,6 +38,8 @@ const DATA: RegExp[] = [
   new RegExp(`^refdata/${ASSEMBLY}/cistromego/rp_model\\.json$`),
   new RegExp(`^refdata/${ASSEMBLY}/genes/gene_models\\.bed$`),
   new RegExp(`^refdata/${ASSEMBLY}/cytoband\\.txt$`),
+  // The Expression panel's example table (1.7 MB).
+  /^examples\/expression\/[^/]+\.tsv$/,
   // The list of public tracks only; the tracks themselves are remote and need the network.
   new RegExp(`^refdata/${ASSEMBLY}/remote/tracks\\.json$`),
 ];

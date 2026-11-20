@@ -102,6 +102,27 @@ header.top {
 .work.aside-closed {
   grid-template-columns: var(--rail) minmax(0, 1fr) 36px;
 }
+/* The left column (region sets, settings, external annotations) folds the
+   same way: SetRail stays mounted but hidden, and a strip takes its place. */
+.work.rail-closed {
+  grid-template-columns: 36px minmax(0, 1fr) var(--aside);
+}
+.work.rail-closed.aside-closed {
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+}
+.col[hidden] {
+  display: none;
+}
+.railhd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.railhd .modeswitch {
+  flex: 1;
+  margin-bottom: 0;
+}
 .asidehd {
   display: flex;
   align-items: center;
@@ -169,6 +190,102 @@ header.top {
 }
 .card .bd {
   padding: 11px 13px 13px;
+}
+
+/* Group labels between the analysis cards: Annotate regions / Region enrichment / Functional analysis. */
+.panelgroup {
+  margin: 22px 2px 8px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.panelgroup + .card {
+  margin-top: 0;
+}
+
+/* Analysis cards in the middle column (components/CollapsiblePanel.tsx):
+   the whole header folds the card; folded, it shows the panel's status. */
+.panelhd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 13px 0;
+  border: 0;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.panel.collapsed .panelhd {
+  padding-bottom: 11px;
+  border-radius: 10px;
+}
+.panelhd .eyebrow {
+  flex: 1;
+  min-width: 0;
+}
+.panelchev {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  color: var(--ink-3);
+}
+.panelhd:hover .panelchev {
+  background: var(--panel-3);
+  color: var(--ink);
+}
+.panelhd:hover .eyebrow {
+  color: var(--ink-2);
+}
+/* Selection card header: "Collapse all / Expand all" for the panels below sits at its right. */
+.selhd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+.selhd .eyebrow {
+  flex: 1;
+}
+.panelstatus {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--ink-2);
+  background: var(--panel-2);
+}
+.panelstatus.busy {
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.panelstatus.done {
+  color: var(--sig);
+  background: var(--sig-soft);
+}
+.panelstatus.stale {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+.panelstatus.error {
+  color: var(--danger);
+  background: var(--danger-soft);
 }
 
 /* ---------- set cards ---------- */
@@ -885,7 +1002,9 @@ footer .free .dot {
     min-width: 0;
   }
   /* One column: the hidden "Selected subsets" column is a full-width bar. */
-  .work.aside-closed {
+  .work.aside-closed,
+  .work.rail-closed,
+  .work.rail-closed.aside-closed {
     grid-template-columns: minmax(0, 1fr);
   }
   .asidetab {
@@ -900,6 +1019,11 @@ footer .free .dot {
   .asidetab .icon,
   .asidehd .icon {
     transform: rotate(-90deg);
+  }
+  /* The left column sits above: its chevrons point up (hide) and down (show). */
+  .railstrip .asidetab .icon,
+  .railhd .icon {
+    transform: rotate(90deg);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1742,4 +1866,16 @@ svg text.selectable:focus-visible {
 }
 .groupcard-tabs .tabcount {
   margin-left: 4px;
+}
+
+/* ---------- Pairwise: permutation test controls (components/PermutationControls.tsx) ---------- */
+.permrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.permctl .gosettings {
+  margin-bottom: 10px;
 }

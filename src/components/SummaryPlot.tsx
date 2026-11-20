@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { usePanelStatus } from "./panelState";
+import { panelStatus } from "./panelStatus";
 import { useStore } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import {
@@ -69,6 +71,7 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
   const [summaryState, setSummaryState] = useState<Map<string, SummaryRow[]>>(() => new Map(summaryRowsCache));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  usePanelStatus(panelStatus({ busy: loading, error, hasResult: items.length > 0, done: `${items.length} selected` }));
 
   const cacheKey = (item: SummaryItem) => `${assembly}::${item.id}::${item.version}`;
   const itemsKey = items.map((i) => `${i.id}:${i.version}`).join(",");

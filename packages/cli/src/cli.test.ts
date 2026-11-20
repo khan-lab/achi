@@ -81,7 +81,7 @@ describe("achi: usage", () => {
     expect(b.out()).toMatch(/achi run \[options\] <file>/);
   });
   it("exits 2 with a reason for a usage error", async () => {
-    for (const args of [["frobnicate"], ["run", "--motifs", EXAMPLES[0]], ["run", "--go", "magic", EXAMPLES[0]], ["run", "--assembly", "hg37", EXAMPLES[0]], ["run", "--no-such-option"], ["run", "--pairwise", "spearman", EXAMPLES[0]], ["run", "--threads", "0", EXAMPLES[0]]]) {
+    for (const args of [["frobnicate"], ["run", "--motifs", EXAMPLES[0]], ["run", "--go", "magic", EXAMPLES[0]], ["run", "--assembly", "hg37", EXAMPLES[0]], ["run", "--no-such-option"], ["run", "--pairwise", "spearman", EXAMPLES[0]], ["run", "--seed", "3", EXAMPLES[0]], ["run", "--expression-padj", "0.1", EXAMPLES[0]], ["run", "--pairwise", "permutation", "--permutations", "5", EXAMPLES[0]], ["run", "--threads", "0", EXAMPLES[0]]]) {
       const a = io();
       expect(await main(args, a.io)).toBe(2);
       expect(a.err()).toMatch(/^achi: /);
@@ -151,6 +151,36 @@ describeIfBedtools("achi run: same results as the web app", () => {
     expect(a.out()).toMatch(/\nannotation:\n {2}K562 \(all\): TSS 62%/);
     expect(a.out()).toMatch(/\npairwise fisher:\n {2}MCF7 → HepG2: odds ratio 20, p 1\.5e-160\n/);
   }, 120_000);
+
+  it("writes the permutation test the web app computes, byte for byte (same seeded shuffles)", async () => {
+    const out = outDir();
+    const a = io();
+    expect(await main(["run", ...EXAMPLES, "--pairwise", "permutation", "--refdata-dir", PUBLIC, "--out", out, "--force", "-q"], a.io)).toBe(0);
+    expect(readFileSync(join(out, "tables/pairwise_permutation.tsv"), "utf8")).toBe(fixture("web_pairwise_permutation.tsv"));
+    expect(JSON.parse(readFileSync(join(out, "settings.json"), "utf8")).permutation).toEqual({ n: 1000, seed: 1, sameChromosome: true, excludeBlacklist: true });
+    expect(readFileSync(join(out, "methods.md"), "utf8")).toMatch(/1,000 permutations.*seed 1/s);
+    expect(a.out()).toMatch(/\npairwise permutation: ?\n {2}MCF7 → HepG2: 196 of 639 regions overlap/);
+    // Another seed: other shuffles, the same observed counts.
+    const other = outDir();
+    expect(await main(["run", ...EXAMPLES, "--pairwise", "permutation", "--seed", "2", "--permutations", "200", "--refdata-dir", PUBLIC, "--out", other, "--force", "-q"], io().io)).toBe(0);
+    const rows = (d: string) => readFileSync(join(d, "tables/pairwise_permutation.tsv"), "utf8").trim().split("\n").map((l) => l.split("\t"));
+    expect(rows(other).map((r) => r[4])).toEqual(rows(out).map((r) => r[4]));
+    expect(rows(other).map((r) => r[5])).not.toEqual(rows(out).map((r) => r[5]));
+  });
+
+  it("writes the expression tests the web app computes (same rows; decimals to 1e-9)", async () => {
+    const out = outDir();
+    const a = io();
+    const table = join(PUBLIC, "examples/expression/HepG2_vs_K562.deseq2.tsv");
+    expect(await main(["run", ...EXAMPLES, ...SELECT, "--expression", table, "--refdata-dir", PUBLIC, "--out", out, "--force", "-q"], a.io)).toBe(0);
+    for (const [ours, web] of [["expression_beta.tsv", "web_expression_beta.tsv"], ["expression_nearest.tsv", "web_expression_nearest.tsv"], ["expression_targets.tsv", "web_expression_targets.tsv.gz"]]) {
+      const r = sameResults(readFileSync(join(out, "tables", ours), "utf8"), fixture(web));
+      console.info(`parity: ${ours} ${r.lastDigit} of ${r.cells} cells differ in the last digit`);
+    }
+    expect(JSON.parse(readFileSync(join(out, "settings.json"), "utf8")).expression).toEqual({ padj: 0.05, minAbsLog2fc: 1, distance: 100_000 });
+    expect(readFileSync(join(out, "methods.md"), "utf8")).toMatch(/BETA/);
+    expect(a.out()).toMatch(/\nexpression: ?[^\n]*\n {2}HepG2 only: nearest genes' median log2FC 1\.8 vs 0\.060 for other genes, q 3\.1e-126\n/);
+  });
 
   it("skips pairwise statistics with one set, saying so", async () => {
     const out = outDir();

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePanelStatus } from "./panelState";
+import { count, panelStatus } from "./panelStatus";
 import { interpolateLab, scaleLinear, scaleSymlog } from "d3";
 import { useChosenGroups, useStore } from "../state/store";
 import { sharesRegions } from "@achi/core/selection";
@@ -24,7 +26,7 @@ import {
   type SignalTrack,
 } from "@achi/core/signalRun";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
-import { registerExport } from "../lib/exportRegistry";
+import { markExportStale, registerExport } from "../lib/exportRegistry";
 import { signalMethods } from "@achi/core/analysisExport";
 import { formatLocus } from "../lib/browserTracks";
 import { truncateToWidth } from "../lib/textMeasure";
@@ -230,7 +232,9 @@ export function SignalProfilePanel() {
   const publicActive = active.filter((t) => t.url);
   const key = JSON.stringify([params, sort, k, active.map((t) => t.id), chosen.map((s) => `${s.mask}:${s.nRegions}`), publicActive.length ? [publicMode, target] : null]);
   const stale = run !== null && run.key !== key;
+  useEffect(() => markExportStale("signal", stale), [stale]);
   const busy = progress !== null;
+  usePanelStatus(panelStatus({ progress, error, hasResult: run !== null, stale, done: run ? `${count(run.tracks.length, "track")} · ${count(run.regions.length, "region")}` : undefined }));
   const hasExampleSignal = tracks.some((t) => t.source === "example");
 
   const setMode = (mode: ProfileParams["mode"]) => setParams((p) => (p.mode === mode ? p : { ...p, mode, ...(mode === "scale" ? SCALE_DEFAULTS : REF_DEFAULTS) }));

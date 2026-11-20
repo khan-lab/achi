@@ -19,7 +19,7 @@ import { LIST_EXTENSION } from "@achi/core/lists";
 import { MAX_SETS } from "../types";
 import { isSetKey } from "@achi/core/selection";
 
-type PairwiseStat = "jaccard" | "fisher" | "reldist";
+type PairwiseStat = "jaccard" | "fisher" | "reldist" | "permutation";
 
 export interface LinkSettings {
   assembly: string;
@@ -65,7 +65,7 @@ export interface ParsedLink {
 const NAME_MAX = 60;
 const URL_MAX = 2000;
 const PRESETS: OverlapPreset[] = ["1bp", "fraction50", "reciprocal50"];
-const STATS: PairwiseStat[] = ["jaccard", "fisher", "reldist"];
+const STATS: PairwiseStat[] = ["jaccard", "fisher", "reldist", "permutation"];
 /** Flags and numbers only, as the Advanced field takes them: "f=0.5,r", "F=0.1,e,s". */
 const BEDTOOLS = /^[A-Za-z]{1,12}(=\d*\.?\d+)?(,[A-Za-z]{1,12}(=\d*\.?\d+)?)*$/;
 const REGION_EXTENSION = /\.(bed|narrowPeak|broadPeak|bedGraph|vcf)(\.gz)?$/i;

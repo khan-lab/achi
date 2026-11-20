@@ -26,12 +26,14 @@ not) and runs the analyses you ask for on the groups you select:
 | Option | Analysis |
 |---|---|
 | `--pairwise jaccard,fisher,reldist` | statistics between every ordered pair of input sets (`all` for the three), as the web app's Pairwise view |
+| `--pairwise permutation` | permutation test of overlap for every ordered pair: the first set's regions shuffled (same lengths, own chromosome, avoiding assembly gaps and the ENCODE blacklist) and its overlap with the second compared with the shuffles; `--permutations` (default 1000), `--seed` (default 1, the same result as the web app for the same seed), `--any-chromosome`, `--shuffle-into-blacklist` |
 | `--summary` | regions, base pairs and region lengths of each group, per chromosome (`bedtools summary`) |
 | `--annotate` | each group's regions by GENCODE category (promoter, UTR, exon, intron, downstream, distal intergenic) and their distance to the nearest TSS |
 | `--genes` | the nearest protein-coding gene (by TSS) of each region |
 | `--enrich` | enrichment for the bundled reference region sets (ENCODE cCREs, VISTA enhancers, CpG islands, FANTOM5, ClinVar, GWAS Catalog, fine-mapping), CMH over region-length strata (`--no-length-adjust` for Fisher's exact test) |
 | `--go great` / `--go cistromego` | GO enrichment, GREAT-like (against the genome, or `--go-background inputs`) or Cistrome-GO-like; `--go-namespace BP\|MF\|CC` |
 | `--motifs --genome hg38.2bit` | JASPAR 2026 motif enrichment around region centres (`--motif-window`, `--motif-p`, `--motif-collection`); the scan runs on one thread fewer than the computer has, at most 8 (`--threads`) |
+| `--expression de.tsv` | are genes near each group's regions up or down? A DESeq2, edgeR or limma table; BETA-like tests (regulatory potential ranks of up and of down genes vs non-differential genes) and the regions' nearest genes' log2 fold changes vs all others; `--expression-padj` (0.05), `--expression-log2fc` (1), `--expression-distance` (100000) |
 | `--signal a.bw [--signal b.bw]` | bigWig signal profiles and heatmap matrices, with Mann–Whitney tests between groups |
 
 A group (`--select`, repeatable, in order) is a set's name for the whole set

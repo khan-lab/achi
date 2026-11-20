@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { usePanelStatus } from "./panelState";
+import { count, panelStatus } from "./panelStatus";
 import { color as d3color, interpolateLab } from "d3";
 import { useChosenGroups, useStore } from "../state/store";
 import { chosenGroups } from "@achi/core/selection";
@@ -8,7 +10,7 @@ import { prepareLocalReference } from "../lib/localTracks";
 import { MAX_POOL } from "@achi/core/motifEnrichment";
 import { motifTsv, runMotifEnrichment, type MotifRun } from "@achi/core/motifRun";
 import { webRuntime } from "../lib/runtime";
-import { registerExport } from "../lib/exportRegistry";
+import { markExportStale, registerExport } from "../lib/exportRegistry";
 import { DEFAULT_COLLECTION, MOTIF_COLLECTIONS, collectionById, type JasparMotif } from "@achi/core/motifCollections";
 import { motifMethods } from "@achi/core/analysisExport";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
@@ -151,6 +153,9 @@ export function MotifEnrichmentPanel() {
   const sourceLabel = mode === "local" ? (localOk ? local!.source.label : null) : mode === "private" ? `${UCSC_HOST}, private (whole chromosomes)` : `${UCSC_HOST}, exact (range requests per region)`;
   const key = JSON.stringify([assembly, chosen.map((c) => c.mask), universeSig, half, p, sourceLabel, collection.id]);
   const stale = result !== null && result.key !== key;
+  useEffect(() => markExportStale("motifs", stale), [stale]);
+  const nSignificant = result ? heatmapRows(result, perFamily, 0).nSignificant : 0;
+  usePanelStatus(panelStatus({ progress, error, hasResult: result !== null, stale, done: `${perFamily ? count(nSignificant, "family", "families") : count(nSignificant, "motif")} q < 0.05` }));
   const nUniverse = subsets.reduce((a, s) => a + s.regions.length, 0);
   const listMode = sets.some((s) => s.items);
 

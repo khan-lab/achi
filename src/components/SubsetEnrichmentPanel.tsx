@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { usePanelStatus } from "./panelState";
+import { count, panelStatus } from "./panelStatus";
 import { color as d3color, interpolateLab } from "d3";
 import { useChosenGroups, useStore } from "../state/store";
 import { chosenGroups } from "@achi/core/selection";
@@ -10,7 +12,7 @@ import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
 import { TopRowsInput } from "./TopRowsInput";
 import { DEFAULT_TOP_ROWS, rankRows } from "@achi/core/heatmapRows";
-import { registerExport } from "../lib/exportRegistry";
+import { markExportStale, registerExport } from "../lib/exportRegistry";
 import { enrichmentMethods } from "@achi/core/analysisExport";
 import { webRuntime } from "../lib/runtime";
 
@@ -92,7 +94,10 @@ export function SubsetEnrichmentPanel() {
   const universeSig = subsets.map((s) => `${s.mask}:${s.nRegions}:${s.nBp}`).join(",");
   const key = [adjust, assembly, chosen.map((s) => s.mask).join("|"), universeSig, annotations.map((a) => a.id).join("|")].join("#");
   const stale = result !== null && result.key !== key;
+  useEffect(() => markExportStale("enrichment", stale), [stale]);
   const busy = progress !== null;
+  const nSignificant = result ? rankRows(result.cells, (c) => c.annotationId).filter((r) => r.q < 0.05).length : 0;
+  usePanelStatus(panelStatus({ progress, error, hasResult: result !== null, stale, done: `${count(nSignificant, "reference set")} q < 0.05` }));
 
   const run = async () => {
     if (!chosen.length || !annotations.length) return;

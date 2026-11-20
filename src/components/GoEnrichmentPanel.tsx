@@ -1,4 +1,6 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { usePanelStatus } from "./panelState";
+import { count, panelStatus } from "./panelStatus";
 import { useChosenGroups, useStore } from "../state/store";
 import { webRuntime } from "../lib/runtime";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
@@ -23,7 +25,7 @@ import {
 import { PALETTE } from "../types";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
-import { registerExport } from "../lib/exportRegistry";
+import { markExportStale, registerExport } from "../lib/exportRegistry";
 import { goMethods } from "@achi/core/analysisExport";
 
 type Method = GoMethod;
@@ -90,7 +92,10 @@ export function GoEnrichmentPanel() {
   const settings = method === "great" ? great : cgo;
   const key = [method, ns, assembly, chosen.map((s) => s.mask).join("|"), universeSig, JSON.stringify(settings), sets.map((s) => s.contentKey).join(",")].join("#");
   const stale = result !== null && result.key !== key;
+  useEffect(() => markExportStale("go", stale), [stale]);
   const busy = progress !== null;
+  const nSignificant = result ? new Set(result.groups.flatMap((g) => g.rows.filter((r) => r.significant).map((r) => r.id))).size : 0;
+  usePanelStatus(panelStatus({ progress, error, hasResult: result !== null, stale, done: `${count(nSignificant, "term")} q < ${result?.qThreshold}` }));
   const active = result?.subsets.find((s) => s.mask === activeMask) ?? result?.subsets[0] ?? null;
 
   const run = async () => {

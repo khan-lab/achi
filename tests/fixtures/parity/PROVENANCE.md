@@ -54,3 +54,26 @@ overlapping TSSs (wrong distance-to-TSS chart), and `bedtools summary` left
 the print precision at 9 digits (Jaccard printed as 0.053218491 instead of
 0.0532185). src/lib/bedtools.ts now runs such commands in a fresh instance;
 with that, all seven tables are byte-identical to the CLI's.
+
+## Permutation test (added 2026-11-20)
+
+- web_pairwise_permutation.tsv: the Pairwise view's Permutation tab, Run
+  with the default settings (1,000 permutations, seed 1, same chromosome,
+  ENCODE blacklist excluded), on the four example sets (overlap 1 bp, no
+  blacklist filter), downloaded from Export analysis
+  (tables/pairwise_permutation.tsv) in headless Chromium, mcp-cli branch
+  working tree after 2a7e49e. The shuffles come from core's seeded
+  generator (packages/core/src/permutation.ts), so the CLI must write the
+  same bytes.
+
+## Expression (added 2026-11-20)
+
+- web_expression_{beta,nearest}.tsv, web_expression_targets.tsv.gz: the
+  Expression panel with "Use example table"
+  (public/examples/expression/HepG2_vs_K562.deseq2.tsv, ENCODE HepG2 vs
+  K562 by DESeq2; see its provenance.json) and default settings (adjusted
+  p < 0.05, |log2FC| ≥ 1, 100 kb), on the same three selected groups,
+  downloaded from Export analysis in headless Chromium, mcp-cli working
+  tree. Compared as the reference-set and GO tables are (same rows and
+  text, decimals to 1e-9), since the KS and Mann–Whitney p-values go
+  through exp/log.

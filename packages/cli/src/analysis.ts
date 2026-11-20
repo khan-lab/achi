@@ -39,6 +39,8 @@ import type { GoNamespace } from "@achi/core/great";
 import { SUPPORTED_ASSEMBLIES, defaultSetCode } from "@achi/core/inputValidation";
 import { labelSubsets, runBlacklistCheck, runIntersections, subsetFileText } from "@achi/core/intersections";
 import { MOTIF_COLLECTIONS } from "@achi/core/motifCollections";
+import { EXPRESSION_DEFAULTS, expressionMethods, expressionTsvs, runExpression, type ExpressionSettings } from "@achi/core/expression";
+import { PERMUTATION_DEFAULTS, permutationMethods, permutationTsv, runPermutation, type PermutationSettings } from "@achi/core/permutation";
 import { pairwiseTsv, reldistBinsTsv, runPairwise, type FisherResult, type JaccardResult, type PairwiseStat, type ReldistResult } from "@achi/core/pairwiseStats";
 import { ANNO_CATEGORIES, annotationStepTotal, annotationTsv, distanceToTssTsv, hasAnnotationReferences, runRegionAnnotation } from "@achi/core/peakAnnotation";
 import { motifTsv, runMotifEnrichment } from "@achi/core/motifRun";
@@ -71,6 +73,10 @@ export interface AnalysisOptions {
   genes?: boolean;
   /** Pairwise statistics between the input sets (as the Pairwise view). */
   pairwise?: PairwiseStat[];
+  /** The permutation test of overlap between the input sets (as the Pairwise view's Permutation): settings given here override a settings file's, which override the defaults. */
+  permutation?: Partial<PermutationSettings>;
+  /** A differential-expression table: BETA-like and nearest-gene tests of each group (as the Expression panel); settings here override a settings file's, which override the defaults. */
+  expression?: { table: string } & Partial<ExpressionSettings>;
   /** Region annotation of each group (GENCODE categories and distance to the nearest TSS). */
   annotate?: boolean;
   /** bedtools summary of each group, per chromosome. */
@@ -233,6 +239,8 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, report: R
   const groupOf = (k: number) => chosenGroups([k], subsets, sets)[0];
   const extras: MethodsExtra[] = [];
   const findings: Record<string, string[]> = {};
+  let permutationSettings: PermutationSettings | undefined;
+  let expressionSettings: ExpressionSettings | undefined;
   const fmt = (x: number) => (x === 0 ? "<1e-300" : x < 0.001 ? x.toExponential(1) : x.toPrecision(2));
   /** A descriptive value (not a p-value): bedtools' inf and nan as Inf and NA. */
   const val = (x: number) => (Number.isNaN(x) ? "NA" : !Number.isFinite(x) ? "Inf" : x === 0 ? "0" : Math.abs(x) < 0.001 ? x.toExponential(1) : x.toPrecision(2));
@@ -323,6 +331,24 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, report: R
       extras.push(pairwiseMethods({ stats: o.pairwise, assembly, overlapFlags }));
     }
   }
+  if (o.permutation) {
+    if (inputs.length < 2) warn("The permutation test needs two or more sets; skipped.");
+    else {
+      permutationSettings = { ...PERMUTATION_DEFAULTS, ...saved?.permutation, ...o.permutation };
+      const pairSets = inputs.map((s) => ({ id: files.get(s.id)!.key, name: s.name, file: files.get(s.id)!.file }));
+      const nameOf = (id: string) => pairSets.find((s) => s.id === id)?.name ?? id;
+      const permStage = stage("Pairwise permutation");
+      const run = await runPermutation(rt, { assembly, sets: pairSets, overlapFlags, settings: permutationSettings }, { onProgress: (p) => permStage(p) });
+      stageDone("Pairwise permutation");
+      await write("tables/pairwise_permutation.tsv", permutationTsv(pairSets, run));
+      findings["pairwise permutation"] = run.pairs
+        .filter((r) => r.q < 0.05)
+        .sort((x, y) => x.q - y.q || Math.abs(y.z) - Math.abs(x.z))
+        .slice(0, 10)
+        .map((r) => `${nameOf(r.a)} → ${nameOf(r.b)}: ${r.observed.toLocaleString("en-US")} of ${r.nTested.toLocaleString("en-US")} regions overlap, ${val(r.mean)} expected (fold ${val(r.fold)}), q ${fmt(r.q)}`);
+      extras.push(permutationMethods({ assembly, overlapFlags, settings: permutationSettings, blacklistExcluded: run.blacklistExcluded }));
+    }
+  }
 
   // ---- reference-set enrichment ----
   if (o.enrich) {
@@ -346,6 +372,33 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, report: R
         .slice(0, 10)
         .map((c) => `${groupOf(c.mask)?.label}: ${annotations.find((a) => a.id === c.annotationId)?.name} (odds ratio ${fmt(c.oddsRatio)}, q ${fmt(c.q)})`);
     }
+  }
+
+  // ---- expression ----
+  if (o.expression) {
+    const { table, ...given } = o.expression;
+    expressionSettings = { ...EXPRESSION_DEFAULTS, ...saved?.expression, ...given };
+    const deText = await readFile(table, "utf8").catch(() => {
+      throw new Error(`${table} could not be read.`);
+    });
+    const exprStage = stage("Expression");
+    const run = await runExpression(rt, { assembly, groups: groupItems, deText, settings: expressionSettings }, { onProgress: (p) => exprStage(p) });
+    stageDone("Expression");
+    const t = expressionTsvs(run);
+    await write("tables/expression_beta.tsv", t.beta);
+    await write("tables/expression_nearest.tsv", t.nearest);
+    await write("tables/expression_targets.tsv", t.targets);
+    const lines: [number, string][] = [];
+    for (const g of run.groups) {
+      for (const c of ["up", "down"] as const)
+        if (g.beta[c].q < 0.05) lines.push([g.beta[c].q, `${g.name}: ${c} genes rank higher by regulatory potential (BETA-like, ${g.beta[c].n.toLocaleString("en-US")} genes), KS p ${fmt(g.beta[c].p)}, q ${fmt(g.beta[c].q)}`]);
+      if (g.nearest.q < 0.05) lines.push([g.nearest.q, `${g.name}: nearest genes' median log2FC ${val(g.nearest.medianLinked)} vs ${val(g.nearest.medianOther)} for other genes, q ${fmt(g.nearest.q)}`]);
+    }
+    findings.expression = lines.sort((a, b) => a[0] - b[0]).slice(0, 10).map((l) => l[1]);
+    overview["expression table"] = [
+      `${run.table.nMatched.toLocaleString("en-US")} of ${run.table.nRows.toLocaleString("en-US")} genes matched (${run.table.columns.id}, ${run.table.columns.log2fc}, ${run.table.columns.padj}): ${run.table.nUp.toLocaleString("en-US")} up, ${run.table.nDown.toLocaleString("en-US")} down`,
+    ];
+    extras.push(expressionMethods({ assembly, settings: expressionSettings, table: run.table }));
   }
 
   // ---- GO ----
@@ -429,6 +482,8 @@ export async function runAnalysis(rt: NodeRuntime, o: AnalysisOptions, report: R
     upsetSort: "size",
     upsetMinSize: 0,
     pairwiseStat: "jaccard",
+    ...(permutationSettings ? { permutation: permutationSettings } : {}),
+    ...(expressionSettings ? { expression: expressionSettings } : {}),
     view: "cli",
     sets: inputs.map((s) => ({ name: s.name, fileName: s.fileName, code: s.code, color: "", included: true, n: byId.get(s.id)!.nRegions, bp: byId.get(s.id)!.nBp, sha256: s.sha256 })),
     selected: groups.map((g) => ({ label: g.label, memberNames: g.memberIds.map((id) => sets.find((s) => s.id === id)!.name), n: g.nRegions, ...(g.whole ? { whole: true } : {}) })),

@@ -86,7 +86,10 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
             tests that compare two groups directly are not run between them.
           </li>
           <li>
-            Selected subsets and sets get their own summary, annotation and enrichment below the plot. Each also has a
+            Selected subsets and sets get their own analysis panels below the plot, in three groups:{" "}
+            <em>Annotate regions</em> (summary, annotation, signal), <em>Region enrichment</em> (reference-set and
+            motif enrichment) and <em>Functional analysis</em> (GO, expression). Click a panel's header to fold it, or
+            use the button in the Selection card to fold or open them all. Each selection also has a
             card in the right-hand <em>Selected subsets and sets</em> column with two tabs: <em>Regions</em> (shown
             first) and <em>Genes</em>, the nearest protein-coding gene of each region. The card's copy and download
             buttons act on the tab shown. Download everything at once with <em>Export selected</em>;{" "}
@@ -213,7 +216,11 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           <li>
             <strong>Pairwise</strong>: base-pair Jaccard index; <code>bedtools fisher</code> (odds ratio and p-value
             against independent placement on the genome); or <code>bedtools reldist</code> with a Kolmogorov–Smirnov
-            test against uniform relative distance.
+            test against uniform relative distance; or a <strong>permutation test</strong>: each row set's regions are
+            shuffled (same lengths, on their own chromosome by default, never into assembly gaps or the ENCODE
+            blacklist) and the number overlapping the column set is compared with the shuffles, as in regioneR (Gel et
+            al. <em>Bioinformatics</em> 2016), with p = (b + 1)/(n + 1) over n shuffles (Phipson and Smyth{" "}
+            <em>Stat Appl Genet Mol Biol</em> 2010). It runs when you press Run; the same seed gives the same result here and in the <code>achi</code> command.
           </li>
           <li>
             <strong>Table</strong>: every subset with exact region and base-pair counts.
@@ -221,7 +228,8 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           <li>
             <strong>Set Summary</strong>: <code>bedtools summary</code> per set, plus each region classified against
             GENCODE protein-coding genes (promoter, UTR, exon, intron, downstream, distal) and its distance to the
-            nearest TSS.
+            nearest TSS. The summary is immediate; the annotation runs when you press <em>Run region annotation</em> (here and
+            for selected subsets), and is kept for the session.
           </li>
           <li>
             <strong>Genome Browser</strong>: a genome-wide overview (GenomeSpy; see{" "}
@@ -358,6 +366,33 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           sees roughly where they are; asked every run, up to 2,000 regions).
         </p>
 
+        <h3 id="expression">Expression near the selected regions</h3>
+        <p>
+          <em>Expression near the selected subsets and sets</em> takes a differential-expression table from your computer (DESeq2,
+          edgeR or limma output, tab- or comma-separated; the gene, log2 fold change and adjusted p columns are found by their
+          usual names) and asks whether genes near each group&apos;s regions go up or down. It stays in your browser.
+        </p>
+        <ul>
+          <li>
+            <strong>BETA-like</strong> (follows BETA, Wang et al. <em>Nat Protoc</em> 2013, reimplemented here): every protein-coding gene gets a regulatory potential
+            from the group&apos;s regions within 100 kb of its TSS, each region adding exp(−(0.5 + 4·distance/100 kb)). Genes are
+            ranked by it, and the ranks of up genes, and of down genes, are compared with those of non-differential genes by a
+            one-sided Kolmogorov–Smirnov test. The plot is BETA&apos;s: the cumulative fraction of each class among the genes
+            ranked by regulatory potential. Target genes are up or down genes near the regions, ranked by the product of their
+            regulatory-potential and differential-expression ranks.
+          </li>
+          <li>
+            <strong>Nearest gene</strong>: the log2 fold changes of the regions&apos; nearest genes (as in the Genes tab)
+            against those of all other genes, by a Mann–Whitney test.
+          </li>
+        </ul>
+        <p>
+          Up and down mean adjusted p below 0.05 and |log2 fold change| at least 1 (both in Settings). Genes are matched by
+          Ensembl id (any version) or symbol; non-coding genes are left out. With the hg38 example, <em>Use example table</em>{" "}
+          loads HepG2 vs K562 from ENCODE total RNA-seq, analysed with DESeq2. The same tests run with{" "}
+          <code>achi run --expression table.tsv</code>.
+        </p>
+
         <h3 id="signal">Signal profiles and heatmaps</h3>
         <p>
           <em>Signal at the selected subsets and sets</em> shows a bigWig's signal (ChIP-seq, ATAC, DNase, conservation …) across
@@ -393,7 +428,9 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           the analysis with its references (the build of Achi, the inputs, assembly, overlap rule, filters,
           the selected subsets and sets and, if you ran them, the enrichment, GO and gene-list settings);{" "}
           <code>settings.json</code>; every subset as BED (or .txt for lists); tables of the inputs and all subsets; the
-          enrichment and GO results and gene lists you computed; and the plots on screen at that moment as SVG.{" "}
+          results you computed (enrichment, motifs, GO, expression, signal, the permutation test) and gene lists; and the
+          plots on screen at that moment as SVG. A result marked out of date (inputs or settings changed after it ran) is
+          left out, with its plots, so the tables always match <code>settings.json</code>; run it again to include it.{" "}
           <code>settings.json</code> holds no data: the parameters, and each input's name, file name, size and SHA-256
           checksum. <em>Restore settings…</em> reads it back: the parameters apply at once, and the selected subsets and sets
           return once you load the same files (matched by set name; files whose checksum differs are named).
@@ -414,7 +451,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           Optional settings: <code>assembly</code> (hg38, hg19, mm10, mm9), <code>overlap</code> (1bp, fraction50,
           reciprocal50), <code>bedtools</code> (the Advanced field, e.g. <code>f=0.25,r</code>),{" "}
           <code>blacklist=1</code>, <code>sort=degree</code>, <code>min</code> (smallest UpSet bar),{" "}
-          <code>stat</code> (jaccard, fisher, reldist), <code>view</code> and <code>sel</code> (selected subsets by their number; a negative number selects a
+          <code>stat</code> (jaccard, fisher, reldist, permutation), <code>view</code> and <code>sel</code> (selected subsets by their number; a negative number selects a
           whole set: <code>-1</code> the first, <code>-2</code> the second, <code>-4</code> the third, <code>-8</code> the
           fourth…).
           Opening a link always asks first: it lists every file and the server it comes from, and nothing is

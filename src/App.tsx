@@ -27,6 +27,8 @@ import { PALETTE } from "./types";
 import "./styles/tokens.css";
 import "./App.css";
 import { Icon } from "./components/Icon";
+import { CollapseAllButton, CollapsiblePanel } from "./components/CollapsiblePanel";
+import { ExpressionPanel } from "./components/ExpressionPanel";
 
 /** Views that work on lists of names (list mode): the rest need genomic regions. */
 const LIST_VIEWS: View[] = ["upset", "venn", "table"];
@@ -41,6 +43,9 @@ const VIEWS: { id: View; label: string }[] = [
 
 
 const isView = (v: string | undefined): v is View => v === "help" || VIEWS.some((x) => x.id === v);
+
+/** The collapsible analysis panels below the selection (components/CollapsiblePanel.tsx). */
+const ANALYSIS_PANELS = ["summary", "annotation", "signal", "enrichment", "motifs", "go", "expression"];
 
 function App() {
   const view = useStore((s) => s.view);
@@ -65,6 +70,7 @@ function App() {
   // The "Selected subsets" column can be folded to a thin strip to give the
   // middle column its width. Kept for the page session (in memory only).
   const [asideOpen, setAsideOpen] = useState(true);
+  const [railOpen, setRailOpen] = useState(true);
 
   // Restore view, settings and selection from the address (lib/shareLink.ts).
   // Sets are never uploaded or persisted: a link can name public files, which
@@ -201,8 +207,23 @@ function App() {
       {view === "help" ? (
         <HelpPage onBack={() => setView(lastWorkspaceView.current)} />
       ) : (
-      <main className={asideOpen ? "work" : "work aside-closed"}>
-        <SetRail />
+      <main className={`work${railOpen ? "" : " rail-closed"}${asideOpen ? "" : " aside-closed"}`}>
+        {!railOpen && (
+          <section className="col asidestrip railstrip" aria-label="Data and parameters (hidden)">
+            <button
+              className="asidetab"
+              onClick={() => setRailOpen(true)}
+              aria-expanded={false}
+              aria-controls="set-rail"
+              title="Show the data and parameters column"
+            >
+              <Icon name="railOpen" />
+              <span className="asidetab-label">{listMode ? "Lists" : "Region sets"}, settings and annotations</span>
+              {sets.length > 0 && <span className="asidetab-count">{sets.length}</span>}
+            </button>
+          </section>
+        )}
+        <SetRail hidden={!railOpen} onHide={() => setRailOpen(false)} />
 
         <section className="col mid" aria-label="Intersections">
           <div className="rowsplit">
@@ -278,8 +299,9 @@ function App() {
           {view !== "summary" && (
             <div className="card">
               <div className="bd">
-                <div className="eyebrow" style={{ marginBottom: 9 }}>
-                  Selection
+                <div className="selhd">
+                  <div className="eyebrow">Selection</div>
+                  {!listMode && selectedSubsets.length > 0 && <CollapseAllButton ids={ANALYSIS_PANELS} />}
                 </div>
                 <SubsetChips view={view} />
               </div>
@@ -287,66 +309,45 @@ function App() {
           )}
 
           {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
-            <div className="card">
-              <div className="hd">
-                <div className="eyebrow">Summary of selected subsets and sets (bedtools summary)</div>
-              </div>
-              <SummaryPlot items={selectedSubsetSummaryItems} />
-            </div>
-          )}
+            <>
+              {/* Grouped by the question each panel answers: annotate → region enrichment → function. */}
+              <h2 className="panelgroup">Annotate regions</h2>
+              <CollapsiblePanel id="summary" title="Summary of selected subsets and sets (bedtools summary)">
+                <SummaryPlot items={selectedSubsetSummaryItems} />
+              </CollapsiblePanel>
+              <CollapsiblePanel id="annotation" title="Region annotation of selected subsets and sets — bedtools intersect/closest vs. GENCODE">
+                <RegionAnnotationPlot items={selectedSubsetSummaryItems} />
+              </CollapsiblePanel>
+              <CollapsiblePanel id="signal" title="Signal at the selected subsets and sets — profiles and heatmaps (bigWig)">
+                <div className="bd">
+                  <SignalProfilePanel />
+                </div>
+              </CollapsiblePanel>
 
-          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
-            <div className="card">
-              <div className="hd">
-                <div className="eyebrow">Region annotation of selected subsets and sets — bedtools intersect/closest vs. GENCODE</div>
-              </div>
-              <RegionAnnotationPlot items={selectedSubsetSummaryItems} />
-            </div>
-          )}
+              <h2 className="panelgroup">Region enrichment</h2>
+              <CollapsiblePanel id="enrichment" title="Enrichment of selected subsets and sets — reference region sets">
+                <div className="bd">
+                  <SubsetEnrichmentPanel />
+                </div>
+              </CollapsiblePanel>
+              <CollapsiblePanel id="motifs" title="Motif enrichment of selected subsets and sets — JASPAR 2026">
+                <div className="bd">
+                  <MotifEnrichmentPanel />
+                </div>
+              </CollapsiblePanel>
 
-          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
-            <div className="card">
-              <div className="hd">
-                <div className="eyebrow">Enrichment of selected subsets and sets — reference region sets</div>
-              </div>
-              <div className="bd">
-                <SubsetEnrichmentPanel />
-              </div>
-            </div>
-          )}
-
-          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
-            <div className="card">
-              <div className="hd">
-                <div className="eyebrow">Motif enrichment of selected subsets and sets — JASPAR 2026</div>
-              </div>
-              <div className="bd">
-                <MotifEnrichmentPanel />
-              </div>
-            </div>
-          )}
-
-          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
-            <div className="card">
-              <div className="hd">
-                <div className="eyebrow">GO enrichment of selected subsets and sets — GREAT-like or Cistrome-GO-like</div>
-              </div>
-              <div className="bd">
-                <GoEnrichmentPanel />
-              </div>
-            </div>
-          )}
-
-
-          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
-            <div className="card">
-              <div className="hd">
-                <div className="eyebrow">Signal at the selected subsets and sets — profiles and heatmaps (bigWig)</div>
-              </div>
-              <div className="bd">
-                <SignalProfilePanel />
-              </div>
-            </div>
+              <h2 className="panelgroup">Functional analysis</h2>
+              <CollapsiblePanel id="go" title="GO analysis of selected subsets and sets — GREAT-like or Cistrome-GO-like">
+                <div className="bd">
+                  <GoEnrichmentPanel />
+                </div>
+              </CollapsiblePanel>
+              <CollapsiblePanel id="expression" title="Expression near the selected subsets and sets — BETA-like and nearest gene">
+                <div className="bd">
+                  <ExpressionPanel />
+                </div>
+              </CollapsiblePanel>
+            </>
           )}
         </section>
 

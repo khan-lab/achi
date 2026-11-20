@@ -45,7 +45,7 @@ export interface ServerOptions {
 /** Files whose rows are regions or region-level values, returned only with --allow-regions. */
 export function isRegionLevel(path: string): boolean {
   const p = path.replaceAll("\\", "/");
-  return /(^|\/)subsets\//.test(p) || /(^|\/)genes\//.test(p) || /\.bed$/i.test(p) || /(^|\/)tables\/signal_(matrix_.*|region_means)\.tsv$/.test(p);
+  return /(^|\/)subsets\//.test(p) || /(^|\/)genes\//.test(p) || /\.bed$/i.test(p) || /(^|\/)tables\/(signal_(matrix_.*|region_means)|expression_targets)\.tsv$/.test(p);
 }
 
 const PRIVACY = "Files are read and analysed on this computer; nothing is uploaded by Achi. What this tool returns goes into the conversation (and so to the model's provider), so it returns a summary; full results are written to the output folder.";
@@ -85,7 +85,7 @@ export function createServer(o: ServerOptions): McpServer {
     {
       title: "Run an Achi analysis",
       description:
-        "Intersect 1–8 genomic region files on this computer and optionally run analyses: pairwise statistics between the sets (Jaccard, Fisher, reldist); on chosen groups, a per-chromosome summary, annotation by GENCODE category and distance to TSS, nearest genes, enrichment for bundled reference sets (ENCODE cCREs, VISTA, CpG islands, ClinVar, GWAS Catalog...), GO enrichment (GREAT-like or Cistrome-GO-like), JASPAR motif enrichment (needs the assembly's .2bit), and bigWig signal profiles. " +
+        "Intersect 1–8 genomic region files on this computer and optionally run analyses: pairwise statistics between the sets (Jaccard, Fisher, reldist, and a permutation test of overlap against shuffled regions); on chosen groups, a per-chromosome summary, annotation by GENCODE category and distance to TSS, nearest genes, expression changes near the regions from a differential-expression table (BETA-like and nearest-gene tests), enrichment for bundled reference sets (ENCODE cCREs, VISTA, CpG islands, ClinVar, GWAS Catalog...), GO enrichment (GREAT-like or Cistrome-GO-like), JASPAR motif enrichment (needs the assembly's .2bit), and bigWig signal profiles. " +
         "Groups are set names (whole sets), subset labels such as 'HepG2 only' or 'K562 ∩ HepG2', or 'sets'/'subsets'. Writes the same files as the web app's Export analysis. " +
         PRIVACY,
       inputSchema: {
@@ -99,7 +99,25 @@ export function createServer(o: ServerOptions): McpServer {
         summary: z.boolean().default(false).describe("Regions, base pairs and region lengths of each group, per chromosome (bedtools summary)"),
         annotate: z.boolean().default(false).describe("Each group's regions by GENCODE category (promoter, exon, intron, intergenic...) and distance to the nearest TSS"),
         pairwise: z.array(z.enum(["jaccard", "fisher", "reldist"])).optional().describe("Statistics between every ordered pair of input sets (needs 2 or more files)"),
+        permutation: z
+          .object({
+            n: z.number().int().min(10).max(100_000).default(1000).describe("Shuffles of each set"),
+            seed: z.number().int().min(0).max(4294967295).default(1),
+            same_chromosome: z.boolean().default(true).describe("Shuffle each region on its own chromosome (false: anywhere in the genome)"),
+            exclude_blacklist: z.boolean().default(true).describe("Never place a shuffled region on the ENCODE blacklist"),
+          })
+          .optional()
+          .describe("Permutation test of overlap between every ordered pair of input sets: is the number of A regions overlapping B more than chance? Shuffles A avoiding assembly gaps (needs 2 or more files)"),
         genes: z.boolean().default(false).describe("Nearest gene (by TSS) of each group's regions"),
+        expression: z
+          .object({
+            table: z.string().describe("Path of a differential-expression table on this computer (DESeq2, edgeR or limma output; TSV or CSV)"),
+            padj: z.number().gt(0).max(1).default(0.05).describe("Up/down: adjusted p below this"),
+            log2fc: z.number().min(0).max(20).default(1).describe("Up/down: |log2 fold change| at least this"),
+            distance: z.number().int().min(1000).max(1_000_000).default(100_000).describe("Regions within this many bp of a TSS count for it"),
+          })
+          .optional()
+          .describe("Are genes near each group's regions up- or down-regulated? BETA-like (regulatory potential ranks of up and of down genes vs non-differential genes, one-sided KS) and nearest-gene (Mann–Whitney of log2FC) tests"),
         enrich: z.boolean().default(false).describe("Enrichment of each group for the bundled reference sets"),
         length_adjust: z.boolean().default(true).describe("enrich: CMH over region-length strata (true) or Fisher's exact test (false)"),
         go: z
@@ -163,6 +181,8 @@ export function createServer(o: ServerOptions): McpServer {
             summary: a.summary,
             annotate: a.annotate,
             pairwise: a.pairwise,
+            expression: a.expression && { table: a.expression.table, padj: a.expression.padj, minAbsLog2fc: a.expression.log2fc, distance: a.expression.distance },
+            permutation: a.permutation && { n: a.permutation.n, seed: a.permutation.seed, sameChromosome: a.permutation.same_chromosome, excludeBlacklist: a.permutation.exclude_blacklist },
             genes: a.genes,
             enrich: a.enrich ? { adjust: a.length_adjust } : undefined,
             go: a.go && { method: a.go.method, ns: a.go.namespace, background: a.go.background },

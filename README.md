@@ -30,7 +30,8 @@ Achi grows out of [Intervene](https://github.com/asntech/intervene) (Khan and Ma
 
 **Intersection**
 - UpSet plot, Venn diagram (2–4 sets), pairwise heatmap (Jaccard, Fisher,
-  reldist) and a subset table.
+  reldist, or a seeded permutation test of overlap against shuffled regions)
+  and a subset table.
 - Overlap of 1 bp, 50 %, reciprocal 50 %, or any bedtools options.
 - Optional removal of ENCODE problematic regions.
 
@@ -69,6 +70,13 @@ Achi grows out of [Intervene](https://github.com/asntech/intervene) (Khan and Ma
 - Genome from your own FASTA or .2bit, or from UCSC as whole chromosomes
   (private, kept for later runs) or by range requests (exact, asked each
   run). Heatmap with sequence logos, one motif per TF family.
+
+**Expression near the regions** (selected sets/subsets)
+- Your differential-expression table (DESeq2, edgeR, limma), read in the
+  page: BETA-like tests of whether up or down genes have higher regulatory
+  potential from each group's regions, BETA's cumulative plot and ranked
+  target genes, and the log2 fold changes of the regions' nearest genes
+  against all other genes. Example: HepG2 vs K562 (ENCODE RNA-seq, DESeq2).
 
 **Signal profiles** (selected sets/subsets)
 - Profiles (mean ± SE) and heatmaps of any bigWig from your computer over
@@ -171,6 +179,26 @@ For GO enrichment, please also cite the method you ran:
 > server for functional enrichment analysis of transcription factor ChIP-seq
 > peaks. *Nucleic Acids Res*. 2019;47(W1):W206–W211.
 > [doi:10.1093/nar/gkz332](https://doi.org/10.1093/nar/gkz332)
+
+For the pairwise permutation test, please also cite:
+
+> Gel B, Díez-Villanueva A, Serra E, Buschbeck M, Peinado MA, Malinverni R.
+> regioneR: an R/Bioconductor package for the association analysis of
+> genomic regions based on permutation tests. *Bioinformatics*.
+> 2016;32(2):289–291.
+> [doi:10.1093/bioinformatics/btv562](https://doi.org/10.1093/bioinformatics/btv562)
+
+> Phipson B, Smyth GK. Permutation P-values should never be zero: calculating
+> exact P-values when permutations are randomly drawn. *Stat Appl Genet Mol
+> Biol*. 2010;9:Article39.
+> [doi:10.2202/1544-6115.1585](https://doi.org/10.2202/1544-6115.1585)
+
+For the BETA-like expression test, please also cite:
+
+> Wang S, Sun H, Ma J, Zang C, Wang C, Wang J, Tang Q, Meyer CA, Zhang Y,
+> Liu XS. Target analysis by integration of transcriptome and ChIP-seq data
+> with BETA. *Nat Protoc*. 2013;8(12):2502–2515.
+> [doi:10.1038/nprot.2013.150](https://doi.org/10.1038/nprot.2013.150)
 
 The genome-wide location view is GenomeSpy:
 

@@ -38,7 +38,7 @@ const text = (r: Awaited<ReturnType<Client["callTool"]>>) => (r.content as { typ
 describe("isRegionLevel", () => {
   it("marks subset BEDs, gene lists, signal matrices and region means; not statistics tables or methods", () => {
     for (const p of ["subsets/MCF.bed", "genes/K562_only.genes.txt", "tables/signal_matrix_K562.tsv", "tables/signal_region_means.tsv", "x/clusters.bed"]) expect(isRegionLevel(p)).toBe(true);
-    for (const p of ["tables/enrichment_reference_sets.tsv", "tables/achi-go-BP-greatlike-genome.tsv", "tables/signal_tests.tsv", "tables/subsets.tsv", "tables/summary.tsv", "tables/annotation.tsv", "tables/distance_to_tss.tsv", "tables/pairwise_fisher.tsv", "tables/pairwise_reldist_bins.tsv", "methods.md", "settings.json"]) expect(isRegionLevel(p)).toBe(false);
+    for (const p of ["tables/enrichment_reference_sets.tsv", "tables/achi-go-BP-greatlike-genome.tsv", "tables/signal_tests.tsv", "tables/subsets.tsv", "tables/summary.tsv", "tables/annotation.tsv", "tables/distance_to_tss.tsv", "tables/pairwise_fisher.tsv", "tables/pairwise_reldist_bins.tsv", "tables/pairwise_permutation.tsv", "methods.md", "settings.json"]) expect(isRegionLevel(p)).toBe(false);
   });
 });
 
@@ -100,6 +100,22 @@ describeIfBedtools("run_analysis and read_result_file", () => {
     expect(t).not.toMatch(/pairwise reldist/);
     const table = await client.callTool({ name: "read_result_file", arguments: { path: "tables/pairwise_fisher.tsv", max_lines: 2 } });
     expect(text(table)).toBe("set_a\tset_b\todds_ratio\tp_two_tail\nMCF7\tGM12878\t9.597\t1.0437e-56\n… 12 more lines in " + text(table).split("more lines in ")[1]);
+  }, 120_000);
+
+  it("runs the permutation test, returning the significant pairs", async () => {
+    const client = await connect(false);
+    const r = await client.callTool({ name: "run_analysis", arguments: { files: EXAMPLES, permutation: { n: 100, seed: 1 } } });
+    expect(r.isError).toBeFalsy();
+    expect(text(r)).toMatch(/\npairwise permutation: top results with q < 0\.05\n- MCF7 → HepG2: 196 of 639 regions overlap, 24 expected \(fold 8\.3\), q 0\.020/);
+  }, 120_000);
+
+  it("runs the expression tests, and keeps target genes in the folder", async () => {
+    const client = await connect(false);
+    const r = await client.callTool({ name: "run_analysis", arguments: { files: EXAMPLES, select: ["HepG2 only"], expression: { table: join(PUBLIC, "examples/expression/HepG2_vs_K562.deseq2.tsv") } } });
+    expect(r.isError).toBeFalsy();
+    expect(text(r)).toMatch(/\nexpression: top results with q < 0\.05\n- HepG2 only: /);
+    expect(isRegionLevel("tables/expression_targets.tsv")).toBe(true);
+    expect(isRegionLevel("tables/expression_beta.tsv")).toBe(false);
   }, 120_000);
 
   it("reports a problem as a tool error the assistant can read", async () => {

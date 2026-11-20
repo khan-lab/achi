@@ -61,8 +61,17 @@ Options for run:
       --summary                regions, base pairs and region lengths of each group, per chromosome
       --annotate               each group's regions by GENCODE category, and their distance to the nearest TSS
       --pairwise <stats>       statistics between every ordered pair of input sets, comma-separated:
-                               jaccard, fisher, reldist (or "all")
+                               jaccard, fisher, reldist (or "all" for these three), permutation
+      --permutations <n>       permutation: shuffles of each set (default 1000)
+      --seed <n>               permutation: random seed (default 1; same seed, same result as the web app)
+      --any-chromosome         permutation: shuffle regions anywhere in the genome, not on their own chromosome
+      --shuffle-into-blacklist permutation: let shuffled regions land on the ENCODE blacklist
       --genes                  nearest gene (by TSS) of each group's regions
+      --expression <table>     a differential-expression table (DESeq2, edgeR, limma; TSV or CSV): are genes
+                               near each group's regions up or down? BETA-like and nearest-gene tests
+      --expression-padj <p>    up/down: adjusted p below this (default 0.05)
+      --expression-log2fc <x>  up/down: |log2 fold change| at least this (default 1)
+      --expression-distance <bp>  regions within this of a TSS count for it (default 100000)
       --enrich                 enrichment of each group for the bundled reference sets
       --no-length-adjust       ... with Fisher's exact test instead of CMH over length strata
       --go <method>            GO enrichment: great or cistromego
@@ -104,6 +113,14 @@ const OPTIONS = {
   summary: { type: "boolean" },
   annotate: { type: "boolean" },
   pairwise: { type: "string" },
+  permutations: { type: "string" },
+  seed: { type: "string" },
+  "any-chromosome": { type: "boolean" },
+  expression: { type: "string" },
+  "expression-padj": { type: "string" },
+  "expression-log2fc": { type: "string" },
+  "expression-distance": { type: "string" },
+  "shuffle-into-blacklist": { type: "boolean" },
   threads: { type: "string" },
   genes: { type: "boolean" },
   enrich: { type: "boolean" },
@@ -165,13 +182,15 @@ function printSummary(s: AnalysisSummary, io: Io, p: Paint) {
 
 const PAIRWISE_STATS: PairwiseStat[] = ["jaccard", "fisher", "reldist"];
 
-function pairwiseStats(value: string | undefined): PairwiseStat[] | undefined {
-  if (value === undefined) return undefined;
+/** --pairwise: the bedtools statistics asked for ("all" is these three), and whether the permutation test is. */
+function pairwiseStats(value: string | undefined): { stats?: PairwiseStat[]; permutation: boolean } {
+  if (value === undefined) return { permutation: false };
   const asked = value.split(",").map((x) => x.trim()).filter(Boolean);
-  if (asked.includes("all")) return PAIRWISE_STATS;
-  for (const x of asked) if (!(PAIRWISE_STATS as string[]).includes(x)) throw new UsageError(`--pairwise takes ${PAIRWISE_STATS.join(", ")} or all; got "${x}".`);
-  if (!asked.length) throw new UsageError(`--pairwise takes ${PAIRWISE_STATS.join(", ")} or all.`);
-  return PAIRWISE_STATS.filter((x) => asked.includes(x));
+  const takes = `--pairwise takes ${PAIRWISE_STATS.join(", ")}, all or permutation`;
+  if (!asked.length) throw new UsageError(`${takes}.`);
+  for (const x of asked) if (x !== "all" && x !== "permutation" && !(PAIRWISE_STATS as string[]).includes(x)) throw new UsageError(`${takes}; got "${x}".`);
+  const stats = asked.includes("all") ? PAIRWISE_STATS : PAIRWISE_STATS.filter((x) => asked.includes(x));
+  return { stats: stats.length ? stats : undefined, permutation: asked.includes("permutation") };
 }
 
 export async function main(argv: string[], io: Io, mo: MainOptions = {}): Promise<number> {
@@ -244,6 +263,26 @@ export async function main(argv: string[], io: Io, mo: MainOptions = {}): Promis
     const go = v.go === undefined ? undefined : oneOf("go", v.go, ["great", "cistromego"] as const, "great");
 
     const pairwise = pairwiseStats(v.pairwise);
+    const exprFlags = ["expression-padj", "expression-log2fc", "expression-distance"] as const;
+    if (!v.expression && exprFlags.some((f) => v[f] !== undefined)) throw new UsageError(`--${exprFlags.find((f) => v[f] !== undefined)} needs --expression <table>.`);
+    const expression = v.expression
+      ? {
+          table: v.expression,
+          ...(v["expression-padj"] !== undefined ? { padj: num("expression-padj", v["expression-padj"], 0.05, (n) => n > 0 && n <= 1) } : {}),
+          ...(v["expression-log2fc"] !== undefined ? { minAbsLog2fc: num("expression-log2fc", v["expression-log2fc"], 1, (n) => n >= 0 && n <= 20) } : {}),
+          ...(v["expression-distance"] !== undefined ? { distance: num("expression-distance", v["expression-distance"], 100_000, (n) => Number.isInteger(n) && n >= 1000 && n <= 1_000_000) } : {}),
+        }
+      : undefined;
+    const permFlags = ["permutations", "seed", "any-chromosome", "shuffle-into-blacklist"] as const;
+    if (!pairwise.permutation && permFlags.some((f) => v[f] !== undefined)) throw new UsageError(`--${permFlags.find((f) => v[f] !== undefined)} needs --pairwise permutation.`);
+    const permutation = pairwise.permutation
+      ? {
+          ...(v.permutations !== undefined ? { n: num("permutations", v.permutations, 1000, (n) => Number.isInteger(n) && n >= 10 && n <= 100_000) } : {}),
+          ...(v.seed !== undefined ? { seed: num("seed", v.seed, 1, (n) => Number.isInteger(n) && n >= 0 && n <= 0xffffffff) } : {}),
+          ...(v["any-chromosome"] ? { sameChromosome: false } : {}),
+          ...(v["shuffle-into-blacklist"] ? { excludeBlacklist: false } : {}),
+        }
+      : undefined;
     const threads = v.threads === undefined ? undefined : num("threads", v.threads, 1, (n) => Number.isInteger(n) && n >= 1 && n <= 64);
 
     const rt = await createNodeRuntime({
@@ -268,7 +307,9 @@ export async function main(argv: string[], io: Io, mo: MainOptions = {}): Promis
           settings: v.settings,
           summary: v.summary,
           annotate: v.annotate,
-          pairwise,
+          pairwise: pairwise.stats,
+          permutation,
+          expression,
           genes: v.genes,
           enrich: v.enrich ? { adjust: !v["no-length-adjust"] } : undefined,
           go: go && {

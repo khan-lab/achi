@@ -2,9 +2,11 @@
 
 Lets an AI assistant (Claude Desktop, Claude Code or any MCP client) run
 [Achi](https://khan-lab.github.io/achi/) analyses on region files on your
-computer: intersections, pairwise statistics between the sets, per-chromosome
-summaries, region annotation, nearest genes, reference-set, GO and motif
-enrichment, and signal profiles, computed with native bedtools by the same
+computer: intersections, pairwise statistics between the sets (including a
+permutation test of overlap), per-chromosome summaries, region annotation,
+nearest genes, expression changes near the regions from a
+differential-expression table, reference-set, GO and motif enrichment, and
+signal profiles, computed with native bedtools by the same
 code as the web app and the `achi` command-line tool.
 
 ## What reaches the assistant
@@ -16,8 +18,8 @@ sizes, group names, and the top results with odds ratios and q-values. Full
 results are written to a folder on disk (`~/achi-results` by default).
 
 `read_result_file` reads files from those folders only, and refuses
-region-level files (subset BED files, gene lists, signal matrices and
-per-region means) unless the server was started with `--allow-regions`.
+region-level files (subset BED files, gene lists, expression target genes,
+signal matrices and per-region means) unless the server was started with `--allow-regions`.
 Input files are never returned. Use `--allow-regions` only when the data
 may be shared with the model's provider.
 

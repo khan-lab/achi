@@ -10,6 +10,9 @@
  * paragraph per further analysis that was run (enrichment, GO), each with
  * its references.
  */
+import type { PairwiseView } from "./pairwiseStats";
+import type { PermutationSettings } from "./permutation";
+import type { ExpressionSettings } from "./expression";
 import type { ProfileParams } from "./signalMatrix";
 import type { OverlapPreset } from "./bedtoolsOptions";
 import { setKey } from "./selection";
@@ -49,7 +52,11 @@ export interface AnalysisSettings {
   overlap: { preset: OverlapPreset; advanced: string; flags: string };
   blacklistFilter: boolean;
   upset: { sort: "size" | "degree"; minSize: number };
-  pairwiseStat: "jaccard" | "fisher" | "reldist";
+  pairwiseStat: PairwiseView;
+  /** The Pairwise view's permutation test settings (absent in files saved before it existed). */
+  permutation?: PermutationSettings;
+  /** The Expression panel's settings (absent in files saved before it existed). */
+  expression?: ExpressionSettings;
   view: string;
   sets: SavedSet[];
   selected: SavedSubset[];
@@ -74,7 +81,9 @@ export interface SettingsInput {
   blacklistFilter: boolean;
   upsetSort: "size" | "degree";
   upsetMinSize: number;
-  pairwiseStat: "jaccard" | "fisher" | "reldist";
+  pairwiseStat: PairwiseView;
+  permutation?: PermutationSettings;
+  expression?: ExpressionSettings;
   view: string;
   sets: SavedSet[];
   selected: SavedSubset[];
@@ -96,6 +105,8 @@ export function buildSettings(i: SettingsInput): AnalysisSettings {
     blacklistFilter: i.blacklistFilter,
     upset: { sort: i.upsetSort, minSize: i.upsetMinSize },
     pairwiseStat: i.pairwiseStat,
+    ...(i.permutation ? { permutation: i.permutation } : {}),
+    ...(i.expression ? { expression: i.expression } : {}),
     view: i.view,
     sets: i.sets,
     selected: i.selected,

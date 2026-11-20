@@ -40,7 +40,9 @@ import {
   type InputFormat,
 } from "@achi/core/inputValidation";
 import { webRuntime } from "../lib/runtime";
-import type { PairwiseStat } from "@achi/core/pairwiseStats";
+import type { PairwiseView as PairwiseStat } from "@achi/core/pairwiseStats";
+import { PERMUTATION_DEFAULTS, type PermutationSettings } from "@achi/core/permutation";
+import { EXPRESSION_DEFAULTS, type ExpressionSettings } from "@achi/core/expression";
 
 export type View = "upset" | "venn" | "pairwise" | "table" | "summary" | "browser" | "help";
 
@@ -122,6 +124,10 @@ interface StoreState {
   /** hg38 (default), hg19, mm10, or mm9 — see docs/provenance.md for vendored chrom.sizes. Used by the Pairwise Fisher/Reldist toggle only; the overlap pipeline itself doesn't need a genome. */
   assembly: string;
   pairwiseStat: PairwiseStat;
+  /** The Pairwise view's permutation test (core permutation.ts); saved in the settings file. */
+  permutationSettings: PermutationSettings;
+  /** The Expression panel (core expression.ts); saved in the settings file. */
+  expressionSettings: ExpressionSettings;
   /** Drop regions overlapping the ENCODE blacklist from every set before analysis. Off by default, to match the CLI. */
   blacklistFilter: boolean;
   /** UpSet chart sort key — pure client-side reordering of already-computed subsets, no recompute involved. */
@@ -151,6 +157,8 @@ interface StoreState {
   setAdvancedBedtoolsOptions: (value: string) => void;
   setAssembly: (assembly: string) => void;
   setPairwiseStat: (stat: PairwiseStat) => void;
+  setPermutationSettings: (s: PermutationSettings) => void;
+  setExpressionSettings: (s: ExpressionSettings) => void;
   setBlacklistFilter: (on: boolean) => void;
   setUpsetSort: (sort: "size" | "degree") => void;
   setUpsetMinSize: (size: number) => void;
@@ -406,6 +414,8 @@ export const useStore = create<StoreState>((set, get) => {
   advancedBedtoolsOptions: "",
   assembly: "hg38",
   pairwiseStat: "jaccard",
+  permutationSettings: PERMUTATION_DEFAULTS,
+  expressionSettings: EXPRESSION_DEFAULTS,
   blacklistFilter: false,
   upsetSort: "size",
   upsetMinSize: 0,
@@ -589,6 +599,8 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   setPairwiseStat: (stat) => set({ pairwiseStat: stat }),
+  setPermutationSettings: (permutationSettings) => set({ permutationSettings }),
+  setExpressionSettings: (expressionSettings) => set({ expressionSettings }),
 
   setBlacklistFilter: (on) => {
     set({ blacklistFilter: on });
@@ -754,11 +766,13 @@ export const useStore = create<StoreState>((set, get) => {
         upsetSort: st.upsetSort,
         upsetMinSize: st.upsetMinSize,
         pairwiseStat: st.pairwiseStat,
+        permutation: st.permutationSettings,
+        expression: st.expressionSettings,
         view: st.view,
         sets: st.sets.map((x) => ({ name: x.name, fileName: x.fileName, code: x.code, color: x.color, included: x.included, n: x.nRegions, bp: x.nBp, sha256: x.sha256 })),
         selected: chosen.map((x) => ({ label: x.label, memberNames: x.memberIds.map((id) => byId.get(id)?.name ?? id), n: x.nRegions, ...(x.whole ? { whole: true } : {}) })),
       });
-      const extras = collectExports();
+      const { current: extras, outOfDate } = collectExports();
       zip.file("settings.json", JSON.stringify(settings, null, 2) + "\n");
       zip.file("methods.md", methodsText(settings, extras.flatMap((e) => (e.methods ? [e.methods] : []))));
       zip.file("tables/sets.tsv", setsTsv(settings));
@@ -769,6 +783,8 @@ export const useStore = create<StoreState>((set, get) => {
       const figures: string[] = [];
       const used = new Set<string>();
       document.querySelectorAll<SVGSVGElement>(".col.mid svg[role='img'][aria-label]").forEach((svg) => {
+        // An out-of-date chart is left out, like its tables.
+        if (svg.closest(".stale")) return;
         const base = (svg.getAttribute("aria-label") ?? "figure").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase().slice(0, 60) || "figure";
         let name = base;
         for (let k = 2; used.has(name); k++) name = `${base}-${k}`;
@@ -791,10 +807,15 @@ export const useStore = create<StoreState>((set, get) => {
         `- subsets/: every subset as ${mode === "lists" ? ".txt (one name per line)" : ".bed"}.`,
         ...extras.flatMap((e) => e.files.map((f) => `- ${f.path}`)),
         ...(figures.length ? ["- figures/: the plots on screen at export time, as SVG:", ...figures.map((f) => `  - ${f}`)] : []),
+        ...(outOfDate.length
+          ? ["", `Left out: ${outOfDate.join(", ")}. The inputs or settings changed after these were run, so their results no longer match settings.json; run them again and export to include them.`]
+          : []),
         "",
       ].join("\n");
       zip.file("README.md", readme);
       download(await zip.generateAsync({ type: "blob" }), `achi-analysis-${settings.created.slice(0, 10)}.zip`);
+      if (outOfDate.length)
+        set({ notices: [...get().notices, `The export leaves out ${outOfDate.join(", ")}: the inputs or settings changed after the run. Run again, then export, to include ${outOfDate.length > 1 ? "them" : "it"}.`] });
     } finally {
       set({ progress: null });
     }
@@ -819,6 +840,8 @@ export const useStore = create<StoreState>((set, get) => {
       upsetSort: s.upset.sort,
       upsetMinSize: s.upset.minSize,
       pairwiseStat: s.pairwiseStat,
+      ...(s.permutation ? { permutationSettings: { ...PERMUTATION_DEFAULTS, ...s.permutation } } : {}),
+      ...(s.expression ? { expressionSettings: { ...EXPRESSION_DEFAULTS, ...s.expression } } : {}),
       view: (["upset", "venn", "pairwise", "table", "summary", "browser"] as View[]).includes(s.view as View) ? (s.view as View) : get().view,
       pendingSelection: s.selected,
       notices,

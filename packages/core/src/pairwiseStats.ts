@@ -267,6 +267,8 @@ export async function computeJaccard(bt: Bedtools, aPath: string, bPath: string,
 
 /** The CLI's `intervene pairwise --compute {jaccard,fisher,reldist}`. */
 export type PairwiseStat = "jaccard" | "fisher" | "reldist";
+/** What the Pairwise view shows: a bedtools statistic, or the permutation test (permutation.ts). */
+export type PairwiseView = PairwiseStat | "permutation";
 export type PairwiseValue = JaccardResult | FisherResult | ReldistResult;
 
 export interface PairwiseRequest {

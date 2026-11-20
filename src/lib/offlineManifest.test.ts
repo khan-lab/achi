@@ -46,6 +46,8 @@ describe("classifyOfflineFile", () => {
     ["refdata/mm10/genes/gene_models.bed", "data"],
     ["refdata/hg38/remote/tracks.json", "data"],
     ["refdata/mm9/cytoband.txt", "data"],
+    ["examples/expression/HepG2_vs_K562.deseq2.tsv", "data"],
+    ["examples/expression/build_expression.R", null],
     ["refdata/build_cytobands.py", null],
     ["refdata/build_remote_tracks.py", null],
     ["refdata/build_gene_models.py", null],
