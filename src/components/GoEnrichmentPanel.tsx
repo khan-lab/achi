@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { scaleLinear } from "d3";
 import { SelectFirstHint } from "./CollapsiblePanel";
 import { usePanelStatus } from "./panelState";
 import { count, panelStatus } from "./panelStatus";
@@ -451,7 +452,7 @@ function CistromeGoSettingsForm({ value, onChange }: { value: CistromeGoSettings
 
 /* ---------- chart ---------- */
 
-/** Top enriched terms of one subset: bars of −log10 q in the subset's colour, term names direct-labelled. */
+/** Top enriched terms of one subset: bars of −log10 q in the subset's colour on a scaled top axis, term names direct-labelled. */
 function GoBarChart(props: { subset: SubsetResult; title: string; metric: string; foldLabel: string; qThreshold: number; svgRef: React.RefObject<SVGSVGElement | null> }) {
   const { subset, title, metric, foldLabel, qThreshold, svgRef } = props;
   const TOP = 15;
@@ -460,30 +461,53 @@ function GoBarChart(props: { subset: SubsetResult; title: string; metric: string
   const ROW = 18;
   const PAD = 10;
   const HEAD = 22;
+  const AXIS = 20; // tick labels and ticks above the bars
   const top = subset.rows.filter((r) => r.fold > 1).slice(0, TOP);
-  const max = Math.max(1, negLog10(qThreshold) * 1.15, ...top.map((r) => negLog10(r.q)));
-  const footer = `Bar: −log₁₀ q (${metric}); dashed line q = ${qThreshold}; label: ${foldLabel}. Faded: not significant.`;
-  const height = PAD + HEAD + Math.max(1, top.length) * ROW + 30;
-  const width = Math.max(PAD + LABEL_W + 8 + BAR_MAX + 60, PAD + estimateTextWidth(footer, 10) + PAD, PAD + 14 + estimateTextWidth(title, 11.5) + PAD);
   const x0 = PAD + LABEL_W + 8;
-  const thresholdX = x0 + (negLog10(qThreshold) / max) * BAR_MAX;
+  const x = scaleLinear()
+    .domain([0, Math.max(1, negLog10(qThreshold) * 1.15, ...top.map((r) => negLog10(r.q)))])
+    .range([x0, x0 + BAR_MAX])
+    .nice(5);
+  const ticks = x.ticks(5);
+  const axisTitle = "−log₁₀ q";
+  const footer = `Bar: −log₁₀ q (${metric}); dashed line q = ${qThreshold}; label: ${foldLabel}. Faded: not significant.`;
+  const barsTop = PAD + HEAD + AXIS;
+  const barsBottom = barsTop + Math.max(1, top.length) * ROW;
+  const height = barsBottom + 30;
+  const width = Math.max(x0 + BAR_MAX + 18 + estimateTextWidth(axisTitle, 10) + PAD, x0 + BAR_MAX + 60, PAD + estimateTextWidth(footer, 10) + PAD, PAD + 14 + estimateTextWidth(title, 11.5) + PAD);
+  const thresholdX = x(negLog10(qThreshold));
   return (
     <div className="heatwrap">
       <svg ref={svgRef} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Top GO terms for ${subset.label}`}>
         <rect x={0} y={0} width={width} height={height} fill={PAPER} />
-        <line x1={thresholdX} x2={thresholdX} y1={PAD + HEAD - 4} y2={height - 26} stroke={INK_3} strokeDasharray="3 3" strokeWidth={1} />
         <rect x={PAD} y={PAD + 2} width={9} height={9} rx={2} fill={subset.color} />
         <text x={PAD + 14} y={PAD + 11} fontSize={11.5} fill={INK} fontWeight={500}>
           {title}
         </text>
+        {/* top axis: −log10 q scale */}
+        <g fontSize={10} fill={INK_3}>
+          <line x1={x0} x2={x0 + BAR_MAX} y1={barsTop} y2={barsTop} stroke={INK_3} strokeWidth={1} />
+          {ticks.map((t) => (
+            <g key={t}>
+              <line x1={x(t)} x2={x(t)} y1={barsTop - 4} y2={barsTop} stroke={INK_3} strokeWidth={1} />
+              <text x={x(t)} y={barsTop - 7} textAnchor="middle" fontFamily="monospace">
+                {t}
+              </text>
+            </g>
+          ))}
+          <text x={x0 + BAR_MAX + 18} y={barsTop - 7}>
+            {axisTitle}
+          </text>
+        </g>
+        <line x1={thresholdX} x2={thresholdX} y1={barsTop} y2={barsBottom + 4} stroke={INK_3} strokeDasharray="3 3" strokeWidth={1} />
         {!top.length && (
-          <text x={PAD} y={PAD + HEAD + 12} fontSize={11} fill={INK_3}>
+          <text x={PAD} y={barsTop + 12} fontSize={11} fill={INK_3}>
             No enriched terms
           </text>
         )}
         {top.map((r, i) => {
-          const ry = PAD + HEAD + i * ROW;
-          const w = Math.max(2, (negLog10(r.q) / max) * BAR_MAX);
+          const ry = barsTop + i * ROW;
+          const w = Math.max(2, x(negLog10(r.q)) - x0);
           return (
             <g key={r.id}>
               <title>{`${r.name} (${r.id})\n${r.detail}${r.genes?.length ? `\n${r.genes.slice(0, 20).join(", ")}` : ""}`}</title>
@@ -497,6 +521,8 @@ function GoBarChart(props: { subset: SubsetResult; title: string; metric: string
             </g>
           );
         })}
+        {/* left axis: the bars' baseline */}
+        <line x1={x0} x2={x0} y1={barsTop} y2={barsBottom} stroke={INK_3} strokeWidth={1} />
         <text x={PAD} y={height - 8} fontSize={10} fill={INK_3}>
           {footer}
         </text>
