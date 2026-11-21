@@ -157,25 +157,33 @@ function CompareChart({ cmp, input, svgRef }: { cmp: GoComparison; input: Compar
   const radius = (f: number) => R_MIN + (R_MAX - R_MIN) * Math.sqrt((Math.min(Number.isFinite(f) ? f : foldCap, foldCap) - 1) / (foldCap - 1));
   const sizeKeys = [...new Set([1.5, Math.round(Math.sqrt(foldCap) * 10) / 10, foldCap])].filter((v) => v > 1 && v <= foldCap);
 
-  // Size legend: a column right of the grid; colour legend under it.
+  // Keys in a column right of the grid: size, then colour (a vertical bar, high −log10 q at the top).
   const sizeX = gridX + gridW + 16;
   const SIZE_STEP = 2 * R_MAX + 6;
   const sizeTop = gridY + 18;
   const sizeBottom = sizeTop + sizeKeys.length * SIZE_STEP;
-  const sizeW = Math.max(estimateTextWidth(input.foldLabel, 10), 2 * R_MAX + 6 + Math.max(...sizeKeys.map((f) => String(f).length * 6))); // monospace digits ≈ 6 px at 9.5 px
-  const legendY = Math.max(gridY + gridH, sizeBottom) + 26;
-  const legendX = gridX;
+  const ticks = qScale.ticks(4);
+  const COLOR_H = 100;
+  const colorTop = sizeBottom + 32;
+  const colorY = (t: number) => colorTop + COLOR_H - (t / qScale.domain()[1]) * COLOR_H;
+  const monoW = (t: string) => t.length * 6; // monospace digits ≈ 6 px at 9.5 px
+  const keyW = Math.max(
+    estimateTextWidth(input.foldLabel, 10),
+    estimateTextWidth("−log₁₀ q", 10),
+    2 * R_MAX + 6 + Math.max(...sizeKeys.map((f) => monoW(String(f)))),
+    10 + 6 + Math.max(...ticks.map((t) => monoW(String(t)))),
+  );
+  const legendY = Math.max(gridY + gridH, colorTop + COLOR_H) + 26;
   const footer = `Colour: −log₁₀ q (${input.metric}); size: ${input.foldLabel}, capped at ${foldCap}; grey ring: enriched, not significant; empty: not enriched.${cmp.clustered ? ` Similar terms grouped at kappa > ${cmp.minKappa} (Metascape's clustering); +n: terms in the group.` : ""}`;
   const footerLines = wrap(footer, Math.max(gridX + gridW, 420) - PAD, 10);
-  const width = Math.max(gridX + gridW + colLabelH * 0.7, sizeX + sizeW, legendX + 160, PAD + Math.max(...footerLines.map((l) => estimateTextWidth(l, 10)))) + PAD;
-  const height = legendY + 50 + footerLines.length * 13;
-  const ticks = qScale.ticks(4);
+  const width = Math.max(gridX + gridW + colLabelH * 0.7, sizeX + keyW, PAD + Math.max(...footerLines.map((l) => estimateTextWidth(l, 10)))) + PAD;
+  const height = legendY + footerLines.length * 13;
 
   return (
     <div className="heatwrap">
       <svg ref={svgRef} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label="GO terms compared across subsets">
         <defs>
-          <linearGradient id="gocmp-grad" x1="0" x2="1" y1="0" y2="0">
+          <linearGradient id="gocmp-grad" x1="0" x2="0" y1="1" y2="0">
             {[0, 0.25, 0.5, 0.75, 1].map((t) => (
               <stop key={t} offset={`${t * 100}%`} stopColor={interpolateLab(Q_LIGHT, Q_DARK)(t)} />
             ))}
@@ -227,15 +235,18 @@ function CompareChart({ cmp, input, svgRef }: { cmp: GoComparison; input: Compar
           );
         })}
         <rect x={gridX} y={gridY} width={gridW} height={gridH} fill="none" stroke={AXIS_INK} shapeRendering="crispEdges" />
-        {/* legends: colour under the grid, size in a column on its right */}
-        <text x={legendX} y={legendY - 6} fontSize={10} fill={INK_3}>
+        {/* keys in a column right of the grid: size, then colour */}
+        <text x={sizeX} y={colorTop - 12} fontSize={10} fill={INK_3}>
           −log₁₀ q
         </text>
-        <rect x={legendX} y={legendY} width={150} height={10} fill="url(#gocmp-grad)" stroke={AXIS_INK} shapeRendering="crispEdges" />
+        <rect x={sizeX} y={colorTop} width={10} height={COLOR_H} fill="url(#gocmp-grad)" stroke={AXIS_INK} shapeRendering="crispEdges" />
         {ticks.map((t) => (
-          <text key={t} x={legendX + (t / qScale.domain()[1]) * 150} y={legendY + 23} textAnchor="middle" fontSize={9.5} fontFamily="monospace" fill={INK_3}>
-            {t}
-          </text>
+          <g key={t}>
+            <line x1={sizeX + 10} x2={sizeX + 13} y1={colorY(t)} y2={colorY(t)} stroke={AXIS_INK} strokeWidth={1} shapeRendering="crispEdges" />
+            <text x={sizeX + 16} y={colorY(t) + 3.5} fontSize={9.5} fontFamily="monospace" fill={INK_3}>
+              {t}
+            </text>
+          </g>
         ))}
         <text x={sizeX} y={gridY + 8} fontSize={10} fill={INK_3}>
           {input.foldLabel}
@@ -252,7 +263,7 @@ function CompareChart({ cmp, input, svgRef }: { cmp: GoComparison; input: Compar
           );
         })}
         {footerLines.map((l, k) => (
-          <text key={k} x={PAD} y={legendY + 50 + k * 13} fontSize={10} fill={INK_3}>
+          <text key={k} x={PAD} y={legendY + k * 13} fontSize={10} fill={INK_3}>
             {l}
           </text>
         ))}
