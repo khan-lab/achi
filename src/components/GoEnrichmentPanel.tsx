@@ -27,6 +27,7 @@ import {
 import { PALETTE } from "../types";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
+import { TopRowsInput } from "./TopRowsInput";
 import { markExportStale, registerExport } from "../lib/exportRegistry";
 import { goMethods } from "@achi/core/analysisExport";
 
@@ -51,6 +52,8 @@ const INK_3 = "#8b97a9";
 const AXIS_INK = "#3a4250";
 const PAPER = "#ffffff";
 const TABLE_ROWS = 100;
+/** Terms in the bar chart unless the user picks another number. */
+const DEFAULT_TOP_TERMS = 15;
 const negLog10 = (q: number) => Math.min(300, q > 0 ? -Math.log10(q) : 300);
 const nsLabel = goNamespaceLabel;
 /** The term's page in AmiGO, the Gene Ontology Consortium's browser. Opened in a new tab without a referrer: only the GO id leaves the page. */
@@ -63,6 +66,7 @@ const saved = {
   great: { ...GREAT_UI_DEFAULTS },
   cgo: { ...CISTROMEGO_DEFAULTS },
   results: new Map<Method, Result>(),
+  top: DEFAULT_TOP_TERMS,
 };
 
 export function GoEnrichmentPanel() {
@@ -227,6 +231,9 @@ const methodLabel = (r: Result) => (r.method === "cistromego" ? "Cistrome-GO-lik
 /** The finished result: one tab per subset, each with its own chart, table and downloads. Memoised so progress updates during a run don't re-render it. */
 const ResultView = memo(function ResultView({ result, active, stale, onSelect }: { result: Result; active: SubsetResult; stale: boolean; onSelect: (mask: number) => void }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [top, setTopState] = useState(saved.top);
+  const setTop = (n: number) => setTopState((saved.top = n));
+  const nEnriched = active.rows.filter((r) => r.fold > 1).length;
   return (
     <div className={stale ? "stale" : undefined}>
       <div className="tabs wrap" role="tablist" aria-label="Subset" style={{ marginBottom: 8 }}>
@@ -250,9 +257,12 @@ const ResultView = memo(function ResultView({ result, active, stale, onSelect }:
         metric={result.method === "cistromego" ? "XL-mHG" : result.background === "genome" ? "binomial" : "Fisher"}
         foldLabel={result.method === "great" && result.background === "inputs" ? "odds ratio" : "fold"}
         qThreshold={result.qThreshold}
+        top={top}
         svgRef={svgRef}
       />
       <div className="plotactions">
+        <TopRowsInput value={top} max={nEnriched} noun="terms" chart="bar chart" def={DEFAULT_TOP_TERMS} onChange={setTop} />
+        <span style={{ marginRight: "auto" }} />
         <button className="iconbtn" title={`Download all terms for ${active.label} as TSV`} aria-label={`Download GO results for ${active.label} as TSV`} onClick={() => exportTsv(result, active)}>
           <Icon name="download" />
         </button>
@@ -455,16 +465,15 @@ function CistromeGoSettingsForm({ value, onChange }: { value: CistromeGoSettings
 /* ---------- chart ---------- */
 
 /** Top enriched terms of one subset: bars of −log10 q in the subset's colour on a scaled top axis, term names direct-labelled. */
-function GoBarChart(props: { subset: SubsetResult; title: string; metric: string; foldLabel: string; qThreshold: number; svgRef: React.RefObject<SVGSVGElement | null> }) {
-  const { subset, title, metric, foldLabel, qThreshold, svgRef } = props;
-  const TOP = 15;
+function GoBarChart(props: { subset: SubsetResult; title: string; metric: string; foldLabel: string; qThreshold: number; top: number; svgRef: React.RefObject<SVGSVGElement | null> }) {
+  const { subset, title, metric, foldLabel, qThreshold, top: nTop, svgRef } = props;
   const LABEL_W = 280;
   const BAR_MAX = 240;
   const ROW = 18;
   const PAD = 10;
   const HEAD = 22;
   const AXIS = 20; // tick labels and ticks above the bars
-  const top = subset.rows.filter((r) => r.fold > 1).slice(0, TOP);
+  const top = subset.rows.filter((r) => r.fold > 1).slice(0, nTop);
   const x0 = PAD + LABEL_W + 8;
   const x = scaleLinear()
     .domain([0, Math.max(1, negLog10(qThreshold) * 1.15, ...top.map((r) => negLog10(r.q)))])

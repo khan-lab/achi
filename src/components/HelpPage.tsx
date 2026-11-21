@@ -346,7 +346,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
         </p>
         <p>
           q-values are Benjamini–Hochberg over all tested terms of a namespace, per subset. The chart shows the top 15
-          enriched terms of the subset; the TSV downloads have every term. GO data: Gene Ontology Consortium (CC BY 4.0;
+          enriched terms of the subset (change the number under the chart); the TSV downloads have every term. GO data: Gene Ontology Consortium (CC BY 4.0;
           ontology release 2026-07-26, annotations 2026-05-21).
         </p>
 
