@@ -47,6 +47,8 @@ interface Result extends GoRun {
 
 const INK = "#101826";
 const INK_3 = "#8b97a9";
+/** Axis lines and scale: the same ink as the motif heatmap's border. */
+const AXIS_INK = "#3a4250";
 const PAPER = "#ffffff";
 const TABLE_ROWS = 100;
 const negLog10 = (q: number) => Math.min(300, q > 0 ? -Math.log10(q) : 300);
@@ -485,11 +487,11 @@ function GoBarChart(props: { subset: SubsetResult; title: string; metric: string
           {title}
         </text>
         {/* top axis: −log10 q scale */}
-        <g fontSize={10} fill={INK_3}>
-          <line x1={x0} x2={x0 + BAR_MAX} y1={barsTop} y2={barsTop} stroke={INK_3} strokeWidth={1} />
+        <g fontSize={10} fill={AXIS_INK}>
+          <line x1={x0} x2={x0 + BAR_MAX} y1={barsTop} y2={barsTop} stroke={AXIS_INK} strokeWidth={1} shapeRendering="crispEdges" />
           {ticks.map((t) => (
             <g key={t}>
-              <line x1={x(t)} x2={x(t)} y1={barsTop - 4} y2={barsTop} stroke={INK_3} strokeWidth={1} />
+              <line x1={x(t)} x2={x(t)} y1={barsTop - 4} y2={barsTop} stroke={AXIS_INK} strokeWidth={1} shapeRendering="crispEdges" />
               <text x={x(t)} y={barsTop - 7} textAnchor="middle" fontFamily="monospace">
                 {t}
               </text>
@@ -522,7 +524,7 @@ function GoBarChart(props: { subset: SubsetResult; title: string; metric: string
           );
         })}
         {/* left axis: the bars' baseline */}
-        <line x1={x0} x2={x0} y1={barsTop} y2={barsBottom} stroke={INK_3} strokeWidth={1} />
+        <line x1={x0} x2={x0} y1={barsTop} y2={barsBottom} stroke={AXIS_INK} strokeWidth={1} shapeRendering="crispEdges" />
         <text x={PAD} y={height - 8} fontSize={10} fill={INK_3}>
           {footer}
         </text>
