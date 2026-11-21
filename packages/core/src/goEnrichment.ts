@@ -110,6 +110,12 @@ function loadGo(rt: Runtime, assembly: string) {
   });
 }
 
+/** Each term's annotated genes (indices into the GO data's gene list), for grouping similar terms (goCompare.ts). */
+export async function goTermGenes(rt: Runtime, assembly: string, ns: GoNamespace): Promise<Map<string, number[]>> {
+  const { go } = await loadGo(rt, assembly);
+  return new Map(go.terms[ns].map(([id, , genes]) => [id, genes]));
+}
+
 function loadGreat(rt: Runtime, assembly: string, s: GreatSettings): Promise<PreparedGreat> {
   return onceFor(rt.refdata, `great:${[assembly, s.upstream, s.downstream, s.maxExtension].join("|")}`, async () => {
     const { go, sizes, gaps } = await loadGo(rt, assembly);

@@ -349,6 +349,16 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           enriched terms of the subset (change the number under the chart); the TSV downloads have every term. GO data: Gene Ontology Consortium (CC BY 4.0;
           ontology release 2026-07-26, annotations 2026-05-21).
         </p>
+        <p>
+          With two or more subsets selected, <b>Across subsets</b> shows their results side by side, as a dot plot in the style of clusterProfiler's
+          compareCluster: one row per term, one column per subset; colour is −log₁₀ q, size the fold (odds ratio against the input sets); a grey ring is a
+          term enriched but not significant in that subset, an empty cell one that is not enriched. Rows are each subset's top 10 significant terms (change the
+          number), shared ones first. No new test is run: each cell is that subset's own result. Because q also grows with a subset's number of regions,
+          compare fold across subsets; to test whether a subset differs from the rest, use the GREAT-like test against the input sets.{" "}
+          <b>Group similar terms</b> (on by default) clusters terms whose annotated genes overlap, as Metascape does (Zhou et al. 2019): Cohen's kappa between
+          terms, average-linkage clustering, groups joined at kappa &gt; 0.3. Each row then shows the group's most significant term (+n: the others, listed in
+          its tooltip), and each cell that subset's best term of the group. The comparison downloads as TSV and SVG/PNG, and is included in Export analysis.
+        </p>
 
         <h3 id="motifs">Motif enrichment (JASPAR)</h3>
         <p>

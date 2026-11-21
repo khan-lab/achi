@@ -9,6 +9,7 @@ import {
   annotationMethods,
   geneListMethods,
   goMethods,
+  goCompareMethods,
   methodsText,
   pairwiseMethods,
   signalMethods,
@@ -276,6 +277,16 @@ describe("methods paragraphs of further analyses", () => {
     expect(cgo.methods).toMatch(/XL-mHG test/);
     expect(cgo.methods).toMatch(/q < 0\.2/);
     expect(cgo.references.join(" ")).toMatch(/doi:10\.1093\/nar\/gkz332/);
+  });
+  it("GO comparison across subsets: rows, encoding, and Metascape's grouping with its reference only when used", () => {
+    const grouped = goCompareMethods({ top: 10, minKappa: 0.3 });
+    expect(grouped.methods).toMatch(/top 10 significant terms of each subset/);
+    expect(grouped.methods).toMatch(/no additional test/);
+    expect(grouped.methods).toMatch(/Cohen's kappa .* average-linkage .* kappa > 0\.3/);
+    expect(grouped.references.join(" ")).toMatch(/doi:10\.1038\/s41467-019-09234-6/);
+    const plain = goCompareMethods({ top: 15 });
+    expect(plain.methods).not.toMatch(/kappa/);
+    expect(plain.references).toEqual([]);
   });
 });
 

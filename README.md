@@ -61,6 +61,9 @@ Achi grows out of [Intervene](https://github.com/asntech/intervene) (Khan and Ma
   with editable settings:
   - **GREAT-like:** regulatory domains; genome or input-set background;
   - **Cistrome-GO-like:** regulatory-potential ranking and XL-mHG test.
+  - With several subsets selected, a terms × subsets dot plot compares
+    them (colour −log10 q, size fold), with similar terms optionally
+    grouped by Metascape's kappa clustering.
 
 **Motif enrichment** (selected sets/subsets)
 - JASPAR 2026 vertebrate motifs, bundled: CORE non-redundant (1,019, the
@@ -179,6 +182,14 @@ For GO enrichment, please also cite the method you ran:
 > server for functional enrichment analysis of transcription factor ChIP-seq
 > peaks. *Nucleic Acids Res*. 2019;47(W1):W206–W211.
 > [doi:10.1093/nar/gkz332](https://doi.org/10.1093/nar/gkz332)
+
+When similar GO terms are grouped in the comparison across subsets, please
+also cite:
+
+> Zhou Y, Zhou B, Pache L, Chang M, Khodabakhshi AH, Tanaseichuk O,
+> Benner C, Chanda SK. Metascape provides a biologist-oriented resource for
+> the analysis of systems-level datasets. *Nat Commun*. 2019;10:1523.
+> [doi:10.1038/s41467-019-09234-6](https://doi.org/10.1038/s41467-019-09234-6)
 
 For the pairwise permutation test, please also cite:
 

@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { scaleLinear } from "d3";
 import { SelectFirstHint } from "./CollapsiblePanel";
 import { usePanelStatus } from "./panelState";
@@ -28,8 +28,9 @@ import { PALETTE } from "../types";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
 import { TopRowsInput } from "./TopRowsInput";
+import { GoComparePlot } from "./GoComparePlot";
 import { markExportStale, registerExport } from "../lib/exportRegistry";
-import { goMethods } from "@achi/core/analysisExport";
+import { goCompareMethods, goMethods } from "@achi/core/analysisExport";
 
 type Method = GoMethod;
 type GreatUi = GreatRunSettings;
@@ -43,6 +44,7 @@ interface SubsetResult extends GoGroupResult {
 /** A run as shown: core's GoRun, the key it was run for, and each group with its colour. */
 interface Result extends GoRun {
   key: string;
+  assembly: string;
   subsets: SubsetResult[];
 }
 
@@ -67,6 +69,8 @@ const saved = {
   cgo: { ...CISTROMEGO_DEFAULTS },
   results: new Map<Method, Result>(),
   top: DEFAULT_TOP_TERMS,
+  /** The comparison across groups as last shown, per method, for "Export analysis". */
+  compareTsv: new Map<Method, { tsv: string; top: number; minKappa?: number }>(),
 };
 
 export function GoEnrichmentPanel() {
@@ -117,7 +121,7 @@ export function GoEnrichmentPanel() {
       const scoreSource = async (s: (typeof chosen)[number]) => (method === "cistromego" ? await sets.find((x) => x.id === s.memberIds[0])?.file.text() : undefined);
       const groups = await Promise.all(chosen.map(async (s) => ({ mask: s.mask, label: s.label, regions: s.regions, whole: s.whole, scoreSource: await scoreSource(s) })));
       const run = await runGoEnrichment(webRuntime, { method, ns, assembly, groups, allSubsets, great, cgo }, { onProgress: setProgress });
-      const r: Result = { ...run, key, subsets: run.groups.map((g, i) => ({ ...g, color: PALETTE[i % PALETTE.length] })) };
+      const r: Result = { ...run, key, assembly, subsets: run.groups.map((g, i) => ({ ...g, color: PALETTE[i % PALETTE.length] })) };
       const out = r.subsets;
       saved.results.set(method, r);
       setResult(r);
@@ -194,8 +198,12 @@ export function GoEnrichmentPanel() {
 function goExport() {
   const runs = [...saved.results.values()];
   if (!runs.length) return null;
+  const compares = runs.flatMap((r) => (r.subsets.length > 1 && saved.compareTsv.has(r.method) ? [saved.compareTsv.get(r.method)!] : []));
   return {
-    files: runs.map((r) => ({ path: `tables/${fileStem(r)}.tsv`, content: goTsv(r) })),
+    files: runs.flatMap((r) => {
+      const compare = r.subsets.length > 1 ? saved.compareTsv.get(r.method) : undefined;
+      return [{ path: `tables/${fileStem(r)}.tsv`, content: goTsv(r) }, ...(compare ? [{ path: `tables/${fileStem(r)}-compare.tsv`, content: compare.tsv }] : [])];
+    }),
     methods: {
       methods: runs
         .map(
@@ -207,8 +215,12 @@ function goExport() {
               ...(r.method === "great" ? { great: r.settings as GreatUi } : { cgo: r.settings as CistromeGoSettings }),
             }).methods,
         )
+        .concat(compares.map((c) => goCompareMethods(c).methods))
         .join("\n\n"),
-      references: runs.flatMap((r) => goMethods({ method: r.method, background: r.background, namespace: "", great: r.settings as GreatUi, cgo: r.settings as CistromeGoSettings }).references),
+      references: [
+        ...runs.flatMap((r) => goMethods({ method: r.method, background: r.background, namespace: "", great: r.settings as GreatUi, cgo: r.settings as CistromeGoSettings }).references),
+        ...new Set(compares.flatMap((c) => goCompareMethods(c).references)),
+      ],
     },
   };
 }
@@ -234,8 +246,32 @@ const ResultView = memo(function ResultView({ result, active, stale, onSelect }:
   const [top, setTopState] = useState(saved.top);
   const setTop = (n: number) => setTopState((saved.top = n));
   const nEnriched = active.rows.filter((r) => r.fold > 1).length;
+  const metric = result.method === "cistromego" ? "XL-mHG" : result.background === "genome" ? "binomial" : "Fisher";
+  const foldLabel = result.method === "great" && result.background === "inputs" ? "odds ratio" : "fold";
+  const compareInput = useMemo(
+    () => ({ assembly: result.assembly, ns: result.ns, qThreshold: result.qThreshold, metric, foldLabel, stem: fileStem(result), groups: result.subsets }),
+    [result, metric, foldLabel],
+  );
+  const onCompareTsv = useCallback(
+    (tsv: { tsv: string; top: number; minKappa?: number } | null) => {
+      if (tsv) saved.compareTsv.set(result.method, tsv);
+      else saved.compareTsv.delete(result.method);
+    },
+    [result.method],
+  );
   return (
     <div className={stale ? "stale" : undefined}>
+      {result.subsets.length > 1 && (
+        <>
+          <div className="eyebrow" style={{ margin: "2px 0 8px" }}>
+            Across subsets
+          </div>
+          <GoComparePlot input={compareInput} onTsv={onCompareTsv} />
+          <div className="eyebrow" style={{ margin: "6px 0 8px" }}>
+            Each subset
+          </div>
+        </>
+      )}
       <div className="tabs wrap" role="tablist" aria-label="Subset" style={{ marginBottom: 8 }}>
         {result.subsets.map((s) => {
           const nSig = s.rows.filter((r) => r.significant).length;
@@ -254,8 +290,8 @@ const ResultView = memo(function ResultView({ result, active, stale, onSelect }:
       <GoBarChart
         subset={active}
         title={`${active.label} — ${nsLabel(result.ns)}, ${methodLabel(result)}`}
-        metric={result.method === "cistromego" ? "XL-mHG" : result.background === "genome" ? "binomial" : "Fisher"}
-        foldLabel={result.method === "great" && result.background === "inputs" ? "odds ratio" : "fold"}
+        metric={metric}
+        foldLabel={foldLabel}
         qThreshold={result.qThreshold}
         top={top}
         svgRef={svgRef}

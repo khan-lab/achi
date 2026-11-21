@@ -385,6 +385,23 @@ export function goMethods(g: GoMethodsInput): MethodsExtra {
   };
 }
 
+const METASCAPE_REF =
+  "Zhou Y, Zhou B, Pache L, Chang M, Khodabakhshi AH, Tanaseichuk O, Benner C, Chanda SK. Metascape provides a biologist-oriented resource for the analysis of systems-level datasets. Nat Commun. 2019;10:1523. doi:10.1038/s41467-019-09234-6";
+
+/** The GO comparison across subsets (goCompare.ts), as shown: its rows, and the term grouping when used. */
+export function goCompareMethods(c: { top: number; minKappa?: number }): MethodsExtra {
+  const grouping =
+    c.minKappa === undefined
+      ? ""
+      : ` Similar terms were grouped as in Metascape (Zhou et al., 2019): Cohen's kappa between the terms' annotated genes (over the union of the genes of the terms significant in any subset), distance 1 − kappa, average-linkage hierarchical clustering, and groups joined at kappa > ${c.minKappa}; each group is shown by its most significant term, and each subset by its most significant term of the group.`;
+  return {
+    methods:
+      `GO results of the selected subsets were compared in one dot plot of the top ${c.top} significant terms of each subset (colour −log10 q, size fold enrichment); no additional test was run, and each value is that subset's own result.` +
+      grouping,
+    references: c.minKappa === undefined ? [] : [METASCAPE_REF],
+  };
+}
+
 /** GENCODE release of the bundled gene annotation, per assembly (docs/provenance.md). */
 const GENCODE: Record<string, string> = { hg38: "v50", hg19: "v19", mm10: "vM25", mm9: "vM1" };
 
