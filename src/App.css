@@ -880,6 +880,25 @@ footer .free .dot {
 }
 
 /* ---------- pairwise heatmap ---------- */
+/* GO results: "Across subsets" and "Each subset" side by side when the panel is wide enough for both charts. */
+.gocols {
+  container: gocols / inline-size;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 560px), 1fr));
+  gap: 6px 24px;
+  align-items: start;
+}
+.gocols > section {
+  min-width: 0;
+}
+/* Side by side (two 560px columns and the gap), a chart a little wider than its column shrinks to fit;
+   stacked, charts keep their size and scroll as elsewhere. */
+@container gocols (min-width: 1144px) {
+  .heatwrap svg {
+    max-width: 100%;
+    height: auto;
+  }
+}
 .heatwrap {
   padding: 13px;
   overflow-x: auto;

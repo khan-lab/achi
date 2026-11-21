@@ -260,18 +260,21 @@ const ResultView = memo(function ResultView({ result, active, stale, onSelect }:
     [result.method],
   );
   return (
-    <div className={stale ? "stale" : undefined}>
+    <div className={`${stale ? "stale " : ""}${result.subsets.length > 1 ? "gocols" : ""}`}>
       {result.subsets.length > 1 && (
-        <>
+        <section aria-label="GO terms across subsets">
           <div className="eyebrow" style={{ margin: "2px 0 8px" }}>
             Across subsets
           </div>
           <GoComparePlot input={compareInput} onTsv={onCompareTsv} />
-          <div className="eyebrow" style={{ margin: "6px 0 8px" }}>
+        </section>
+      )}
+      <section aria-label="GO terms of each subset">
+        {result.subsets.length > 1 && (
+          <div className="eyebrow" style={{ margin: "2px 0 8px" }}>
             Each subset
           </div>
-        </>
-      )}
+        )}
       <div className="tabs wrap" role="tablist" aria-label="Subset" style={{ marginBottom: 8 }}>
         {result.subsets.map((s) => {
           const nSig = s.rows.filter((r) => r.significant).length;
@@ -358,6 +361,7 @@ const ResultView = memo(function ResultView({ result, active, stale, onSelect }:
         {result.qThreshold}
         {result.method === "great" && result.background === "genome" ? " for both tests and fold above the minimum" : ""}.
       </div>
+      </section>
     </div>
   );
 });
