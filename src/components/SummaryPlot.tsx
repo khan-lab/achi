@@ -114,9 +114,8 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
 
   if (items.length < 1 && waiting) {
     return (
-      <div className="placeholder">
-        <div className="big">Nothing selected yet</div>
-        <div className="sm">Select a subset or set above (a bar or set name in UpSet, a count in Venn, or a row in Table): its region count, widths and coverage appear here at once.</div>
+      <div className="hint" style={{ margin: "11px 13px 13px" }}>
+        Nothing selected yet. Select a subset or set above (a bar or set name in UpSet, a count in Venn, or a row in Table): its region count, widths and coverage appear here at once.
       </div>
     );
   }

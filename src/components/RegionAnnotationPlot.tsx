@@ -127,7 +127,7 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
 
   if (items.length < 1 && waiting) {
     return (
-      <div className="permrow" style={{ margin: "0 13px 12px" }}>
+      <div className="permrow" style={{ margin: "11px 13px 13px" }}>
         <button className="ghost" disabled>
           Run region annotation
         </button>
@@ -150,7 +150,7 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
     <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy}>
       {busy && <ComputeOverlay label={progress?.label ?? "Annotating regions"} progress={progress} />}
       {(missing.length > 0 || error) && (
-        <div className="permrow" style={{ margin: "0 13px 10px" }}>
+        <div className="permrow" style={{ margin: "11px 13px 13px" }}>
           {missing.length > 0 && (
             <button className="ghost" disabled={busy} onClick={() => void run()}>
               {done.length ? `Annotate ${missing.length} more` : "Run region annotation"}

@@ -158,7 +158,7 @@ export function SubsetEnrichmentPanel() {
   };
 
   return (
-    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy} style={{ minHeight: 120 }}>
+    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy}>
       {busy && <ComputeOverlay label={progress.label} progress={progress} />}
       <div className="rowsplit" style={{ marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
         <label className="checkrow" title="Cochran–Mantel–Haenszel test across five region-length strata, so longer regions hitting more by chance don't drive the result">

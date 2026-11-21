@@ -1540,8 +1540,8 @@ svg text.selectable:focus-visible {
 .annowrap {
   position: relative;
 }
-.annowrap {
-  min-height: 180px; /* room for the overlay before the first result */
+.annowrap.busy {
+  min-height: 180px; /* room for the progress overlay while running; idle panels end at their content */
 }
 .plotcard.busy > :not(.computing),
 .annowrap.busy > :not(.computing) {

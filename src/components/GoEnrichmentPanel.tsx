@@ -124,7 +124,7 @@ export function GoEnrichmentPanel() {
 
 
   return (
-    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy} style={{ minHeight: 120 }}>
+    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy}>
       {busy && <ComputeOverlay label={progress.label} progress={progress} />}
       <div className="rowsplit" style={{ marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

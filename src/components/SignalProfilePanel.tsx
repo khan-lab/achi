@@ -392,7 +392,7 @@ export function SignalProfilePanel() {
   };
 
   return (
-    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy} style={{ minHeight: 120 }}>
+    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy}>
       {busy && (
         <div className="sp-overlay">
           <ComputeOverlay label={progress.label} progress={progress} />
