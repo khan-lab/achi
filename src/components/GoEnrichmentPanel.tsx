@@ -55,7 +55,7 @@ const AXIS_INK = "#3a4250";
 const PAPER = "#ffffff";
 const TABLE_ROWS = 100;
 /** Terms in the bar chart unless the user picks another number. */
-const DEFAULT_TOP_TERMS = 15;
+const DEFAULT_TOP_TERMS = 10;
 const negLog10 = (q: number) => Math.min(300, q > 0 ? -Math.log10(q) : 300);
 const nsLabel = goNamespaceLabel;
 /** The term's page in AmiGO, the Gene Ontology Consortium's browser. Opened in a new tab without a referrer: only the GO id leaves the page. */

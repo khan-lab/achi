@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { interpolateLab, scaleLinear } from "d3";
-import { GO_CLUSTER_DEFAULTS, compareGoGroups, goCompareTsv, type GoComparison } from "@achi/core/goCompare";
+import { GO_CLUSTER_DEFAULTS, GO_COMPARE_DEFAULT_TOP, compareGoGroups, goCompareTsv, type GoComparison } from "@achi/core/goCompare";
 import { fmtFold, fmtP, goTermGenes, type GoGroupResult } from "@achi/core/goEnrichment";
 import type { GoNamespace } from "@achi/core/great";
-import { DEFAULT_TOP_ROWS } from "@achi/core/heatmapRows";
 import { webRuntime } from "../lib/runtime";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
@@ -23,7 +22,7 @@ const Q_DARK = "#8e1b1f";
 const negLog10 = (q: number) => Math.min(300, q > 0 ? -Math.log10(q) : 300);
 
 // Choices survive remounts within the session.
-const ui = { top: DEFAULT_TOP_ROWS, group: true, minKappa: GO_CLUSTER_DEFAULTS.minKappa };
+const ui = { top: GO_COMPARE_DEFAULT_TOP, group: true, minKappa: GO_CLUSTER_DEFAULTS.minKappa };
 
 export interface CompareInput {
   assembly: string;
@@ -95,7 +94,7 @@ export function GoComparePlot({ input, onTsv }: { input: CompareInput; onTsv: (s
       </div>
       {cmp && cmp.rows.length > 0 && <CompareChart cmp={cmp} input={input} svgRef={svgRef} />}
       <div className="plotactions" style={{ flexWrap: "wrap", alignItems: "center" }}>
-        <TopRowsInput value={top} max={maxPerGroup} noun="terms per subset" chart="comparison" def={DEFAULT_TOP_ROWS} onChange={setTop} />
+        <TopRowsInput value={top} max={maxPerGroup} noun="terms per subset" chart="comparison" def={GO_COMPARE_DEFAULT_TOP} onChange={setTop} />
         <label className="checkrow" style={{ marginLeft: 12 }} title="Group terms whose annotated genes overlap (Cohen's kappa, average-linkage clustering), as Metascape does; each row shows the group's most significant term, and each cell the subset's best term of the group.">
           <input type="checkbox" checked={group} onChange={(e) => setGroup(e.target.checked)} />
           <span className="k">Group similar terms, kappa &gt;</span>
@@ -158,11 +157,17 @@ function CompareChart({ cmp, input, svgRef }: { cmp: GoComparison; input: Compar
   const radius = (f: number) => R_MIN + (R_MAX - R_MIN) * Math.sqrt((Math.min(Number.isFinite(f) ? f : foldCap, foldCap) - 1) / (foldCap - 1));
   const sizeKeys = [...new Set([1.5, Math.round(Math.sqrt(foldCap) * 10) / 10, foldCap])].filter((v) => v > 1 && v <= foldCap);
 
-  const legendY = gridY + gridH + 26;
+  // Size legend: a column right of the grid; colour legend under it.
+  const sizeX = gridX + gridW + 16;
+  const SIZE_STEP = 2 * R_MAX + 6;
+  const sizeTop = gridY + 18;
+  const sizeBottom = sizeTop + sizeKeys.length * SIZE_STEP;
+  const sizeW = Math.max(estimateTextWidth(input.foldLabel, 10), 2 * R_MAX + 6 + Math.max(...sizeKeys.map((f) => String(f).length * 6))); // monospace digits ≈ 6 px at 9.5 px
+  const legendY = Math.max(gridY + gridH, sizeBottom) + 26;
   const legendX = gridX;
   const footer = `Colour: −log₁₀ q (${input.metric}); size: ${input.foldLabel}, capped at ${foldCap}; grey ring: enriched, not significant; empty: not enriched.${cmp.clustered ? ` Similar terms grouped at kappa > ${cmp.minKappa} (Metascape's clustering); +n: terms in the group.` : ""}`;
   const footerLines = wrap(footer, Math.max(gridX + gridW, 420) - PAD, 10);
-  const width = Math.max(gridX + gridW + colLabelH * 0.7, legendX + 330, PAD + Math.max(...footerLines.map((l) => estimateTextWidth(l, 10)))) + PAD;
+  const width = Math.max(gridX + gridW + colLabelH * 0.7, sizeX + sizeW, legendX + 160, PAD + Math.max(...footerLines.map((l) => estimateTextWidth(l, 10)))) + PAD;
   const height = legendY + 50 + footerLines.length * 13;
   const ticks = qScale.ticks(4);
 
@@ -222,7 +227,7 @@ function CompareChart({ cmp, input, svgRef }: { cmp: GoComparison; input: Compar
           );
         })}
         <rect x={gridX} y={gridY} width={gridW} height={gridH} fill="none" stroke={AXIS_INK} shapeRendering="crispEdges" />
-        {/* legends: colour, then size */}
+        {/* legends: colour under the grid, size in a column on its right */}
         <text x={legendX} y={legendY - 6} fontSize={10} fill={INK_3}>
           −log₁₀ q
         </text>
@@ -232,15 +237,15 @@ function CompareChart({ cmp, input, svgRef }: { cmp: GoComparison; input: Compar
             {t}
           </text>
         ))}
-        <text x={legendX + 180} y={legendY - 6} fontSize={10} fill={INK_3}>
+        <text x={sizeX} y={gridY + 8} fontSize={10} fill={INK_3}>
           {input.foldLabel}
         </text>
         {sizeKeys.map((f, k) => {
-          const cx = legendX + 180 + R_MAX + k * 40;
+          const cy = sizeTop + k * SIZE_STEP + R_MAX;
           return (
             <g key={f}>
-              <circle cx={cx} cy={legendY + 5} r={radius(f)} fill={INK_3} opacity={0.55} />
-              <text x={cx} y={legendY + 28} textAnchor="middle" fontSize={9.5} fontFamily="monospace" fill={INK_3}>
+              <circle cx={sizeX + R_MAX} cy={cy} r={radius(f)} fill={INK_3} opacity={0.55} />
+              <text x={sizeX + 2 * R_MAX + 6} y={cy + 3.5} fontSize={9.5} fontFamily="monospace" fill={INK_3}>
                 {f}
               </text>
             </g>

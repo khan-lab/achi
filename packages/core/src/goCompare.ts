@@ -14,6 +14,9 @@
  */
 import type { GoGroupResult, GoRow } from "./goEnrichment";
 
+/** Each group's top significant terms in the comparison, unless the user picks another number. */
+export const GO_COMPARE_DEFAULT_TOP = 5;
+
 export const GO_CLUSTER_DEFAULTS = {
   /** Terms join a cluster at kappa above this (Metascape: 0.3). */
   minKappa: 0.3,

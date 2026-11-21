@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
-import { GO_CLUSTER_DEFAULTS, clusterTerms, compareGoGroups, goCompareTsv, termKappa, type GoComparison } from "./goCompare";
+import { GO_CLUSTER_DEFAULTS, GO_COMPARE_DEFAULT_TOP, clusterTerms, compareGoGroups, goCompareTsv, termKappa, type GoComparison } from "./goCompare";
 import { CISTROMEGO_DEFAULTS, GREAT_RUN_DEFAULTS, goTermGenes, runGoEnrichment, type GoGroup, type GoGroupResult } from "./goEnrichment";
 import type { GoData } from "./great";
 import { scanMotifsInline } from "./motifScan";
@@ -86,6 +86,10 @@ const toy: GoGroupResult[] = [
 ];
 
 describe("compareGoGroups without clustering", () => {
+  it("defaults to each group's top 5 terms and Metascape's kappa 0.3", () => {
+    expect(GO_COMPARE_DEFAULT_TOP).toBe(5);
+    expect(GO_CLUSTER_DEFAULTS.minKappa).toBe(0.3);
+  });
   it("takes each group's top N significant enriched terms and lists their union, one cell per group", () => {
     const c = compareGoGroups(toy, { top: 1 });
     expect(c.rows.map((r) => r.id).sort()).toEqual(["t1", "t2"]); // A's top: t1; B's top: t2; C's top: t1

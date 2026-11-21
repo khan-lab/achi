@@ -345,14 +345,14 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           positions off by one in the package, and a newer GO release) and are described in the methods.
         </p>
         <p>
-          q-values are Benjamini–Hochberg over all tested terms of a namespace, per subset. The chart shows the top 15
+          q-values are Benjamini–Hochberg over all tested terms of a namespace, per subset. The chart shows the top 10
           enriched terms of the subset (change the number under the chart); the TSV downloads have every term. GO data: Gene Ontology Consortium (CC BY 4.0;
           ontology release 2026-07-26, annotations 2026-05-21).
         </p>
         <p>
           With two or more subsets selected, <b>Across subsets</b> shows their results side by side, as a dot plot in the style of clusterProfiler's
-          compareCluster: one row per term, one column per subset; colour is −log₁₀ q, size the fold (odds ratio against the input sets); a grey ring is a
-          term enriched but not significant in that subset, an empty cell one that is not enriched. Rows are each subset's top 10 significant terms (change the
+          compareCluster: one row per term, one column per subset; colour is −log₁₀ q, size the fold (odds ratio against the input sets; its key is on the right); a grey ring is a
+          term enriched but not significant in that subset, an empty cell one that is not enriched. Rows are each subset's top 5 significant terms (change the
           number), shared ones first. No new test is run: each cell is that subset's own result. Because q also grows with a subset's number of regions,
           compare fold across subsets; to test whether a subset differs from the rest, use the GREAT-like test against the input sets.{" "}
           <b>Group similar terms</b> (on by default) clusters terms whose annotated genes overlap, as Metascape does (Zhou et al. 2019): Cohen's kappa between
