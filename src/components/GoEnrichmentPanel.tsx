@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { SelectFirstHint } from "./CollapsiblePanel";
 import { usePanelStatus } from "./panelState";
 import { count, panelStatus } from "./panelStatus";
 import { useChosenGroups, useStore } from "../state/store";
@@ -147,6 +148,11 @@ export function GoEnrichmentPanel() {
           {result ? "Run again" : "Run GO enrichment"}
         </button>
       </div>
+      {!chosen.length && (
+        <div style={{ margin: "0 0 10px" }}>
+          <SelectFirstHint />
+        </div>
+      )}
       <div className="hint" style={{ margin: "0 0 10px" }}>
         {method === "great" ? (
           <>
@@ -166,12 +172,12 @@ export function GoEnrichmentPanel() {
       </div>
       {method === "great" ? <GreatSettingsForm value={great} onChange={setGreat} /> : <CistromeGoSettingsForm value={cgo} onChange={setCgo} />}
       {error && <div className="hint error">{error}</div>}
-      {stale && !busy && (
+      {stale && !busy && chosen.length > 0 && (
         <div className="setinfo" style={{ marginBottom: 8 }}>
           Settings or selection changed since this result. Press Run again to update it.
         </div>
       )}
-      {result && active && <ResultView result={result} active={active} stale={stale} onSelect={setActiveMask} />}
+      {result && active && chosen.length > 0 && <ResultView result={result} active={active} stale={stale} onSelect={setActiveMask} />}
     </div>
   );
 }

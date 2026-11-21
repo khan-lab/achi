@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { usePanelStatus } from "./panelState";
+import { usePanelStatus, usePanelWaiting } from "./panelState";
 import { panelStatus } from "./panelStatus";
 import { useStore } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
@@ -72,6 +72,7 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   usePanelStatus(panelStatus({ busy: loading, error, hasResult: items.length > 0, done: `${items.length} selected` }));
+  const waiting = usePanelWaiting();
 
   const cacheKey = (item: SummaryItem) => `${assembly}::${item.id}::${item.version}`;
   const itemsKey = items.map((i) => `${i.id}:${i.version}`).join(",");
@@ -111,6 +112,14 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assembly, itemsKey]);
 
+  if (items.length < 1 && waiting) {
+    return (
+      <div className="placeholder">
+        <div className="big">Nothing selected yet</div>
+        <div className="sm">Select a subset or set above (a bar or set name in UpSet, a count in Venn, or a row in Table): its region count, widths and coverage appear here at once.</div>
+      </div>
+    );
+  }
   if (items.length < 1) {
     return (
       <div className="placeholder">

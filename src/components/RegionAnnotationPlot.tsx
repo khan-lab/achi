@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { usePanelStatus } from "./panelState";
+import { usePanelStatus, usePanelWaiting } from "./panelState";
+import { SelectFirstHint } from "./CollapsiblePanel";
 import { panelStatus } from "./panelStatus";
 import { useStore } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
@@ -87,6 +88,7 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
 
   // Cancel a run when the card goes away (another view, selection cleared).
   useEffect(() => () => abortRef.current?.abort(), []);
+  const waiting = usePanelWaiting();
 
   // Runs only when asked: annotating against GENCODE takes a download and many
   // bedtools steps. Groups already annotated (this session, any card) come
@@ -123,6 +125,16 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
     }
   };
 
+  if (items.length < 1 && waiting) {
+    return (
+      <div className="permrow" style={{ margin: "0 13px 12px" }}>
+        <button className="ghost" disabled>
+          Run region annotation
+        </button>
+        <SelectFirstHint />
+      </div>
+    );
+  }
   if (items.length < 1) {
     return (
       <div className="placeholder">

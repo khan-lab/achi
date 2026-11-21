@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { SelectFirstHint } from "./CollapsiblePanel";
 import { usePanelStatus } from "./panelState";
 import { count, panelStatus } from "./panelStatus";
 import { color as d3color, interpolateLab } from "d3";
@@ -301,6 +302,11 @@ export function MotifEnrichmentPanel() {
           {result ? "Run again" : "Run motif enrichment"}
         </button>
       </div>
+      {!chosen.length && (
+        <div style={{ margin: "0 0 10px" }}>
+          <SelectFirstHint />
+        </div>
+      )}
 
       {mode === "local" && (
         <div className="sp-tracks" style={{ marginBottom: 8 }}>
@@ -407,13 +413,13 @@ export function MotifEnrichmentPanel() {
         Which JASPAR 2026 vertebrate motifs ({collection.label}) are more common at the centre of each selected subset's or set's regions than in the other regions of this analysis, compared within like GC and CpG content. Scanned in the page.{nUniverse > MAX_POOL ? ` More than ${MAX_POOL.toLocaleString("en-US")} regions: a fixed random sample is the background.` : ""}
       </div>
       {error && <div className="hint error">{error}</div>}
-      {stale && !busy && (
+      {stale && !busy && chosen.length > 0 && (
         <div className="setinfo" style={{ marginBottom: 8 }}>
           Settings, genome or selection changed since this result. Press Run again to update it.
         </div>
       )}
 
-      {result && (
+      {result && chosen.length > 0 && (
         <div className={stale ? "stale" : undefined}>
           <MotifHeatmap result={result} perFamily={perFamily} top={top} groupOf={groupOf} svgRef={svgRef} />
           <div className="plotactions">

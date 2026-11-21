@@ -86,7 +86,9 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
             tests that compare two groups directly are not run between them.
           </li>
           <li>
-            Selected subsets and sets get their own analysis panels below the plot, in three groups:{" "}
+            Below the plot, the analysis panels are listed as soon as your files are loaded, folded until you select
+            something (open one to choose its settings or, for expression, its table; Run waits for a selection). They
+            come in three groups:{" "}
             <em>Annotate regions</em> (summary, annotation, signal), <em>Region enrichment</em> (reference-set and
             motif enrichment) and <em>Functional analysis</em> (GO, expression). Click a panel's header to fold it, or
             use the button in the Selection card to fold or open them all. Each selection also has a

@@ -814,7 +814,8 @@ export const useStore = create<StoreState>((set, get) => {
       ].join("\n");
       zip.file("README.md", readme);
       download(await zip.generateAsync({ type: "blob" }), `achi-analysis-${settings.created.slice(0, 10)}.zip`);
-      if (outOfDate.length)
+      // Nothing selected: earlier results belong to a selection that is gone; the README still lists them.
+      if (outOfDate.length && chosen.length)
         set({ notices: [...get().notices, `The export leaves out ${outOfDate.join(", ")}: the inputs or settings changed after the run. Run again, then export, to include ${outOfDate.length > 1 ? "them" : "it"}.`] });
     } finally {
       set({ progress: null });

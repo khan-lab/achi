@@ -37,7 +37,7 @@ const VIEWS: { id: View; label: string }[] = [
   { id: "venn", label: "Venn" },
   { id: "pairwise", label: "Pairwise" },
   { id: "table", label: "Table" },
-   { id: "browser", label: "Browser" },
+   { id: "browser", label: "Genome Browser" },
   { id: "summary", label: "Set Summary" },
 ];
 
@@ -301,48 +301,49 @@ function App() {
               <div className="bd">
                 <div className="selhd">
                   <div className="eyebrow">Selection</div>
-                  {!listMode && selectedSubsets.length > 0 && <CollapseAllButton ids={ANALYSIS_PANELS} />}
+                  {!listMode && sets.length > 0 && <CollapseAllButton ids={ANALYSIS_PANELS} waiting={!selectedSubsets.length} />}
                 </div>
                 <SubsetChips view={view} />
               </div>
             </div>
           )}
 
-          {!listMode && view !== "summary" && selectedSubsets.length > 0 && (
+          {/* Shown once regions are loaded: before a selection they wait folded, as a list of what can be run. */}
+          {!listMode && view !== "summary" && sets.length > 0 && (
             <>
               {/* Grouped by the question each panel answers: annotate → region enrichment → function. */}
               <h2 className="panelgroup">Annotate regions</h2>
-              <CollapsiblePanel id="summary" title="Summary of selected subsets and sets (bedtools summary)">
+              <CollapsiblePanel waiting={!selectedSubsets.length} id="summary" title="Summary of selected subsets and sets (bedtools summary)">
                 <SummaryPlot items={selectedSubsetSummaryItems} />
               </CollapsiblePanel>
-              <CollapsiblePanel id="annotation" title="Region annotation of selected subsets and sets — bedtools intersect/closest vs. GENCODE">
+              <CollapsiblePanel waiting={!selectedSubsets.length} id="annotation" title="Region annotation of selected subsets and sets — bedtools intersect/closest vs. GENCODE">
                 <RegionAnnotationPlot items={selectedSubsetSummaryItems} />
               </CollapsiblePanel>
-              <CollapsiblePanel id="signal" title="Signal at the selected subsets and sets — profiles and heatmaps (bigWig)">
+              <CollapsiblePanel waiting={!selectedSubsets.length} id="signal" title="Signal at the selected subsets and sets — profiles and heatmaps (bigWig)">
                 <div className="bd">
                   <SignalProfilePanel />
                 </div>
               </CollapsiblePanel>
 
               <h2 className="panelgroup">Region enrichment</h2>
-              <CollapsiblePanel id="enrichment" title="Enrichment of selected subsets and sets — reference region sets">
+              <CollapsiblePanel waiting={!selectedSubsets.length} id="enrichment" title="Enrichment of selected subsets and sets — reference region sets">
                 <div className="bd">
                   <SubsetEnrichmentPanel />
                 </div>
               </CollapsiblePanel>
-              <CollapsiblePanel id="motifs" title="Motif enrichment of selected subsets and sets — JASPAR 2026">
+              <CollapsiblePanel waiting={!selectedSubsets.length} id="motifs" title="Motif enrichment of selected subsets and sets — JASPAR 2026">
                 <div className="bd">
                   <MotifEnrichmentPanel />
                 </div>
               </CollapsiblePanel>
 
               <h2 className="panelgroup">Functional analysis</h2>
-              <CollapsiblePanel id="go" title="GO analysis of selected subsets and sets — GREAT-like or Cistrome-GO-like">
+              <CollapsiblePanel waiting={!selectedSubsets.length} id="go" title="GO analysis of selected subsets and sets — GREAT-like or Cistrome-GO-like">
                 <div className="bd">
                   <GoEnrichmentPanel />
                 </div>
               </CollapsiblePanel>
-              <CollapsiblePanel id="expression" title="Expression near the selected subsets and sets — BETA-like and nearest gene">
+              <CollapsiblePanel waiting={!selectedSubsets.length} id="expression" title="Expression near the selected subsets and sets — BETA-like and nearest gene">
                 <div className="bd">
                   <ExpressionPanel />
                 </div>

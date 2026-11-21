@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SelectFirstHint } from "./CollapsiblePanel";
 import { usePanelStatus } from "./panelState";
 import { count, panelStatus } from "./panelStatus";
 import { interpolateLab, scaleLinear, scaleSymlog } from "d3";
@@ -515,6 +516,11 @@ export function SignalProfilePanel() {
           {run ? "Compute again" : "Compute profiles"}
         </button>
       </div>
+      {!chosen.length && (
+        <div style={{ margin: "0 0 10px" }}>
+          <SelectFirstHint />
+        </div>
+      )}
 
       <SettingsShell
         nChanged={(() => {
@@ -591,13 +597,13 @@ export function SignalProfilePanel() {
       </div>
       {problem && <div className="hint error">{problem}</div>}
       {error && <div className="hint error">{error}</div>}
-      {stale && !busy && (
+      {stale && !busy && chosen.length > 0 && (
         <div className="setinfo" style={{ marginBottom: 8 }}>
           Settings, tracks or selection changed since this result. Press Compute again to update it.
         </div>
       )}
 
-      {run && (
+      {run && chosen.length > 0 && (
         <div className={stale ? "stale" : undefined}>
           <ProfileFigure run={run} svgRef={figRef} onRegion={(r) => showInBrowser(formatLocus(r))} />
           <div className="setinfo" style={{ marginTop: 4 }}>

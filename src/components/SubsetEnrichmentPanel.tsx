@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { SelectFirstHint } from "./CollapsiblePanel";
 import { usePanelStatus } from "./panelState";
 import { count, panelStatus } from "./panelStatus";
 import { color as d3color, interpolateLab } from "d3";
@@ -168,6 +169,11 @@ export function SubsetEnrichmentPanel() {
           {result ? "Run again" : "Run enrichment"}
         </button>
       </div>
+      {!chosen.length && (
+        <div style={{ margin: "0 0 10px" }}>
+          <SelectFirstHint />
+        </div>
+      )}
 
       <div className="hint" style={{ margin: "0 0 10px" }}>
         Compares each selected subset or set with all other regions of this analysis (the background): what sets it apart within
@@ -179,9 +185,9 @@ export function SubsetEnrichmentPanel() {
 
       {error && <div className="hint error">{error}</div>}
       {!annotations.length && <div className="hint">No reference sets are available for {assembly}.</div>}
-      {stale && !busy && <div className="setinfo" style={{ marginBottom: 8 }}>Settings or selection changed since this result. Press Run again to update it.</div>}
+      {stale && !busy && chosen.length > 0 && <div className="setinfo" style={{ marginBottom: 8 }}>Settings or selection changed since this result. Press Run again to update it.</div>}
 
-      {shown && (
+      {shown && chosen.length > 0 && (
         <div className={stale ? "stale" : undefined}>
           <EnrichmentHeatmap result={shown} top={top} subsetOf={subsetOf} cellOf={cellOf} svgRef={svgRef} />
           <div className="plotactions">

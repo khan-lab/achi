@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { SelectFirstHint } from "./CollapsiblePanel";
 import { useChosenGroups, useStore } from "../state/store";
 import { EXPRESSION_DEFAULTS, expressionMethods, expressionTsvs, parseDeTable, runExpression, type DeTable, type ExpressionGroupResult, type ExpressionRun } from "@achi/core/expression";
 import { subsetToBedText } from "@achi/core/pipeline";
@@ -172,6 +173,11 @@ export function ExpressionPanel() {
           {result ? "Run again" : "Run expression test"}
         </button>
       </div>
+      {!chosen.length && (
+        <div style={{ margin: "0 0 10px" }}>
+          <SelectFirstHint />
+        </div>
+      )}
       {table && (
         <div className="setinfo" style={{ margin: "0 0 8px" }}>
           <b>{table.name}</b> · {table.parsed.rows.length.toLocaleString("en-US")} genes with values
@@ -189,8 +195,8 @@ export function ExpressionPanel() {
         <NumField label="Distance to TSS" scale={1000} unit="kb" value={settings.distance} def={d.distance} min={1000} max={1_000_000} help="Regions with their centre within this distance of a TSS add to its regulatory potential (BETA: 100 kb)." onChange={(v) => set({ distance: Math.round(v) })} />
       </SettingsShell>
       {error && <div className="hint error">{error}</div>}
-      {stale && !busy && <div className="setinfo" style={{ marginBottom: 8 }}>Table, selection or settings changed since this result. Press Run again to update it.</div>}
-      {result && <ResultView shown={result} active={Math.min(active, result.run.groups.length - 1)} onSelect={setActive} stale={stale} />}
+      {stale && !busy && chosen.length > 0 && <div className="setinfo" style={{ marginBottom: 8 }}>Table, selection or settings changed since this result. Press Run again to update it.</div>}
+      {result && chosen.length > 0 && <ResultView shown={result} active={Math.min(active, result.run.groups.length - 1)} onSelect={setActive} stale={stale} />}
     </div>
   );
 }
