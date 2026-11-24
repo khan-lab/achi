@@ -124,18 +124,76 @@ each ordered pair of sets is compared once with `bedtools intersect -c`
 ## Command line and AI assistants
 
 The same analyses run outside the browser, with native bedtools, through
-two companion tools built on the same code:
+two companion tools built on the same code as the web app: **`achi`**, a
+command-line tool for pipelines and large files, and **`achi-mcp`**, an MCP
+server that lets an AI assistant run analyses for you. On the same files and
+settings, all three give the same results.
 
-- **`achi`**, a command-line tool for pipelines and large files:
-  `achi run a.bed b.bed c.bed --enrich --go great --out results` writes the
-  same files as the web app's "Export analysis", and `--settings` reruns an
-  analysis exported from the web app. See [packages/cli](packages/cli/README.md).
-- **`achi-mcp`**, an MCP server that lets an AI assistant run analyses on
-  files on your computer. Tool results reach the model's provider, so it
-  returns summaries by default. See [packages/mcp](packages/mcp/README.md).
+### Install
 
-Both need Node.js 20.19+ and bedtools 2.31+. Build them with
-`npm run build:cli` and `npm run build:mcp`.
+Both need [Node.js](https://nodejs.org/) 20.19+ and bedtools 2.31+ on your
+`PATH` (`conda install -c bioconda bedtools`).
+
+```sh
+npm install -g achi achi-mcp
+```
+
+### Command line
+
+```sh
+achi run heart.bed liver.bed lung.bed \
+  --select "Heart only" --select Liver \
+  --enrich --go great --genes \
+  --out results
+```
+
+`achi run` intersects 1–8 region files and runs the analyses you ask for on
+the groups you select. The results folder has the same layout as the web
+app's "Export analysis" (`methods.md`, `settings.json`, `tables/`,
+`subsets/`), and `achi run --settings settings.json files...` reruns an
+analysis exported from the web app. Reference data is downloaded from the
+Achi site on first use, checked against its checksums and kept in
+`~/.cache/achi` (`achi data get hg38` downloads an assembly in advance).
+Your region files are not uploaded. Every option is in
+[packages/cli](packages/cli/README.md) and `achi --help`.
+
+### AI assistants (MCP)
+
+Add the server to your assistant once. Claude Code:
+
+```sh
+claude mcp add achi -- achi-mcp
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "achi": { "command": "achi-mcp" }
+  }
+}
+```
+
+Then ask in plain language, for example "intersect heart.bed, liver.bed and
+lung.bed in ~/peaks and run GO enrichment on the heart-only regions". The
+files are read and analysed on your computer and full results are written
+to `~/achi-results`. Whatever the server returns becomes part of the
+conversation, and so is sent to the model's provider: by default only
+summaries (set and subset sizes, top results with odds ratios and
+q-values). `--allow-regions` also lets the assistant read region-level
+files; use it only when your data may be shared with the provider. See
+[packages/mcp](packages/mcp/README.md).
+
+### From source
+
+Before installing from npm, or to work on the tools:
+
+```sh
+npm ci && npm run build:cli && npm run build:mcp
+node packages/cli/dist/achi.js --help
+claude mcp add achi -- node "$PWD/packages/mcp/dist/achi-mcp.js"
+```
 
 ## Running it locally
 

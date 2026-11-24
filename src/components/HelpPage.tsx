@@ -560,21 +560,64 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
 
         <h3 id="cli">Command line and AI assistants</h3>
         <p>
-          The same analyses run outside the browser with native bedtools, for pipelines and files larger than the
-          browser handles. <code>achi run</code> intersects region files and runs the analyses you choose, writing
-          the same files as <em>Export analysis</em>; <code>achi run --settings settings.json</code> reruns an
-          analysis exported here. <code>achi-mcp</code> lets an AI assistant run analyses on files on your
-          computer; what it returns reaches the model's provider, so it returns summaries unless you allow
-          region-level output. Both need Node.js 20.19+ and bedtools 2.31+; see the{" "}
+          The same analyses run outside the browser, with native bedtools, through two companion tools built on the
+          same code as this site: <code>achi</code>, a command-line tool for pipelines and files larger than the
+          browser handles, and <code>achi-mcp</code>, a server that lets an AI assistant run analyses for you. On
+          the same files and settings, all three give the same results.
+        </p>
+        <p>
+          <strong>Install.</strong> Both need Node.js 20.19 or newer and bedtools 2.31 or newer on your{" "}
+          <code>PATH</code> (for example <code>conda install -c bioconda bedtools</code>).
+        </p>
+        <pre className="help-code">{`npm install -g achi achi-mcp`}</pre>
+        <p>
+          <strong>Command line.</strong> <code>achi run</code> intersects 1–8 region files and runs the analyses you
+          ask for on the subsets or sets you select:
+        </p>
+        <pre className="help-code">{`achi run heart.bed liver.bed lung.bed \\
+  --select "Heart only" --select Liver \\
+  --enrich --go great --genes \\
+  --out results`}</pre>
+        <p>
+          The results folder has the same layout as <em>Export analysis</em> (<code>methods.md</code>,{" "}
+          <code>settings.json</code>, <code>tables/</code>, <code>subsets/</code>).{" "}
+          <code>achi run --settings settings.json heart.bed liver.bed lung.bed</code> reruns an analysis exported
+          here, with its assembly, overlap rule, blacklist and selection. <code>achi --help</code> lists every
+          analysis and option. Reference data is downloaded from this site on first use, checked against its
+          checksums and kept in <code>~/.cache/achi</code>; <code>achi data get hg38</code> downloads an assembly in
+          advance. Your region files are not uploaded.
+        </p>
+        <p>
+          <strong>AI assistants (MCP).</strong> Add the server to your assistant once. In Claude Code:
+        </p>
+        <pre className="help-code">{`claude mcp add achi -- achi-mcp`}</pre>
+        <p>
+          In Claude Desktop, add it to <code>claude_desktop_config.json</code>:
+        </p>
+        <pre className="help-code">{`{
+  "mcpServers": {
+    "achi": { "command": "achi-mcp" }
+  }
+}`}</pre>
+        <p>
+          Then ask in plain language, for example “intersect heart.bed, liver.bed and lung.bed in ~/peaks and run
+          GO enrichment on the heart-only regions”. The files are read and analysed on your computer and the full
+          results are written to <code>~/achi-results</code>. But whatever the server returns becomes part of the
+          conversation, and so is sent to the model's provider. By default it returns only summaries: set and
+          subset sizes, and the top results with their odds ratios and q-values. Starting it with{" "}
+          <code>--allow-regions</code> also lets the assistant read region-level files (subset BED files, gene
+          lists); use that only when your data may be shared with the provider.
+        </p>
+        <p>
+          More on the{" "}
           <a href={`${SOURCE_CODE_URL}/tree/main/packages/cli`} target="_blank" rel="noreferrer">
             command-line tool
           </a>{" "}
-          and{" "}
+          and the{" "}
           <a href={`${SOURCE_CODE_URL}/tree/main/packages/mcp`} target="_blank" rel="noreferrer">
             MCP server
           </a>{" "}
-          on GitHub. They download only Achi's own reference data, checked against this site's checksums; your
-          files stay on your computer.
+          on GitHub.
         </p>
 
         <h3 id="cite">How to cite</h3>
