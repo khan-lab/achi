@@ -120,8 +120,8 @@ describeIfBedtools("differential test: lib/intervals.ts and lib/pipeline.ts's al
   // Sort (no merge — regions are taken as given) each real fixture with
   // native bedtools, exactly as lib/pipeline.ts does via the WASM binary.
   const sortedPaths = FIXTURE_FILES.map((file, i) => {
-    const raw = readFileSync(join(FIXTURES_DIR, file), "utf8");
-    const sorted = execFileSync("bedtools", ["sort", "-i", "/dev/stdin"], { input: raw, encoding: "utf8" });
+    // A file path, not /dev/stdin: on Linux Node passes `input` through a socket, which /dev/stdin cannot open.
+    const sorted = execFileSync("bedtools", ["sort", "-i", join(FIXTURES_DIR, file)], { encoding: "utf8" });
     const sortedPath = join(dir, `${ids[i]}.sorted.bed`);
     writeFileSync(sortedPath, sorted);
     return sortedPath;
@@ -198,7 +198,8 @@ describeIfBedtools("differential test: pairwise-count algorithm vs the CLI's int
   const dir = mkdtempSync(join(tmpdir(), "achi-diff-counts-"));
   const sortInto = (raw: string, name: string) => {
     const path = join(dir, name);
-    writeFileSync(path, execFileSync("bedtools", ["sort", "-i", "/dev/stdin"], { input: raw, encoding: "utf8" }));
+    writeFileSync(`${path}.unsorted`, raw);
+    writeFileSync(path, execFileSync("bedtools", ["sort", "-i", `${path}.unsorted`], { encoding: "utf8" }));
     return path;
   };
   const encodeIds = FIXTURE_FILES.map((f) => f.split("_")[0]);
@@ -243,9 +244,7 @@ describeIfBedtools("differential test: lib/pairwiseStats.ts parsers vs native be
   // `bedtools sort` — `bedtools fisher -g` requires genome-order input,
   // which is not the same as lexicographic order (e.g. chr2 vs chr10).
   const sortedPaths = FIXTURE_FILES.map((file, i) => {
-    const raw = readFileSync(join(FIXTURES_DIR, file), "utf8");
-    const sorted = execFileSync("bedtools", ["sort", "-g", GENOME_FILE, "-i", "/dev/stdin"], {
-      input: raw,
+    const sorted = execFileSync("bedtools", ["sort", "-g", GENOME_FILE, "-i", join(FIXTURES_DIR, file)], {
       encoding: "utf8",
     });
     const sortedPath = join(dir, `${ids[i]}.gsorted.bed`);
@@ -420,7 +419,8 @@ describeIfBedtools("differential test: Jaccard via native bedtools jaccard (as t
   const dir = mkdtempSync(join(tmpdir(), "achi-diff-jaccard-"));
   const sortInto = (raw: string, name: string) => {
     const path = join(dir, name);
-    writeFileSync(path, execFileSync("bedtools", ["sort", "-i", "/dev/stdin"], { input: raw, encoding: "utf8", maxBuffer: 1 << 30 }));
+    writeFileSync(`${path}.unsorted`, raw);
+    writeFileSync(path, execFileSync("bedtools", ["sort", "-i", `${path}.unsorted`], { encoding: "utf8", maxBuffer: 1 << 30 }));
     return path;
   };
   const jaccard = (a: string, b: string, flags: string[] = []) =>
