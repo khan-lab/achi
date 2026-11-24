@@ -17,8 +17,8 @@
  */
 import { BigWig } from "@gmod/bbi";
 import { RemoteFile } from "generic-filehandle2";
-import { chromAlias } from "./bigwigSource";
-import type { SignalInterval, SignalRead } from "./signalMatrix";
+import { chromAlias } from "@achi/core/bigwigSource";
+import type { SignalInterval, SignalRead } from "@achi/core/signalMatrix";
 
 export const EXACT_MAX_REGIONS = 2000;
 const LAYER_MIN = 100;

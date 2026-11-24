@@ -1,0 +1,58 @@
+# Draft bioconda recipe for the achi command-line tool and MCP server.
+# Not submittable yet: it builds from the npm tarballs of `achi` and
+# `achi-mcp`, which exist only once they are published (see
+# packaging/README.md). Then set both sha256 values from the published
+# tarballs (`npm view achi dist.integrity` is sha512; compute sha256 of the
+# downloaded .tgz) and open a pull request to bioconda-recipes.
+{% set version = "0.1.0" %}
+
+package:
+  name: achi
+  version: {{ version }}
+
+source:
+  - url: https://registry.npmjs.org/achi/-/achi-{{ version }}.tgz
+    sha256: SET_FROM_THE_PUBLISHED_TARBALL
+    folder: cli
+  - url: https://registry.npmjs.org/achi-mcp/-/achi-mcp-{{ version }}.tgz
+    sha256: SET_FROM_THE_PUBLISHED_TARBALL
+    folder: mcp
+
+build:
+  number: 0
+  noarch: generic
+  script: |
+    mkdir -p "$PREFIX/libexec/achi" "$PREFIX/bin"
+    cp cli/package/dist/achi.js mcp/package/dist/achi-mcp.js "$PREFIX/libexec/achi/"
+    printf '#!/bin/sh\nexec node "%s/libexec/achi/achi.js" "$@"\n' "$PREFIX" > "$PREFIX/bin/achi"
+    printf '#!/bin/sh\nexec node "%s/libexec/achi/achi-mcp.js" "$@"\n' "$PREFIX" > "$PREFIX/bin/achi-mcp"
+    chmod 755 "$PREFIX/bin/achi" "$PREFIX/bin/achi-mcp"
+
+requirements:
+  run:
+    - nodejs >=20.19
+    - bedtools >=2.31
+
+test:
+  commands:
+    - achi --version
+    - achi-mcp --version
+    - achi --help | grep -q "achi run"
+
+about:
+  home: https://khan-lab.github.io/achi/
+  dev_url: https://github.com/khan-lab/achi
+  license: MIT
+  license_family: MIT
+  license_file: cli/package/LICENSE
+  summary: Compare, annotate and interpret genomic intervals on your own computer (CLI and MCP server).
+  description: |
+    Achi intersects 1-8 genomic region sets with bedtools and tests them
+    for enrichment (reference region sets, GO with GREAT-like and
+    Cistrome-GO-like tests, JASPAR motifs) and signal (bigWig profiles).
+    The same analyses as the Achi web app, from the command line or as an
+    MCP server for AI assistants. Builds on Intervene.
+
+extra:
+  recipe-maintainers:
+    - SET_GITHUB_HANDLE

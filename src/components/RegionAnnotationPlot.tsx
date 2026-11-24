@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { usePanelStatus, usePanelWaiting } from "./panelState";
+import { SelectFirstHint } from "./CollapsiblePanel";
+import { panelStatus } from "./panelStatus";
 import { useStore } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
@@ -7,12 +10,13 @@ import {
   DISTANCE_BINS,
   annotationStepTotal,
   bucketDistance,
-  fetchAndMountAnnotation,
-  annotatePeaks,
+  hasAnnotationReferences,
+  runRegionAnnotation,
   type PeakAnno,
-} from "../lib/peakAnnotation";
+} from "@achi/core/peakAnnotation";
 import type { SummaryItem } from "./SummaryPlot";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
+import { webRuntime } from "../lib/runtime";
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -48,15 +52,12 @@ const ROW_LABEL_MAX_W = 100;
 const ROW_LABEL_GAP = 8;
 
 // Module-level, not component state: this component unmounts whenever
-// `view` navigates away from "summary" (App.tsx only renders it on that
-// tab), and annotating a set against ~10 reference BEDs plus a priority
-// intersect chain plus a closest call is expensive enough that silently
-// redoing it every time a user glances at another tab (e.g. to select a
-// subset on the UpSet plot) and comes back is a real, noticeable cost —
-// unlike a plain useRef/useState pair, which reset on every remount.
+// `view` changes or the selection is cleared, and annotating a set against
+// ~10 reference BEDs plus a priority intersect chain plus a closest call is
+// expensive, so a result is kept for the session (both cards share it) and
+// only groups not annotated yet need the Run button.
 // Keyed by (assembly, item id, item version), so this still
 // self-invalidates correctly if the same id's content ever changes.
-const categoryPathsCache = new Map<string, Record<string, string>>();
 const peakAnnoCache = new Map<string, PeakAnno>();
 
 /**
@@ -72,71 +73,68 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
   const annoBarRef = useRef<SVGSVGElement | null>(null);
   const distToTssRef = useRef<SVGSVGElement | null>(null);
 
-  const categoryPathsRef = useRef(categoryPathsCache); // shared module-level Map, not a fresh one per mount
   const [peakAnnoState, setPeakAnnoState] = useState<Map<string, PeakAnno>>(() => new Map(peakAnnoCache));
-  const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState<ComputeProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const busy = progress !== null;
 
   const cacheKey = (item: SummaryItem) => `${assembly}::${item.id}::${item.version}`;
-  const itemsKey = items.map((i) => `${i.id}:${i.version}`).join(",");
+  const done = items.filter((item) => peakAnnoState.has(cacheKey(item)));
+  const missing = items.filter((item) => !peakAnnoState.has(cacheKey(item)));
+  usePanelStatus(
+    panelStatus({ progress, error, hasResult: done.length > 0, stale: missing.length > 0, done: missing.length ? `${done.length} of ${items.length} annotated` : `${items.length} annotated` })
+  );
 
-  useEffect(() => {
-    if (items.length < 1) return;
-    let cancelled = false;
+  // Cancel a run when the card goes away (another view, selection cleared).
+  useEffect(() => () => abortRef.current?.abort(), []);
+  const waiting = usePanelWaiting();
 
-    (async () => {
-      const todo = items.filter((item) => !peakAnnoCache.has(cacheKey(item)));
-      if (!todo.length) {
-        // A cancelled earlier run may have left the overlay up.
-        setLoading(false);
-        setProgress(null);
-        return;
-      }
-      let categoryPaths = categoryPathsRef.current.get(assembly);
-      // One step per reference file still to load, then 2 intersects per
-      // category + 1 closest per item (lib/peakAnnotation.ts).
-      const total = annotationStepTotal(todo.length, categoryPaths !== undefined);
-      let done = 0;
-      const onStep = (label: string) => {
-        done++;
-        if (!cancelled) setProgress({ done, total, label });
-      };
-      setLoading(true);
-      setError(null);
-      setProgress({ done: 0, total, label: categoryPaths ? `${todo[0].name}: starting` : "Loading GENCODE annotation" });
-      try {
-        if (!categoryPaths) {
-          categoryPaths = await fetchAndMountAnnotation(assembly, onStep);
-          categoryPathsRef.current.set(assembly, categoryPaths);
-        }
-
-        for (const item of todo) {
-          if (cancelled) return;
+  // Runs only when asked: annotating against GENCODE takes a download and many
+  // bedtools steps. Groups already annotated (this session, any card) come
+  // from the cache; only the missing ones are computed.
+  const run = async () => {
+    const todo = items.filter((item) => !peakAnnoCache.has(cacheKey(item)));
+    if (!todo.length) return;
+    abortRef.current?.abort();
+    const abort = new AbortController();
+    abortRef.current = abort;
+    const referencesLoaded = hasAnnotationReferences(webRuntime, assembly);
+    // One step per reference file still to load, then 2 intersects per
+    // category + 1 closest per item (@achi/core/peakAnnotation).
+    const total = annotationStepTotal(todo.length, referencesLoaded);
+    let steps = 0;
+    setError(null);
+    setProgress({ done: 0, total, label: referencesLoaded ? `${todo[0].name}: starting` : "Loading GENCODE annotation" });
+    try {
+      await runRegionAnnotation(webRuntime, assembly, todo, {
+        signal: abort.signal,
+        onStep: (label) => {
+          if (!abort.signal.aborted) setProgress({ done: ++steps, total, label });
+        },
+        onResult: (anno, item) => {
           const key = cacheKey(item);
-          const anno = await annotatePeaks(item, categoryPaths, onStep);
-          if (cancelled) return;
           peakAnnoCache.set(key, anno);
-          setPeakAnnoState((prev) => new Map(prev).set(key, anno));
-        }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-          setProgress(null);
-        }
-      }
-    })();
+          if (!abort.signal.aborted) setPeakAnnoState((prev) => new Map(prev).set(key, anno));
+        },
+      });
+    } catch (err) {
+      if (!abort.signal.aborted) setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      if (abortRef.current === abort) setProgress(null);
+    }
+  };
 
-    return () => {
-      cancelled = true;
-    };
-    // peakAnnoCache (the module-level Map) is read for "already computed?"
-    // checks only, see the same note in SummaryPlot.tsx's/PairwiseHeatmap.tsx's effects.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assembly, itemsKey]);
-
+  if (items.length < 1 && waiting) {
+    return (
+      <div className="permrow" style={{ margin: "11px 13px 13px" }}>
+        <button className="ghost" disabled>
+          Run region annotation
+        </button>
+        <SelectFirstHint />
+      </div>
+    );
+  }
   if (items.length < 1) {
     return (
       <div className="placeholder">
@@ -146,25 +144,39 @@ export function RegionAnnotationPlot({ items }: { items: SummaryItem[] }) {
     );
   }
 
-  const peakAnnoList: (PeakAnno | undefined)[] = items.map((item) => peakAnnoState.get(cacheKey(item)));
-
-  const busy = loading && !error;
+  const peakAnnoList: (PeakAnno | undefined)[] = done.map((item) => peakAnnoState.get(cacheKey(item)));
 
   return (
     <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy}>
       {busy && <ComputeOverlay label={progress?.label ?? "Annotating regions"} progress={progress} />}
-      {error && (
-        <div className="rowsplit" style={{ margin: "0 13px 10px", justifyContent: "flex-end" }}>
-          <span className="hint error" style={{ margin: 0 }}>
-            {error}
-          </span>
+      {(missing.length > 0 || error) && (
+        <div className="permrow" style={{ margin: "11px 13px 13px" }}>
+          {missing.length > 0 && (
+            <button className="ghost" disabled={busy} onClick={() => void run()}>
+              {done.length ? `Annotate ${missing.length} more` : "Run region annotation"}
+            </button>
+          )}
+          {missing.length > 0 && !busy && (
+            <span className="hint" style={{ margin: 0 }}>
+              {done.length ? `${missing.map((m) => m.name).join(", ")} not annotated yet. ` : ""}
+              Classifies each region against GENCODE (TSS, promoter, UTR, exon, intron, downstream, distal) and measures its distance to the nearest TSS, with bedtools in your browser
+              {hasAnnotationReferences(webRuntime, assembly) ? "." : "; the GENCODE files are downloaded once."}
+            </span>
+          )}
+          {error && (
+            <span className="hint error" style={{ margin: 0 }}>
+              {error}
+            </span>
+          )}
         </div>
       )}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, paddingTop: 4 }}>
-        <AnnoBarChart items={items} peakAnnoList={peakAnnoList} svgRef={annoBarRef} />
-        <DistToTssChart items={items} peakAnnoList={peakAnnoList} svgRef={distToTssRef} />
-      </div>
+      {done.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 16, paddingTop: 4 }}>
+          <AnnoBarChart items={done} peakAnnoList={peakAnnoList} svgRef={annoBarRef} />
+          <DistToTssChart items={done} peakAnnoList={peakAnnoList} svgRef={distToTssRef} />
+        </div>
+      )}
     </div>
   );
 }

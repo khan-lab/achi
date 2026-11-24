@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EmbedResult, IntervalSelectionApi } from "@genome-spy/core/minimal";
 import { useChosenGroups, useStore } from "../state/store";
 import { formatLocus, referenceOptions, type Locus } from "../lib/browserTracks";
-import { normalizeRegionText } from "../lib/inputValidation";
-import { parseBed, sortIntervals } from "../lib/intervals";
+import { normalizeRegionText } from "@achi/core/inputValidation";
+import { parseBed, sortIntervals } from "@achi/core/intervals";
 import type { Interval } from "../types";
 import {
   brushLoci,

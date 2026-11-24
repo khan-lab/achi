@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MAX_FILE_BYTES, MAX_REGIONS } from "../lib/inputValidation";
+import { MAX_FILE_BYTES, MAX_REGIONS } from "@achi/core/inputValidation";
 import { MAX_SETS } from "../types";
 import { LINK_DEFAULTS, buildLink } from "../lib/shareLink";
 import { OfflinePanel } from "./OfflineStatus";
@@ -86,7 +86,12 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
             tests that compare two groups directly are not run between them.
           </li>
           <li>
-            Selected subsets and sets get their own summary, annotation and enrichment below the plot. Each also has a
+            Below the plot, the analysis panels are listed as soon as your files are loaded, folded until you select
+            something (open one to choose its settings or, for expression, its table; Run waits for a selection). They
+            come in three groups:{" "}
+            <em>Annotate regions</em> (summary, annotation, signal), <em>Region enrichment</em> (reference-set and
+            motif enrichment) and <em>Functional analysis</em> (GO, expression). Click a panel's header to fold it, or
+            use the button in the Selection card to fold or open them all. Each selection also has a
             card in the right-hand <em>Selected subsets and sets</em> column with two tabs: <em>Regions</em> (shown
             first) and <em>Genes</em>, the nearest protein-coding gene of each region. The card's copy and download
             buttons act on the tab shown. Download everything at once with <em>Export selected</em>;{" "}
@@ -213,7 +218,11 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           <li>
             <strong>Pairwise</strong>: base-pair Jaccard index; <code>bedtools fisher</code> (odds ratio and p-value
             against independent placement on the genome); or <code>bedtools reldist</code> with a Kolmogorov–Smirnov
-            test against uniform relative distance.
+            test against uniform relative distance; or a <strong>permutation test</strong>: each row set's regions are
+            shuffled (same lengths, on their own chromosome by default, never into assembly gaps or the ENCODE
+            blacklist) and the number overlapping the column set is compared with the shuffles, as in regioneR (Gel et
+            al. <em>Bioinformatics</em> 2016), with p = (b + 1)/(n + 1) over n shuffles (Phipson and Smyth{" "}
+            <em>Stat Appl Genet Mol Biol</em> 2010). It runs when you press Run; the same seed gives the same result here and in the <code>achi</code> command.
           </li>
           <li>
             <strong>Table</strong>: every subset with exact region and base-pair counts.
@@ -221,7 +230,8 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           <li>
             <strong>Set Summary</strong>: <code>bedtools summary</code> per set, plus each region classified against
             GENCODE protein-coding genes (promoter, UTR, exon, intron, downstream, distal) and its distance to the
-            nearest TSS.
+            nearest TSS. The summary is immediate; the annotation runs when you press <em>Run region annotation</em> (here and
+            for selected subsets), and is kept for the session.
           </li>
           <li>
             <strong>Genome Browser</strong>: a genome-wide overview (GenomeSpy; see{" "}
@@ -335,9 +345,19 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           positions off by one in the package, and a newer GO release) and are described in the methods.
         </p>
         <p>
-          q-values are Benjamini–Hochberg over all tested terms of a namespace, per subset. The chart shows the top 15
-          enriched terms of the subset; the TSV downloads have every term. GO data: Gene Ontology Consortium (CC BY 4.0;
+          q-values are Benjamini–Hochberg over all tested terms of a namespace, per subset. The chart shows the top 10
+          enriched terms of the subset (change the number under the chart); the TSV downloads have every term. GO data: Gene Ontology Consortium (CC BY 4.0;
           ontology release 2026-07-26, annotations 2026-05-21).
+        </p>
+        <p>
+          With two or more subsets selected, <b>Across subsets</b> shows their results side by side, as a dot plot in the style of clusterProfiler's
+          compareCluster: one row per term, one column per subset; colour is −log₁₀ q, size the fold (odds ratio against the input sets; its key is on the right); a grey ring is a
+          term enriched but not significant in that subset, an empty cell one that is not enriched. Rows are each subset's top 5 significant terms (change the
+          number), shared ones first. No new test is run: each cell is that subset's own result. Because q also grows with a subset's number of regions,
+          compare fold across subsets; to test whether a subset differs from the rest, use the GREAT-like test against the input sets.{" "}
+          <b>Group similar terms</b> (on by default) clusters terms whose annotated genes overlap, as Metascape does (Zhou et al. 2019): Cohen's kappa between
+          terms, average-linkage clustering, groups joined at kappa &gt; 0.3. Each row then shows the group's most significant term (+n: the others, listed in
+          its tooltip), and each cell that subset's best term of the group. The comparison downloads as TSV and SVG/PNG, and is included in Export analysis.
         </p>
 
         <h3 id="motifs">Motif enrichment (JASPAR)</h3>
@@ -356,6 +376,33 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           <em>Private download</em> of whole chromosomes from UCSC (about 775 MB for hg38, the same whatever your regions, kept in
           the browser for later runs), or <em>Exact</em> range requests for your regions only (a fraction of a MB, but the server
           sees roughly where they are; asked every run, up to 2,000 regions).
+        </p>
+
+        <h3 id="expression">Expression near the selected regions</h3>
+        <p>
+          <em>Expression near the selected subsets and sets</em> takes a differential-expression table from your computer (DESeq2,
+          edgeR or limma output, tab- or comma-separated; the gene, log2 fold change and adjusted p columns are found by their
+          usual names) and asks whether genes near each group&apos;s regions go up or down. It stays in your browser.
+        </p>
+        <ul>
+          <li>
+            <strong>BETA-like</strong> (follows BETA, Wang et al. <em>Nat Protoc</em> 2013, reimplemented here): every protein-coding gene gets a regulatory potential
+            from the group&apos;s regions within 100 kb of its TSS, each region adding exp(−(0.5 + 4·distance/100 kb)). Genes are
+            ranked by it, and the ranks of up genes, and of down genes, are compared with those of non-differential genes by a
+            one-sided Kolmogorov–Smirnov test. The plot is BETA&apos;s: the cumulative fraction of each class among the genes
+            ranked by regulatory potential. Target genes are up or down genes near the regions, ranked by the product of their
+            regulatory-potential and differential-expression ranks.
+          </li>
+          <li>
+            <strong>Nearest gene</strong>: the log2 fold changes of the regions&apos; nearest genes (as in the Genes tab)
+            against those of all other genes, by a Mann–Whitney test.
+          </li>
+        </ul>
+        <p>
+          Up and down mean adjusted p below 0.05 and |log2 fold change| at least 1 (both in Settings). Genes are matched by
+          Ensembl id (any version) or symbol; non-coding genes are left out. With the hg38 example, <em>Use example table</em>{" "}
+          loads HepG2 vs K562 from ENCODE total RNA-seq, analysed with DESeq2. The same tests run with{" "}
+          <code>achi run --expression table.tsv</code>.
         </p>
 
         <h3 id="signal">Signal profiles and heatmaps</h3>
@@ -393,7 +440,9 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           the analysis with its references (the build of Achi, the inputs, assembly, overlap rule, filters,
           the selected subsets and sets and, if you ran them, the enrichment, GO and gene-list settings);{" "}
           <code>settings.json</code>; every subset as BED (or .txt for lists); tables of the inputs and all subsets; the
-          enrichment and GO results and gene lists you computed; and the plots on screen at that moment as SVG.{" "}
+          results you computed (enrichment, motifs, GO, expression, signal, the permutation test) and gene lists; and the
+          plots on screen at that moment as SVG. A result marked out of date (inputs or settings changed after it ran) is
+          left out, with its plots, so the tables always match <code>settings.json</code>; run it again to include it.{" "}
           <code>settings.json</code> holds no data: the parameters, and each input's name, file name, size and SHA-256
           checksum. <em>Restore settings…</em> reads it back: the parameters apply at once, and the selected subsets and sets
           return once you load the same files (matched by set name; files whose checksum differs are named).
@@ -414,7 +463,7 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
           Optional settings: <code>assembly</code> (hg38, hg19, mm10, mm9), <code>overlap</code> (1bp, fraction50,
           reciprocal50), <code>bedtools</code> (the Advanced field, e.g. <code>f=0.25,r</code>),{" "}
           <code>blacklist=1</code>, <code>sort=degree</code>, <code>min</code> (smallest UpSet bar),{" "}
-          <code>stat</code> (jaccard, fisher, reldist), <code>view</code> and <code>sel</code> (selected subsets by their number; a negative number selects a
+          <code>stat</code> (jaccard, fisher, reldist, permutation), <code>view</code> and <code>sel</code> (selected subsets by their number; a negative number selects a
           whole set: <code>-1</code> the first, <code>-2</code> the second, <code>-4</code> the third, <code>-8</code> the
           fourth…).
           Opening a link always asks first: it lists every file and the server it comes from, and nothing is
@@ -507,6 +556,68 @@ export function HelpPage({ onBack }: { onBack: () => void }) {
         <p>
           Large sets (ClinVar, GWAS Catalog, proximal enhancer-like cCREs, 250k–340k regions each) take about 10–15
           seconds to add on a typical laptop.
+        </p>
+
+        <h3 id="cli">Command line and AI assistants</h3>
+        <p>
+          The same analyses run outside the browser, with native bedtools, through two companion tools built on the
+          same code as this site: <code>achi</code>, a command-line tool for pipelines and files larger than the
+          browser handles, and <code>achi-mcp</code>, a server that lets an AI assistant run analyses for you. On
+          the same files and settings, all three give the same results.
+        </p>
+        <p>
+          <strong>Install.</strong> Both need Node.js 20.19 or newer and bedtools 2.31 or newer on your{" "}
+          <code>PATH</code> (for example <code>conda install -c bioconda bedtools</code>).
+        </p>
+        <pre className="help-code">{`npm install -g achi achi-mcp`}</pre>
+        <p>
+          <strong>Command line.</strong> <code>achi run</code> intersects 1–8 region files and runs the analyses you
+          ask for on the subsets or sets you select:
+        </p>
+        <pre className="help-code">{`achi run heart.bed liver.bed lung.bed \\
+  --select "Heart only" --select Liver \\
+  --enrich --go great --genes \\
+  --out results`}</pre>
+        <p>
+          The results folder has the same layout as <em>Export analysis</em> (<code>methods.md</code>,{" "}
+          <code>settings.json</code>, <code>tables/</code>, <code>subsets/</code>).{" "}
+          <code>achi run --settings settings.json heart.bed liver.bed lung.bed</code> reruns an analysis exported
+          here, with its assembly, overlap rule, blacklist and selection. <code>achi --help</code> lists every
+          analysis and option. Reference data is downloaded from this site on first use, checked against its
+          checksums and kept in <code>~/.cache/achi</code>; <code>achi data get hg38</code> downloads an assembly in
+          advance. Your region files are not uploaded.
+        </p>
+        <p>
+          <strong>AI assistants (MCP).</strong> Add the server to your assistant once. In Claude Code:
+        </p>
+        <pre className="help-code">{`claude mcp add achi -- achi-mcp`}</pre>
+        <p>
+          In Claude Desktop, add it to <code>claude_desktop_config.json</code>:
+        </p>
+        <pre className="help-code">{`{
+  "mcpServers": {
+    "achi": { "command": "achi-mcp" }
+  }
+}`}</pre>
+        <p>
+          Then ask in plain language, for example “intersect heart.bed, liver.bed and lung.bed in ~/peaks and run
+          GO enrichment on the heart-only regions”. The files are read and analysed on your computer and the full
+          results are written to <code>~/achi-results</code>. But whatever the server returns becomes part of the
+          conversation, and so is sent to the model's provider. By default it returns only summaries: set and
+          subset sizes, and the top results with their odds ratios and q-values. Starting it with{" "}
+          <code>--allow-regions</code> also lets the assistant read region-level files (subset BED files, gene
+          lists); use that only when your data may be shared with the provider.
+        </p>
+        <p>
+          More on the{" "}
+          <a href={`${SOURCE_CODE_URL}/tree/main/packages/cli`} target="_blank" rel="noreferrer">
+            command-line tool
+          </a>{" "}
+          and the{" "}
+          <a href={`${SOURCE_CODE_URL}/tree/main/packages/mcp`} target="_blank" rel="noreferrer">
+            MCP server
+          </a>{" "}
+          on GitHub.
         </p>
 
         <h3 id="cite">How to cite</h3>

@@ -1,17 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SelectFirstHint } from "./CollapsiblePanel";
+import { usePanelStatus } from "./panelState";
+import { count, panelStatus } from "./panelStatus";
 import { interpolateLab, scaleLinear, scaleSymlog } from "d3";
 import { useChosenGroups, useStore } from "../state/store";
-import { sharesRegions } from "../lib/selection";
+import { sharesRegions } from "@achi/core/selection";
 import { PALETTE } from "../types";
-import { bigWigFor, chromAlias, sourceFromBigWig, type BigWigSource } from "../lib/bigwigSource";
+import { bigWigFor, sourceFromBigWig, type BigWigSource } from "@achi/core/bigwigSource";
 import { EXACT_MAX_REGIONS, estimateExact, layerChoices, openRemoteBigWig, readSummaryLayer, type SummaryLayer } from "../lib/remoteSignal";
 import { hostOf } from "../lib/remoteTracks";
 import { PublicSignalPicker } from "./PublicSignalPicker";
-import { binWindows, binCounts, computeSignalMatrix, kmeansRows, profileStats, rowMean, validateProfileParams, type ProfileParams, type ProfileRegion, type SignalMatrix } from "../lib/signalMatrix";
-import { benjaminiHochberg, mannWhitneyU } from "../lib/stats";
+import { binWindows, binCounts, profileStats, validateProfileParams, type ProfileParams, type ProfileRegion } from "@achi/core/signalMatrix";
+import {
+  MAX_SIGNAL_ROWS,
+  median,
+  quantile,
+  runSignalProfiles,
+  sample,
+  signalClustersBed,
+  signalMatrixTsv,
+  signalRegionMeansTsv,
+  signalStatsTsv,
+  type PairStat,
+  type SignalGroup,
+  type SignalRun,
+  type SignalTrack,
+} from "@achi/core/signalRun";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
-import { registerExport } from "../lib/exportRegistry";
-import { signalMethods } from "../lib/analysisExport";
+import { markExportStale, registerExport } from "../lib/exportRegistry";
+import { signalMethods } from "@achi/core/analysisExport";
 import { formatLocus } from "../lib/browserTracks";
 import { truncateToWidth } from "../lib/textMeasure";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
@@ -39,7 +56,7 @@ const seq = scaleLinear<string>()
   .interpolate(interpolateLab)
   .clamp(true);
 
-const MAX_ROWS = 20_000;
+const MAX_ROWS = MAX_SIGNAL_ROWS;
 const COL_W = 176;
 const COL_GAP = 26;
 const PROFILE_H = 120;
@@ -47,41 +64,15 @@ const LABEL_W = 132;
 
 type Sort = "desc" | "asc" | "keep";
 
-interface Group {
-  mask: number;
-  label: string;
+/** A group as shown, with its colour. */
+interface Group extends SignalGroup {
   color: string;
 }
 
-interface Run {
+/** A run as shown: core's SignalRun, the settings key it was run for, and each group with its colour. */
+interface Run extends SignalRun {
   key: string;
-  params: ProfileParams;
-  sort: Sort;
-  k: number;
-  tracks: RunTrack[];
   groups: Group[];
-  regions: (ProfileRegion & { group: number })[];
-  matrices: SignalMatrix[];
-  /** Display order of region indexes, grouped (by subset, or by cluster when k > 1). */
-  order: number[];
-  /** Per region: its display group (subset index, or cluster). */
-  band: Int32Array;
-  clusters: Int32Array | null;
-  /** Per track, its colour-scale range. */
-  ranges: [number, number][];
-  stats: PairStat[];
-  sampledFrom: number | null;
-}
-
-interface RunTrack {
-  id: string;
-  name: string;
-  /** How it was read, for the note under the figure and the methods text. */
-  how: string;
-  host?: string;
-  /** Private mode: the summary layer's resolution (bp). */
-  level?: number;
-  exact?: boolean;
 }
 
 type PublicMode = "private" | "exact";
@@ -103,44 +94,12 @@ const remote = (url: string) => {
 };
 let lastPublic: { mode: PublicMode; target: number } = { mode: "private", target: 3000 };
 
-interface PairStat {
-  /** Index of the track in run.tracks. */
-  ti: number;
-  track: string;
-  a: number;
-  b: number;
-  nA: number;
-  nB: number;
-  medianA: number;
-  medianB: number;
-  U: number;
-  p: number;
-  q: number;
-  /** Why the pair was not tested (p and q are NaN): the groups share regions (a whole set and its own subsets, or two overlapping sets), or one has no signal. */
-  untested?: "overlap" | "nodata";
-}
-
 const SCALE_DEFAULTS = { upstream: 5000, downstream: 5000, body: 5000, binSize: 200 };
 const REF_DEFAULTS = { upstream: 2000, downstream: 2000, body: 5000, binSize: 50 };
 
 // Survive the card unmounting when the selection is cleared and re-made.
 let lastRun: Run | null = null;
 let lastUi: { params: ProfileParams; sort: Sort; k: number } | null = null;
-
-function median(v: number[]): number {
-  const s = v.filter((x) => !Number.isNaN(x)).sort((a, b) => a - b);
-  if (!s.length) return NaN;
-  const m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-}
-
-function quantile(sorted: number[], q: number): number {
-  if (!sorted.length) return NaN;
-  const pos = (sorted.length - 1) * q;
-  const lo = Math.floor(pos);
-  const hi = Math.ceil(pos);
-  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
-}
 
 function fmtV(v: number): string {
   if (Number.isNaN(v)) return "no data";
@@ -221,24 +180,6 @@ function bracketsFor(stats: PairStat[], nGroups: number, onlySignificant: boolea
 const kb = (n: number) => (n >= 1000 ? `${+(n / 1000).toFixed(1)} kb` : `${n} bp`);
 const slug = (s: string) => s.replace(/[^A-Za-z0-9._-]+/g, "_").replace(/^_|_$/g, "") || "track";
 
-/** Deterministic subsample (seeded Fisher–Yates), keeping file order. */
-function sample<T>(items: T[], n: number): T[] {
-  let a = 12345;
-  const rand = () => {
-    a = (a * 1103515245 + 12345) >>> 0;
-    return a / 4294967296;
-  };
-  const idx = items.map((_, i) => i);
-  for (let i = idx.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [idx[i], idx[j]] = [idx[j], idx[i]];
-  }
-  return idx
-    .slice(0, n)
-    .sort((x, y) => x - y)
-    .map((i) => items[i]);
-}
-
 /** x-axis labels of a profile, at bin positions. */
 function axisTicks(p: ProfileParams): { at: number; label: string }[] {
   const { up, body, total } = binCounts(p);
@@ -292,7 +233,9 @@ export function SignalProfilePanel() {
   const publicActive = active.filter((t) => t.url);
   const key = JSON.stringify([params, sort, k, active.map((t) => t.id), chosen.map((s) => `${s.mask}:${s.nRegions}`), publicActive.length ? [publicMode, target] : null]);
   const stale = run !== null && run.key !== key;
+  useEffect(() => markExportStale("signal", stale), [stale]);
   const busy = progress !== null;
+  usePanelStatus(panelStatus({ progress, error, hasResult: run !== null, stale, done: run ? `${count(run.tracks.length, "track")} · ${count(run.regions.length, "region")}` : undefined }));
   const hasExampleSignal = tracks.some((t) => t.source === "example");
 
   const setMode = (mode: ProfileParams["mode"]) => setParams((p) => (p.mode === mode ? p : { ...p, mode, ...(mode === "scale" ? SCALE_DEFAULTS : REF_DEFAULTS) }));
@@ -336,97 +279,66 @@ export function SignalProfilePanel() {
     setExactAsk(null);
     const ac = new AbortController();
     abortRef.current = ac;
-    const groups: Group[] = chosen.map((s, i) => ({
-      mask: s.mask,
-      label: s.label,
-      color: PALETTE[i % PALETTE.length],
-    }));
-    let regions = allRegions();
     const cap = exact ? EXACT_MAX_REGIONS : MAX_ROWS;
-    const sampledFrom = regions.length > cap ? regions.length : null;
-    if (sampledFrom) regions = sample(regions, cap);
-    const total = regions.length * active.length;
     try {
-      const matrices: SignalMatrix[] = [];
-      const runTracks: RunTrack[] = [];
-      for (const [ti, t] of active.entries()) {
-        setProgress({ done: ti * regions.length, total, label: `Reading ${t.name}`, unit: "regions" });
-        let src: { chroms: Map<string, number>; read: BigWigSource["read"] };
-        let concurrency = 1;
+      const tracks: SignalTrack[] = active.map((t): SignalTrack => {
         if (t.file) {
-          src = await bigWigFor(t.file);
-          runTracks.push({
-            id: t.id,
-            name: t.name,
-            how: t.source === "example" ? "example extract, 200 bp bins" : "file on this computer",
-          });
-        } else if (exact) {
-          const url = t.url!;
-          let p = exactSources.get(url);
-          if (!p) exactSources.set(url, (p = sourceFromBigWig(remote(url).bw)));
-          src = await p.catch((e) => (exactSources.delete(url), Promise.reject(e)));
-          concurrency = 6;
-          runTracks.push({
+          const f = t.file;
+          return { id: t.id, name: t.name, how: t.source === "example" ? "example extract, 200 bp bins" : "file on this computer", open: () => bigWigFor(f) };
+        }
+        const url = t.url!;
+        if (exact)
+          return {
             id: t.id,
             name: t.name,
             how: `public, exact: range requests to ${hostOf(url)}`,
             host: hostOf(url),
             exact: true,
-          });
-        } else {
-          const url = t.url!;
-          const { bw } = remote(url);
-          const header = await bw.getHeader();
-          const { preferred } = layerChoices(
-            header.zoomLevels.map((z) => z.reductionLevel),
-            target,
-          );
-          if (preferred === null) throw new Error(`${t.name} has no summary layer between 100 bp and 20 kb. Use Exact for it.`);
-          const lkey = `${url}|${preferred}`;
-          let p = layers.get(lkey);
-          if (!p) {
-            p = readSummaryLayer(bw, preferred, {
-              signal: ac.signal,
-              onProgress: (d, n) =>
-                setProgress({
-                  done: d,
-                  total: n,
-                  label: `Downloading the ${preferred.toLocaleString("en-US")} bp summary of ${t.name}`,
-                  unit: "chromosomes",
-                }),
-            });
-            layers.set(lkey, p);
-          }
-          src = await p.catch((e) => (layers.delete(lkey), Promise.reject(e)));
-          runTracks.push({
-            id: t.id,
-            name: t.name,
-            how: `public, private: whole-genome ${preferred.toLocaleString("en-US")} bp summary from ${hostOf(url)}`,
-            host: hostOf(url),
-            level: preferred,
-          });
-        }
-        const shared = new Set(regions.map((r) => r.chrom)).size;
-        const named = [...new Set(regions.map((r) => r.chrom))].filter((c) => chromAlias(c, src.chroms)).length;
-        if (!named) throw new Error(`${t.name} has none of the subsets' chromosomes (it names ${[...src.chroms.keys()].slice(0, 3).join(", ")}…). Is it for ${assembly}?`);
-        if (named < shared) console.info(`${t.name}: ${shared - named} of the subsets' chromosomes are not in this bigWig; their bins are empty.`);
-        matrices.push(
-          await computeSignalMatrix(regions, src.read, params, {
-            signal: ac.signal,
-            withRegionMeans: true,
-            concurrency,
-            onProgress: (d) =>
-              setProgress({
-                done: ti * regions.length + d,
-                total,
-                label: `Reading ${t.name}`,
-                unit: "regions",
-              }),
-          }),
-        );
-      }
-      const overlaps = groups.map((ga) => groups.map((gb) => sharesRegions(ga.mask, gb.mask, subsets)));
-      setRun(buildRun({ key, params, sort, k, tracks: runTracks, groups, regions, matrices, sampledFrom, overlaps }));
+            concurrency: 6,
+            open: () => {
+              let p = exactSources.get(url);
+              if (!p) exactSources.set(url, (p = sourceFromBigWig(remote(url).bw)));
+              return p.catch((e) => (exactSources.delete(url), Promise.reject(e)));
+            },
+          };
+        return {
+          id: t.id,
+          name: t.name,
+          host: hostOf(url),
+          open: async () => {
+            const { bw } = remote(url);
+            const header = await bw.getHeader();
+            const { preferred } = layerChoices(
+              header.zoomLevels.map((z) => z.reductionLevel),
+              target,
+            );
+            if (preferred === null) throw new Error(`${t.name} has no summary layer between 100 bp and 20 kb. Use Exact for it.`);
+            const lkey = `${url}|${preferred}`;
+            let p = layers.get(lkey);
+            if (!p) {
+              p = readSummaryLayer(bw, preferred, {
+                signal: ac.signal,
+                onProgress: (d, n) =>
+                  setProgress({
+                    done: d,
+                    total: n,
+                    label: `Downloading the ${preferred.toLocaleString("en-US")} bp summary of ${t.name}`,
+                    unit: "chromosomes",
+                  }),
+              });
+              layers.set(lkey, p);
+            }
+            const src = await p.catch((e) => (layers.delete(lkey), Promise.reject(e)));
+            return { chroms: src.chroms, read: src.read, how: `public, private: whole-genome ${preferred.toLocaleString("en-US")} bp summary from ${hostOf(url)}`, level: preferred };
+          },
+        };
+      });
+      const overlaps = chosen.map((ga) => chosen.map((gb) => sharesRegions(ga.mask, gb.mask, subsets)));
+      const out = await runSignalProfiles(
+        { assembly, params, sort, k, groups: chosen.map((g) => ({ mask: g.mask, label: g.label, regions: g.regions })), overlaps, tracks, cap },
+        { signal: ac.signal, onProgress: setProgress },
+      );
+      setRun({ ...out, key, groups: out.groups.map((g, i) => ({ ...g, color: PALETTE[i % PALETTE.length] })) });
     } catch (err) {
       if (!ac.signal.aborted) setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -480,7 +392,7 @@ export function SignalProfilePanel() {
   };
 
   return (
-    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy} style={{ minHeight: 120 }}>
+    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy}>
       {busy && (
         <div className="sp-overlay">
           <ComputeOverlay label={progress.label} progress={progress} />
@@ -604,6 +516,11 @@ export function SignalProfilePanel() {
           {run ? "Compute again" : "Compute profiles"}
         </button>
       </div>
+      {!chosen.length && (
+        <div style={{ margin: "0 0 10px" }}>
+          <SelectFirstHint />
+        </div>
+      )}
 
       <SettingsShell
         nChanged={(() => {
@@ -680,13 +597,13 @@ export function SignalProfilePanel() {
       </div>
       {problem && <div className="hint error">{problem}</div>}
       {error && <div className="hint error">{error}</div>}
-      {stale && !busy && (
+      {stale && !busy && chosen.length > 0 && (
         <div className="setinfo" style={{ marginBottom: 8 }}>
           Settings, tracks or selection changed since this result. Press Compute again to update it.
         </div>
       )}
 
-      {run && (
+      {run && chosen.length > 0 && (
         <div className={stale ? "stale" : undefined}>
           <ProfileFigure run={run} svgRef={figRef} onRegion={(r) => showInBrowser(formatLocus(r))} />
           <div className="setinfo" style={{ marginTop: 4 }}>
@@ -726,99 +643,6 @@ export function SignalProfilePanel() {
   );
 }
 
-function buildRun(x: {
-  key: string;
-  params: ProfileParams;
-  sort: Sort;
-  k: number;
-  tracks: RunTrack[];
-  groups: Group[];
-  regions: (ProfileRegion & { group: number })[];
-  matrices: SignalMatrix[];
-  sampledFrom: number | null;
-  /** overlaps[a][b]: groups a and b can hold the same loci (lib/selection.ts sharesRegions), so the Mann–Whitney test, which needs independent groups, is skipped. */
-  overlaps: boolean[][];
-}): Run {
-  const n = x.regions.length;
-  const nB = x.matrices[0]?.nBins ?? 0;
-  // Rows across all tracks side by side: what sorting and clustering use (as deepTools does).
-  const joined = new Float32Array(n * nB * x.matrices.length);
-  const width = nB * x.matrices.length;
-  for (let r = 0; r < n; r++) x.matrices.forEach((m, t) => joined.set(m.values.subarray(r * nB, (r + 1) * nB), r * width + t * nB));
-  const all = Array.from({ length: n }, (_, i) => i);
-  const clusters = x.k > 1 ? kmeansRows(joined, width, all, x.k, 1) : null;
-  const band = clusters ?? Int32Array.from(x.regions.map((r) => r.group));
-  const nBands = clusters ? Math.max(...clusters) + 1 : x.groups.length;
-  const means = all.map((r) => rowMean(joined, width, r));
-  const order: number[] = [];
-  for (let b = 0; b < nBands; b++) {
-    const rows = all.filter((r) => band[r] === b);
-    if (x.sort !== "keep")
-      rows.sort((p, q) => {
-        const a = means[p];
-        const c = means[q];
-        if (Number.isNaN(a) || Number.isNaN(c)) return Number(Number.isNaN(a)) - Number(Number.isNaN(c));
-        return x.sort === "desc" ? c - a : a - c;
-      });
-    order.push(...rows);
-  }
-  const ranges = x.matrices.map((m): [number, number] => {
-    const v = Array.from(m.values).filter((y) => !Number.isNaN(y));
-    if (v.length > 200_000) v.length = 200_000;
-    v.sort((a, b) => a - b);
-    const lo = Math.min(0, quantile(v, 0.02));
-    const hi = quantile(v, 0.98);
-    return [lo, hi > lo ? hi : lo + 1];
-  });
-  // Per-region mean signal compared between subsets (not clusters: those are made from the signal itself).
-  const stats: PairStat[] = [];
-  x.tracks.forEach((t, ti) => {
-    const byGroup = x.groups.map((_, g) => x.regions.map((r, i) => (r.group === g ? x.matrices[ti].regionMeans![i] : NaN)).filter((v) => !Number.isNaN(v)));
-    const pairs: PairStat[] = [];
-    for (let a = 0; a < x.groups.length; a++)
-      for (let b = a + 1; b < x.groups.length; b++) {
-        const r = mannWhitneyU(byGroup[a], byGroup[b]);
-        // Not tested (p and q are NaN, left out of BH): groups that share regions (the test needs independent groups), or one without signal at any of its regions.
-        const untested = x.overlaps[a]?.[b] ? ("overlap" as const) : !(r.n1 && r.n2) ? ("nodata" as const) : undefined;
-        const p = untested ? NaN : r.p;
-        pairs.push({
-          ti,
-          track: t.name,
-          a,
-          b,
-          nA: r.n1,
-          nB: r.n2,
-          medianA: median(byGroup[a]),
-          medianB: median(byGroup[b]),
-          U: untested ? NaN : r.U,
-          p,
-          q: p,
-          ...(untested ? { untested } : {}),
-        });
-      }
-    const tested = pairs.filter((p) => !Number.isNaN(p.p));
-    const q = benjaminiHochberg(tested.map((p) => p.p));
-    tested.forEach((p, i) => (p.q = q[i]));
-    stats.push(...pairs);
-  });
-  return {
-    key: x.key,
-    params: x.params,
-    sort: x.sort,
-    k: x.k,
-    tracks: x.tracks,
-    groups: x.groups,
-    regions: x.regions,
-    matrices: x.matrices,
-    order,
-    band,
-    clusters,
-    ranges,
-    stats,
-    sampledFrom: x.sampledFrom,
-  };
-}
-
 function bandLabel(run: Run, b: number): string {
   return run.clusters ? `Cluster ${b + 1}` : run.groups[b].label;
 }
@@ -826,34 +650,10 @@ function bandColor(run: Run, b: number): string {
   return run.clusters ? PALETTE[b % PALETTE.length] : run.groups[b].color;
 }
 
-function matrixTsv(run: Run, ti: number): string {
-  const m = run.matrices[ti];
-  const head = ["chrom", "start", "end", "subset", ...(run.clusters ? ["cluster"] : []), ...Array.from({ length: m.nBins }, (_, b) => `bin_${b + 1}`)];
-  const lines = run.order.map((i) => {
-    const r = run.regions[i];
-    const vals = Array.from(m.values.subarray(i * m.nBins, (i + 1) * m.nBins), (v) => (Number.isNaN(v) ? "nan" : String(+v.toPrecision(6))));
-    return [r.chrom, r.start, r.end, run.groups[r.group].label, ...(run.clusters ? [run.clusters[i] + 1] : []), ...vals].join("\t");
-  });
-  return [`# ${run.tracks[ti].name}; ${run.params.mode === "scale" ? "scale-regions" : `reference-point (${run.params.referencePoint})`}, upstream ${run.params.upstream}, ${run.params.mode === "scale" ? `body ${run.params.body}, ` : ""}downstream ${run.params.downstream}, bin ${run.params.binSize} bp`, head.join("\t"), ...lines].join("\n") + "\n";
-}
-
-function regionMeansTsv(run: Run): string {
-  const head = ["chrom", "start", "end", "subset", ...(run.clusters ? ["cluster"] : []), ...run.tracks.map((t) => `mean_${t.name}`)];
-  const lines = run.regions.map((r, i) => [r.chrom, r.start, r.end, run.groups[r.group].label, ...(run.clusters ? [run.clusters[i] + 1] : []), ...run.matrices.map((m) => (Number.isNaN(m.regionMeans![i]) ? "nan" : String(+m.regionMeans![i].toPrecision(6))))].join("\t"));
-  return [head.join("\t"), ...lines].join("\n") + "\n";
-}
-
-function statsTsv(run: Run): string {
-  const head = ["track", "subset_a", "subset_b", "n_a", "n_b", "median_a", "median_b", "U", "p", "q", "test"];
-  const lines = run.stats.map((s) =>
-    [s.track, run.groups[s.a].label, run.groups[s.b].label, s.nA, s.nB, +s.medianA.toPrecision(6), +s.medianB.toPrecision(6), ...[s.U, s.p, s.q].map((v) => (Number.isNaN(v) ? "NA" : v)), s.untested === "overlap" ? "not tested: the groups share regions" : s.untested ? "not tested: no signal in a group" : "Mann-Whitney U, two-sided, normal approximation"].join("\t"),
-  );
-  return [head.join("\t"), ...lines].join("\n") + "\n";
-}
-
-function clustersBed(run: Run): string {
-  return run.order.map((i) => [run.regions[i].chrom, run.regions[i].start, run.regions[i].end, `cluster_${run.clusters![i] + 1}`].join("\t")).join("\n") + "\n";
-}
+const matrixTsv = signalMatrixTsv;
+const regionMeansTsv = signalRegionMeansTsv;
+const statsTsv = signalStatsTsv;
+const clustersBed = signalClustersBed;
 
 /** The heatmap of one track as a PNG data URL: one pixel per bin, one row per region (or a mean of several when there are many). */
 function heatmapImage(run: Run, ti: number, height: number): string {

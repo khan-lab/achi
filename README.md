@@ -30,7 +30,8 @@ Achi grows out of [Intervene](https://github.com/asntech/intervene) (Khan and Ma
 
 **Intersection**
 - UpSet plot, Venn diagram (2–4 sets), pairwise heatmap (Jaccard, Fisher,
-  reldist) and a subset table.
+  reldist, or a seeded permutation test of overlap against shuffled regions)
+  and a subset table.
 - Overlap of 1 bp, 50 %, reciprocal 50 %, or any bedtools options.
 - Optional removal of ENCODE problematic regions.
 
@@ -60,6 +61,9 @@ Achi grows out of [Intervene](https://github.com/asntech/intervene) (Khan and Ma
   with editable settings:
   - **GREAT-like:** regulatory domains; genome or input-set background;
   - **Cistrome-GO-like:** regulatory-potential ranking and XL-mHG test.
+  - With several subsets selected, a terms × subsets dot plot compares
+    them (colour −log10 q, size fold), with similar terms optionally
+    grouped by Metascape's kappa clustering.
 
 **Motif enrichment** (selected sets/subsets)
 - JASPAR 2026 vertebrate motifs, bundled: CORE non-redundant (1,019, the
@@ -69,6 +73,13 @@ Achi grows out of [Intervene](https://github.com/asntech/intervene) (Khan and Ma
 - Genome from your own FASTA or .2bit, or from UCSC as whole chromosomes
   (private, kept for later runs) or by range requests (exact, asked each
   run). Heatmap with sequence logos, one motif per TF family.
+
+**Expression near the regions** (selected sets/subsets)
+- Your differential-expression table (DESeq2, edgeR, limma), read in the
+  page: BETA-like tests of whether up or down genes have higher regulatory
+  potential from each group's regions, BETA's cumulative plot and ranked
+  target genes, and the log2 fold changes of the regions' nearest genes
+  against all other genes. Example: HepG2 vs K562 (ENCODE RNA-seq, DESeq2).
 
 **Signal profiles** (selected sets/subsets)
 - Profiles (mean ± SE) and heatmaps of any bigWig from your computer over
@@ -109,6 +120,80 @@ that overlap every other member (`bedtools intersect -u`) and no non-member
 (`bedtools intersect -v`), the same definition as the Intervene CLI. In the browser,
 each ordered pair of sets is compared once with `bedtools intersect -c`
 (56 runs instead of 1,785 for eight sets), with identical results.
+
+## Command line and AI assistants
+
+The same analyses run outside the browser, with native bedtools, through
+two companion tools built on the same code as the web app: **`achi`**, a
+command-line tool for pipelines and large files, and **`achi-mcp`**, an MCP
+server that lets an AI assistant run analyses for you. On the same files and
+settings, all three give the same results.
+
+### Install
+
+Both need [Node.js](https://nodejs.org/) 20.19+ and bedtools 2.31+ on your
+`PATH` (`conda install -c bioconda bedtools`).
+
+```sh
+npm install -g achi achi-mcp
+```
+
+### Command line
+
+```sh
+achi run heart.bed liver.bed lung.bed \
+  --select "Heart only" --select Liver \
+  --enrich --go great --genes \
+  --out results
+```
+
+`achi run` intersects 1–8 region files and runs the analyses you ask for on
+the groups you select. The results folder has the same layout as the web
+app's "Export analysis" (`methods.md`, `settings.json`, `tables/`,
+`subsets/`), and `achi run --settings settings.json files...` reruns an
+analysis exported from the web app. Reference data is downloaded from the
+Achi site on first use, checked against its checksums and kept in
+`~/.cache/achi` (`achi data get hg38` downloads an assembly in advance).
+Your region files are not uploaded. Every option is in
+[packages/cli](packages/cli/README.md) and `achi --help`.
+
+### AI assistants (MCP)
+
+Add the server to your assistant once. Claude Code:
+
+```sh
+claude mcp add achi -- achi-mcp
+```
+
+Claude Desktop (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "achi": { "command": "achi-mcp" }
+  }
+}
+```
+
+Then ask in plain language, for example "intersect heart.bed, liver.bed and
+lung.bed in ~/peaks and run GO enrichment on the heart-only regions". The
+files are read and analysed on your computer and full results are written
+to `~/achi-results`. Whatever the server returns becomes part of the
+conversation, and so is sent to the model's provider: by default only
+summaries (set and subset sizes, top results with odds ratios and
+q-values). `--allow-regions` also lets the assistant read region-level
+files; use it only when your data may be shared with the provider. See
+[packages/mcp](packages/mcp/README.md).
+
+### From source
+
+Before installing from npm, or to work on the tools:
+
+```sh
+npm ci && npm run build:cli && npm run build:mcp
+node packages/cli/dist/achi.js --help
+claude mcp add achi -- node "$PWD/packages/mcp/dist/achi-mcp.js"
+```
 
 ## Running it locally
 
@@ -155,6 +240,34 @@ For GO enrichment, please also cite the method you ran:
 > server for functional enrichment analysis of transcription factor ChIP-seq
 > peaks. *Nucleic Acids Res*. 2019;47(W1):W206–W211.
 > [doi:10.1093/nar/gkz332](https://doi.org/10.1093/nar/gkz332)
+
+When similar GO terms are grouped in the comparison across subsets, please
+also cite:
+
+> Zhou Y, Zhou B, Pache L, Chang M, Khodabakhshi AH, Tanaseichuk O,
+> Benner C, Chanda SK. Metascape provides a biologist-oriented resource for
+> the analysis of systems-level datasets. *Nat Commun*. 2019;10:1523.
+> [doi:10.1038/s41467-019-09234-6](https://doi.org/10.1038/s41467-019-09234-6)
+
+For the pairwise permutation test, please also cite:
+
+> Gel B, Díez-Villanueva A, Serra E, Buschbeck M, Peinado MA, Malinverni R.
+> regioneR: an R/Bioconductor package for the association analysis of
+> genomic regions based on permutation tests. *Bioinformatics*.
+> 2016;32(2):289–291.
+> [doi:10.1093/bioinformatics/btv562](https://doi.org/10.1093/bioinformatics/btv562)
+
+> Phipson B, Smyth GK. Permutation P-values should never be zero: calculating
+> exact P-values when permutations are randomly drawn. *Stat Appl Genet Mol
+> Biol*. 2010;9:Article39.
+> [doi:10.2202/1544-6115.1585](https://doi.org/10.2202/1544-6115.1585)
+
+For the BETA-like expression test, please also cite:
+
+> Wang S, Sun H, Ma J, Zang C, Wang C, Wang J, Tang Q, Meyer CA, Zhang Y,
+> Liu XS. Target analysis by integration of transcriptome and ChIP-seq data
+> with BETA. *Nat Protoc*. 2013;8(12):2502–2515.
+> [doi:10.1038/nprot.2013.150](https://doi.org/10.1038/nprot.2013.150)
 
 The genome-wide location view is GenomeSpy:
 

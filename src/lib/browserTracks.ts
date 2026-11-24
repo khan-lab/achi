@@ -21,9 +21,9 @@
  * features; text the user types or sees is 1-based inclusive
  * ("chr1:1,001-2,000" = bases 1001..2000 = { start: 1000, end: 2000 }).
  */
-import { EXTERNAL_ANNOTATIONS, type ExternalAnnotation } from "./externalAnnotations";
-import { blacklistPath, hasBlacklist } from "./blacklist";
-import type { ChromSizes } from "./inputValidation";
+import { EXTERNAL_ANNOTATIONS, type ExternalAnnotation } from "@achi/core/externalAnnotations";
+import { blacklistPath, hasBlacklist } from "@achi/core/blacklist";
+import type { ChromSizes } from "@achi/core/inputValidation";
 import type { Interval } from "../types";
 
 export interface Locus {

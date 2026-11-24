@@ -1,23 +1,21 @@
 import { useEffect, useRef, useState } from "react";
+import { SelectFirstHint } from "./CollapsiblePanel";
+import { usePanelStatus } from "./panelState";
+import { count, panelStatus } from "./panelStatus";
 import { color as d3color, interpolateLab } from "d3";
 import { useChosenGroups, useStore } from "../state/store";
-import { chosenGroups } from "../lib/selection";
+import { chosenGroups } from "@achi/core/selection";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
-import {
-  buildUniverse,
-  testableAnnotations,
-  unionEnrichment,
-  universeHits,
-  type EnrichmentCell,
-} from "../lib/subsetEnrichment";
-import type { ExternalAnnotation } from "../lib/externalAnnotations";
+import { referenceSetTsv, runReferenceSetEnrichment, testableAnnotations, type EnrichmentCell } from "@achi/core/subsetEnrichment";
+import type { ExternalAnnotation } from "@achi/core/externalAnnotations";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
 import { TopRowsInput } from "./TopRowsInput";
-import { DEFAULT_TOP_ROWS, rankRows } from "../lib/heatmapRows";
-import { registerExport } from "../lib/exportRegistry";
-import { enrichmentMethods } from "../lib/analysisExport";
+import { DEFAULT_TOP_ROWS, rankRows } from "@achi/core/heatmapRows";
+import { markExportStale, registerExport } from "../lib/exportRegistry";
+import { enrichmentMethods } from "@achi/core/analysisExport";
+import { webRuntime } from "../lib/runtime";
 
 // Concrete colours so exported SVG/PNG render without this page's CSS.
 const INK = "#101826";
@@ -97,7 +95,10 @@ export function SubsetEnrichmentPanel() {
   const universeSig = subsets.map((s) => `${s.mask}:${s.nRegions}:${s.nBp}`).join(",");
   const key = [adjust, assembly, chosen.map((s) => s.mask).join("|"), universeSig, annotations.map((a) => a.id).join("|")].join("#");
   const stale = result !== null && result.key !== key;
+  useEffect(() => markExportStale("enrichment", stale), [stale]);
   const busy = progress !== null;
+  const nSignificant = result ? rankRows(result.cells, (c) => c.annotationId).filter((r) => r.q < 0.05).length : 0;
+  usePanelStatus(panelStatus({ progress, error, hasResult: result !== null, stale, done: `${count(nSignificant, "reference set")} q < 0.05` }));
 
   const run = async () => {
     if (!chosen.length || !annotations.length) return;
@@ -107,9 +108,7 @@ export function SubsetEnrichmentPanel() {
     setProgress({ done, total, label: "Loading reference sets" });
     const onStep = (label: string) => setProgress({ done: ++done, total, label });
     try {
-      const universe = buildUniverse(subsets);
-      const hits = await universeHits(universe, annotations, onStep);
-      const cells = unionEnrichment(universe, hits, chosen.map((s) => s.mask), adjust);
+      const cells = await runReferenceSetEnrichment(webRuntime, { subsets, groups: chosen.map((s) => s.mask), annotations, adjust }, { onStep });
       const r: RunResult = { key, adjust, masks: chosen.map((s) => s.mask), annotations, cells };
       lastResult = r;
       setResult(r);
@@ -126,16 +125,7 @@ export function SubsetEnrichmentPanel() {
   const subsetOf = (mask: number) => chosenGroups([mask], subsets, sets.filter((s) => s.included))[0];
 
   /** The run as a TSV: also what the analysis export takes (lib/exportRegistry.ts). */
-  const tsvText = (r: RunResult) => {
-    const head = ["subset", "subset_code", "reference_set", "background", "test", "subset_hit", "subset_no_hit", "rest_hit", "rest_no_hit", "odds_ratio", "p", "q"];
-    const test = r.adjust ? "CMH (5 length strata)" : "Fisher exact";
-    const rows = r.cells.map((c) => {
-      const s = subsetOf(c.mask);
-      const a = r.annotations.find((x) => x.id === c.annotationId);
-      return [s?.label ?? c.mask, s?.code ?? "", a?.name ?? c.annotationId, "input sets", test, ...c.table, c.oddsRatio, c.p, c.q].join("\t");
-    });
-    return [head.join("\t"), ...rows].join("\n") + "\n";
-  };
+  const tsvText = (r: RunResult) => referenceSetTsv(r, subsetOf);
   const tsvRef = useRef(tsvText);
   useEffect(() => {
     tsvRef.current = tsvText;
@@ -168,7 +158,7 @@ export function SubsetEnrichmentPanel() {
   };
 
   return (
-    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy} style={{ minHeight: 120 }}>
+    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy}>
       {busy && <ComputeOverlay label={progress.label} progress={progress} />}
       <div className="rowsplit" style={{ marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
         <label className="checkrow" title="Cochran–Mantel–Haenszel test across five region-length strata, so longer regions hitting more by chance don't drive the result">
@@ -179,6 +169,11 @@ export function SubsetEnrichmentPanel() {
           {result ? "Run again" : "Run enrichment"}
         </button>
       </div>
+      {!chosen.length && (
+        <div style={{ margin: "0 0 10px" }}>
+          <SelectFirstHint />
+        </div>
+      )}
 
       <div className="hint" style={{ margin: "0 0 10px" }}>
         Compares each selected subset or set with all other regions of this analysis (the background): what sets it apart within
@@ -190,9 +185,9 @@ export function SubsetEnrichmentPanel() {
 
       {error && <div className="hint error">{error}</div>}
       {!annotations.length && <div className="hint">No reference sets are available for {assembly}.</div>}
-      {stale && !busy && <div className="setinfo" style={{ marginBottom: 8 }}>Settings or selection changed since this result. Press Run again to update it.</div>}
+      {stale && !busy && chosen.length > 0 && <div className="setinfo" style={{ marginBottom: 8 }}>Settings or selection changed since this result. Press Run again to update it.</div>}
 
-      {shown && (
+      {shown && chosen.length > 0 && (
         <div className={stale ? "stale" : undefined}>
           <EnrichmentHeatmap result={shown} top={top} subsetOf={subsetOf} cellOf={cellOf} svgRef={svgRef} />
           <div className="plotactions">

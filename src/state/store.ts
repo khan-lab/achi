@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import { useMemo } from "react";
-import * as intervals from "../lib/intervals";
-import { computeSubsetsViaBedtools, forgetSet, subsetToBedText, type PipelineProgress } from "../lib/pipeline";
-import { resolveOverlapFlags, type OverlapPreset } from "../lib/bedtoolsOptions";
-import { MAX_SETS, PALETTE, type Interval, type RegionSet, type Subset } from "../types";
-import type { ExternalAnnotation } from "../lib/externalAnnotations";
-import { blacklistHits, hasBlacklist, mountBlacklist, splitByBlacklistHits } from "../lib/blacklist";
-import { LIST_EXTENSION, computeListSubsets, listSetName, parseListText } from "../lib/lists";
+import * as intervals from "@achi/core/intervals";
+import { forgetSet, type PipelineProgress } from "@achi/core/pipeline";
+import { labelSubsets, runBlacklistCheck, runIntersections, subsetFileText } from "@achi/core/intersections";
+import { resolveOverlapFlags, type OverlapPreset } from "@achi/core/bedtoolsOptions";
+import { MAX_SETS, PALETTE, type RegionSet, type Subset } from "../types";
+import type { ExternalAnnotation } from "@achi/core/externalAnnotations";
+import { hasBlacklist, splitByBlacklistHits } from "@achi/core/blacklist";
+import { LIST_EXTENSION, computeListSubsets, listSetName, parseListText } from "@achi/core/lists";
 import {
   buildSettings,
   compareInputs,
@@ -20,22 +21,28 @@ import {
   type AnalysisSettings,
   type InputMode,
   type SavedSubset,
-} from "../lib/analysisExport";
+} from "@achi/core/analysisExport";
 import { collectExports } from "../lib/exportRegistry";
-import { bigWigFor } from "../lib/bigwigSource";
+import { bigWigFor } from "@achi/core/bigwigSource";
 import { fetchFailureMessage, matchGzipName, type LinkSettings, type ParsedLink } from "../lib/shareLink";
 import { svgToStandaloneString } from "../lib/exportImage";
-import { chosenGroups, remapSelection, validSelection } from "../lib/selection";
+import { chosenGroups, remapSelection, validSelection } from "@achi/core/selection";
 import {
   InputValidationError,
   SUPPORTED_ASSEMBLIES,
   MAX_FILE_BYTES,
   checkFileSize,
-  normalizeRegionText,
-  parseChromSizes,
+  defaultSetCode,
+  loadChromSizes as loadAssemblySizes,
+  prepareRegionText,
+  setNameFromFileName,
   type ChromSizes,
   type InputFormat,
-} from "../lib/inputValidation";
+} from "@achi/core/inputValidation";
+import { webRuntime } from "../lib/runtime";
+import type { PairwiseView as PairwiseStat } from "@achi/core/pairwiseStats";
+import { PERMUTATION_DEFAULTS, type PermutationSettings } from "@achi/core/permutation";
+import { EXPRESSION_DEFAULTS, type ExpressionSettings } from "@achi/core/expression";
 
 export type View = "upset" | "venn" | "pairwise" | "table" | "summary" | "browser" | "help";
 
@@ -46,8 +53,7 @@ export interface BrowserTarget {
   n: number;
 }
 export type ComputeStatus = "idle" | "loading-worker" | "running" | "done" | "error";
-/** Matches the Intervene CLI's own `intervene pairwise --compute {jaccard,fisher,reldist}`. */
-export type PairwiseStat = "jaccard" | "fisher" | "reldist";
+export type { PairwiseStat };
 
 export interface LoadedSet extends RegionSet {
   /**
@@ -118,6 +124,10 @@ interface StoreState {
   /** hg38 (default), hg19, mm10, or mm9 — see docs/provenance.md for vendored chrom.sizes. Used by the Pairwise Fisher/Reldist toggle only; the overlap pipeline itself doesn't need a genome. */
   assembly: string;
   pairwiseStat: PairwiseStat;
+  /** The Pairwise view's permutation test (core permutation.ts); saved in the settings file. */
+  permutationSettings: PermutationSettings;
+  /** The Expression panel (core expression.ts); saved in the settings file. */
+  expressionSettings: ExpressionSettings;
   /** Drop regions overlapping the ENCODE blacklist from every set before analysis. Off by default, to match the CLI. */
   blacklistFilter: boolean;
   /** UpSet chart sort key — pure client-side reordering of already-computed subsets, no recompute involved. */
@@ -147,6 +157,8 @@ interface StoreState {
   setAdvancedBedtoolsOptions: (value: string) => void;
   setAssembly: (assembly: string) => void;
   setPairwiseStat: (stat: PairwiseStat) => void;
+  setPermutationSettings: (s: PermutationSettings) => void;
+  setExpressionSettings: (s: ExpressionSettings) => void;
   setBlacklistFilter: (on: boolean) => void;
   setUpsetSort: (sort: "size" | "degree") => void;
   setUpsetMinSize: (size: number) => void;
@@ -174,28 +186,8 @@ interface StoreState {
   loadExampleSignal: () => Promise<void>;
 }
 
-function labelSubsets(raw: { mask: number; memberIds: string[]; regions: Interval[]; nRegions: number; nBp: number; items?: string[] }[], sets: LoadedSet[]): Subset[] {
-  const byId = new Map(sets.map((s) => [s.id, s]));
-  return raw.map((s) => {
-    const members = s.memberIds.map((id) => byId.get(id)).filter((s): s is LoadedSet => Boolean(s));
-    return {
-      mask: s.mask,
-      memberIds: s.memberIds,
-      label: members.length === 1 ? `${members[0].name} only` : members.map((m) => m.name).join(" ∩ "),
-      code: members.map((m) => m.code).join("·"),
-      degree: members.length,
-      regions: s.regions,
-      nRegions: s.nRegions,
-      nBp: s.nBp,
-      ...(s.items ? { items: s.items } : {}),
-    };
-  });
-}
-
 /** A subset's file content: BED text, or one name per line in list mode. */
-export function subsetFileText(s: Subset): string {
-  return s.items ? s.items.join("\n") + (s.items.length ? "\n" : "") : subsetToBedText(s);
-}
+export { subsetFileText };
 
 function download(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
@@ -240,18 +232,13 @@ function forgetBlacklist(id: string): void {
 async function checkBlacklist(sets: LoadedSet[], assembly: string, onProgress?: (p: PipelineProgress) => void): Promise<LoadedSet[]> {
   if (!hasBlacklist(assembly)) return sets.map((s) => ({ ...s, blacklistHits: null }));
   const todo = sets.filter((s) => !blacklistCache.has(blKey(s.id, assembly)));
-  let done = 0;
-  for (const s of todo) {
-    onProgress?.({ done, total: todo.length, label: `Checking ${s.name} against ENCODE problematic regions` });
-    try {
-      const path = await mountBlacklist(assembly);
-      blacklistCache.set(blKey(s.id, assembly), await blacklistHits(s.id, await s.cleanFile.text(), path));
-    } catch (err) {
-      console.warn(`ENCODE problematic-regions check failed for ${s.name}`, err);
-      blacklistCache.set(blKey(s.id, assembly), null);
-    }
-    done++;
-  }
+  const checked = await runBlacklistCheck(
+    webRuntime,
+    assembly,
+    await Promise.all(todo.map(async (s) => ({ id: s.id, name: s.name, text: await s.cleanFile.text() }))),
+    { onProgress, onFailure: (s, err) => console.warn(`ENCODE problematic-regions check failed for ${s.name}`, err) }
+  );
+  for (const c of checked) blacklistCache.set(blKey(c.id, assembly), c.hits);
   return sets.map((s) => {
     const hits = blacklistCache.get(blKey(s.id, assembly));
     return { ...s, blacklistHits: hits ? hits.reduce((n, h) => n + h, 0) : null };
@@ -303,46 +290,25 @@ async function recompute(
     return { sets: await withCounts(sets), subsets: [], usedFallback: false, fallbackOverlapUnsupported: false };
   }
 
-  try {
-    const result = await computeSubsetsViaBedtools(
-      included.map((s) => ({ id: s.id, name: s.name, file: s.file, key: s.contentKey })),
-      overlapFlags,
-      onProgress
-    );
-    const byId = new Map(result.sets.map((r) => [r.id, r]));
-    const updatedSets = await withCounts(
-      sets.map((s) => {
-        const r = byId.get(s.id);
-        return r ? { ...s, regions: r.regions, nRegions: r.nRegions, nBp: r.nBp } : s;
-      })
-    );
-    return {
-      sets: updatedSets,
-      subsets: labelSubsets(result.subsets, updatedSets),
-      usedFallback: false,
-      fallbackOverlapUnsupported: false,
-    };
-  } catch (err) {
-    console.warn("bedtools WASM pipeline failed, falling back to pure-TS lib/intervals.ts", err);
-    const withRegions = await Promise.all(
-      included.map(async (s) => {
-        const regions = intervals.sortIntervals(intervals.parseBed(await s.file.text()));
-        return { ...s, regions, nRegions: regions.length, nBp: regions.reduce((bp, r) => bp + (r.end - r.start), 0) };
-      })
-    );
-    const updatedSets = sets.map((s) => withRegions.find((r) => r.id === s.id) ?? s);
-    // The TS fallback only implements the 1bp default (no -f/-r/-F equivalent).
-    const raw = intervals.computeSubsets(withRegions.map((s) => ({ id: s.id, regions: s.regions })));
-    return {
-      sets: updatedSets,
-      subsets: labelSubsets(raw, updatedSets),
-      usedFallback: true,
-      fallbackOverlapUnsupported: overlapFlags !== "",
-    };
-  }
+  const result = await runIntersections(
+    webRuntime,
+    { sets: included.map((s) => ({ id: s.id, name: s.name, file: s.file, key: s.contentKey })), overlapFlags },
+    { onProgress }
+  );
+  const byId = new Map(result.sets.map((r) => [r.id, r]));
+  const updatedSets = await withCounts(
+    sets.map((s) => {
+      const r = byId.get(s.id);
+      return r ? { ...s, regions: r.regions, nRegions: r.nRegions, nBp: r.nBp } : s;
+    })
+  );
+  return {
+    sets: updatedSets,
+    subsets: labelSubsets(result.subsets, updatedSets),
+    usedFallback: result.usedFallback,
+    fallbackOverlapUnsupported: result.fallbackOverlapUnsupported,
+  };
 }
-
-const EXTENSION = /\.(bed|txt|vcf|narrowPeak|broadPeak|bedGraph)(\.gz)?$/i;
 
 async function readUploadText(file: File): Promise<string> {
   if (!/\.gz$/i.test(file.name)) return file.text();
@@ -374,22 +340,10 @@ async function prepareUpload(
   const tooBigUnzipped = checkFileSize(text.length);
   if (tooBigUnzipped) return { ok: false, message: `${file.name} (uncompressed) ${tooBigUnzipped}` };
 
-  try {
-    const n = normalizeRegionText(text, { fileName: file.name });
-    const warnings: string[] = [];
-    if (n.format === "vcf") warnings.push(`VCF converted to BED: ${plural(n.nRegions, "record")}, 0-based, spanning REF (or INFO END for symbolic alleles).`);
-    if (n.nSkipped) {
-      const ex = n.skippedExamples[0];
-      warnings.push(`Skipped ${plural(n.nSkipped, "malformed line")} — e.g. line ${ex.line}: ${ex.reason}.`);
-    }
-    if (n.nWhitespaceConverted) warnings.push(`${plural(n.nWhitespaceConverted, "space-separated line")} converted to tabs.`);
-    if (n.nZeroLength) warnings.push(`${plural(n.nZeroLength, "zero-length interval")} (start = end) kept as-is.`);
-    const cleaned = new File([n.bedText], file.name.replace(/\.gz$/i, ""), { type: "text/plain" });
-    return { ok: true, file: cleaned, format: n.format, extents: n.extents, warnings };
-  } catch (err) {
-    if (err instanceof InputValidationError) return { ok: false, message: `${file.name} ${err.message}` };
-    throw err;
-  }
+  const prepared = prepareRegionText(text, file.name);
+  if (!prepared.ok) return prepared;
+  const cleaned = new File([prepared.bedText], file.name.replace(/\.gz$/i, ""), { type: "text/plain" });
+  return { ok: true, file: cleaned, format: prepared.format, extents: prepared.extents, warnings: prepared.warnings };
 }
 
 /** List mode: read one name per line (lib/lists.ts). */
@@ -460,6 +414,8 @@ export const useStore = create<StoreState>((set, get) => {
   advancedBedtoolsOptions: "",
   assembly: "hg38",
   pairwiseStat: "jaccard",
+  permutationSettings: PERMUTATION_DEFAULTS,
+  expressionSettings: EXPRESSION_DEFAULTS,
   blacklistFilter: false,
   upsetSort: "size",
   upsetMinSize: 0,
@@ -490,13 +446,13 @@ export const useStore = create<StoreState>((set, get) => {
         continue;
       }
       const sha256 = await sha256Hex(file).catch(() => "");
-      const cleanName = meta?.[i]?.name ?? (lists ? listSetName(file.name) : file.name.replace(EXTENSION, ""));
+      const cleanName = meta?.[i]?.name ?? (lists ? listSetName(file.name) : setNameFromFileName(file.name));
       const defaultColor = PALETTE[(existing.length + newSets.length) % PALETTE.length];
       const id = `set-${nextId++}`;
       newSets.push({
         id,
         name: cleanName,
-        code: meta?.[i]?.code ?? cleanName.slice(0, 3).toUpperCase(),
+        code: meta?.[i]?.code ?? defaultSetCode(cleanName),
         color: defaultColor,
         defaultColor,
         fileName: file.name,
@@ -542,8 +498,7 @@ export const useStore = create<StoreState>((set, get) => {
     const loaded = await Promise.all(
       missing.map(async (a) => {
         try {
-          const res = await fetch(`${window.location.origin}${import.meta.env.BASE_URL}refdata/${a}/${a}.chrom.sizes`);
-          return res.ok ? ([a, parseChromSizes(await res.text())] as const) : null;
+          return [a, await loadAssemblySizes(webRuntime, a)] as const;
         } catch {
           return null; // the assembly check is advisory — never block loading on it
         }
@@ -644,6 +599,8 @@ export const useStore = create<StoreState>((set, get) => {
   },
 
   setPairwiseStat: (stat) => set({ pairwiseStat: stat }),
+  setPermutationSettings: (permutationSettings) => set({ permutationSettings }),
+  setExpressionSettings: (expressionSettings) => set({ expressionSettings }),
 
   setBlacklistFilter: (on) => {
     set({ blacklistFilter: on });
@@ -809,11 +766,13 @@ export const useStore = create<StoreState>((set, get) => {
         upsetSort: st.upsetSort,
         upsetMinSize: st.upsetMinSize,
         pairwiseStat: st.pairwiseStat,
+        permutation: st.permutationSettings,
+        expression: st.expressionSettings,
         view: st.view,
         sets: st.sets.map((x) => ({ name: x.name, fileName: x.fileName, code: x.code, color: x.color, included: x.included, n: x.nRegions, bp: x.nBp, sha256: x.sha256 })),
         selected: chosen.map((x) => ({ label: x.label, memberNames: x.memberIds.map((id) => byId.get(id)?.name ?? id), n: x.nRegions, ...(x.whole ? { whole: true } : {}) })),
       });
-      const extras = collectExports();
+      const { current: extras, outOfDate } = collectExports();
       zip.file("settings.json", JSON.stringify(settings, null, 2) + "\n");
       zip.file("methods.md", methodsText(settings, extras.flatMap((e) => (e.methods ? [e.methods] : []))));
       zip.file("tables/sets.tsv", setsTsv(settings));
@@ -824,6 +783,8 @@ export const useStore = create<StoreState>((set, get) => {
       const figures: string[] = [];
       const used = new Set<string>();
       document.querySelectorAll<SVGSVGElement>(".col.mid svg[role='img'][aria-label]").forEach((svg) => {
+        // An out-of-date chart is left out, like its tables.
+        if (svg.closest(".stale")) return;
         const base = (svg.getAttribute("aria-label") ?? "figure").replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase().slice(0, 60) || "figure";
         let name = base;
         for (let k = 2; used.has(name); k++) name = `${base}-${k}`;
@@ -846,10 +807,16 @@ export const useStore = create<StoreState>((set, get) => {
         `- subsets/: every subset as ${mode === "lists" ? ".txt (one name per line)" : ".bed"}.`,
         ...extras.flatMap((e) => e.files.map((f) => `- ${f.path}`)),
         ...(figures.length ? ["- figures/: the plots on screen at export time, as SVG:", ...figures.map((f) => `  - ${f}`)] : []),
+        ...(outOfDate.length
+          ? ["", `Left out: ${outOfDate.join(", ")}. The inputs or settings changed after these were run, so their results no longer match settings.json; run them again and export to include them.`]
+          : []),
         "",
       ].join("\n");
       zip.file("README.md", readme);
       download(await zip.generateAsync({ type: "blob" }), `achi-analysis-${settings.created.slice(0, 10)}.zip`);
+      // Nothing selected: earlier results belong to a selection that is gone; the README still lists them.
+      if (outOfDate.length && chosen.length)
+        set({ notices: [...get().notices, `The export leaves out ${outOfDate.join(", ")}: the inputs or settings changed after the run. Run again, then export, to include ${outOfDate.length > 1 ? "them" : "it"}.`] });
     } finally {
       set({ progress: null });
     }
@@ -874,6 +841,8 @@ export const useStore = create<StoreState>((set, get) => {
       upsetSort: s.upset.sort,
       upsetMinSize: s.upset.minSize,
       pairwiseStat: s.pairwiseStat,
+      ...(s.permutation ? { permutationSettings: { ...PERMUTATION_DEFAULTS, ...s.permutation } } : {}),
+      ...(s.expression ? { expressionSettings: { ...EXPRESSION_DEFAULTS, ...s.expression } } : {}),
       view: (["upset", "venn", "pairwise", "table", "summary", "browser"] as View[]).includes(s.view as View) ? (s.view as View) : get().view,
       pendingSelection: s.selected,
       notices,

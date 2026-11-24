@@ -1,0 +1,51 @@
+{
+  "name": "achi-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Achi as an MCP server: lets an AI assistant run Achi analyses on files on this computer, with native bedtools. Returns summaries by default.",
+  "homepage": "https://khan-lab.github.io/achi/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khan-lab/achi.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": "https://github.com/khan-lab/achi/issues",
+  "author": "Aziz Khan (CBCRG Lab)",
+  "keywords": [
+    "genomics",
+    "bioinformatics",
+    "bedtools",
+    "intervals",
+    "enrichment",
+    "GO",
+    "motifs",
+    "JASPAR",
+    "intervene",
+    "mcp",
+    "model-context-protocol"
+  ],
+  "bin": {
+    "achi-mcp": "./dist/achi-mcp.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "vite build",
+    "prepack": "cp ../../LICENSE LICENSE && vite build"
+  },
+  "devDependencies": {
+    "@achi/core": "*",
+    "@achi/node": "*",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "achi": "*",
+    "zod": "4.6.7"
+  }
+}

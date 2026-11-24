@@ -43,3 +43,6 @@ public/refdata/**/__pycache__/
 CHANGELOG.md
 CLAUDE.md
 PLAN.md
+
+# Copied from the root LICENSE when packing the CLI and MCP packages
+packages/*/LICENSE

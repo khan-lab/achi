@@ -1,0 +1,16 @@
+{
+  "name": "@achi/core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Achi's analysis engine: intersections, annotation, enrichment, motifs and signal for genomic intervals, shared by the web app, CLI and MCP server.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@gmod/bbi": "9.3.3",
+    "@gmod/twobit": "6.0.14",
+    "generic-filehandle2": "2.5.1"
+  }
+}

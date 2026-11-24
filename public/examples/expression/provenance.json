@@ -1,0 +1,45 @@
+{
+ "file": "HepG2_vs_K562.deseq2.tsv",
+ "bytes": 1716917,
+ "md5": "4a286bf91bcd148372f796dde53464f4",
+ "assembly": "hg38",
+ "contrast": "HepG2 vs K562 (positive log2FoldChange = higher in HepG2)",
+ "built_with": "build_expression.R: DESeq2 1.52.0 on R 4.6.1, ~cell, Wald test, alpha 0.05, no shrinkage; RSEM expected_count rounded",
+ "gene_names": "GENCODE v50 gene records (public/refdata/hg38/gencode.v50.annotation.gtf.gz), matched by ENSG id without version",
+ "licence": "ENCODE data: free to download, analyse and publish (https://www.encodeproject.org/help/citing-encode/)",
+ "sources": [
+  {
+   "cell": "K562",
+   "experiment": "ENCSR885DVH",
+   "replicate": 1,
+   "accession": "ENCFF713BHS",
+   "md5": "072c8876b23d565f9e4c51097aa6ceaa",
+   "url": "https://www.encodeproject.org/files/ENCFF713BHS/@@download/ENCFF713BHS.tsv"
+  },
+  {
+   "cell": "K562",
+   "experiment": "ENCSR885DVH",
+   "replicate": 2,
+   "accession": "ENCFF366SYN",
+   "md5": "59eecc0d45a9b180ff2a6c218b41be0a",
+   "url": "https://www.encodeproject.org/files/ENCFF366SYN/@@download/ENCFF366SYN.tsv"
+  },
+  {
+   "cell": "HepG2",
+   "experiment": "ENCSR181ZGR",
+   "replicate": 1,
+   "accession": "ENCFF103FSL",
+   "md5": "8d360229bd909521cace2c8c5737d59e",
+   "url": "https://www.encodeproject.org/files/ENCFF103FSL/@@download/ENCFF103FSL.tsv"
+  },
+  {
+   "cell": "HepG2",
+   "experiment": "ENCSR181ZGR",
+   "replicate": 2,
+   "accession": "ENCFF692QVJ",
+   "md5": "518a6b0308ba2bca90ba032448949c90",
+   "url": "https://www.encodeproject.org/files/ENCFF692QVJ/@@download/ENCFF692QVJ.tsv"
+  }
+ ],
+ "notes": "Lécuyer lab (IRCM), 'Initial total fractions ... Long Total' total RNA-seq, GRCh38, GENCODE V29, ENCODE processing pipeline gene quantifications (released 2021-04). Downloaded 2026-11-20."
+}

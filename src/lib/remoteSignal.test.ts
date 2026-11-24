@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { BigWig } from "@gmod/bbi";
 import { BlobFile } from "generic-filehandle2";
 import { EXACT_MAX_REGIONS, estimateExact, layerChoices, layerReader, readSummaryLayer } from "./remoteSignal";
-import { computeSignalMatrix, type ProfileParams, type ProfileRegion } from "./signalMatrix";
+import { computeSignalMatrix, type ProfileParams, type ProfileRegion } from "@achi/core/signalMatrix";
 
 /**
  * Public bigWigs for signal profiles. Private mode downloads a whole summary

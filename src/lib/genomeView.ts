@@ -19,7 +19,7 @@
  *   regions; larger ones are shown by density only), resolved when zoomed in.
  */
 import type { Interval } from "../types";
-import type { ChromSizes } from "./inputValidation";
+import type { ChromSizes } from "@achi/core/inputValidation";
 import { SHARED_SUBSET_COLOR, type Locus } from "./browserTracks";
 import { LOCAL_TRACK_COLOR } from "./localTracks";
 

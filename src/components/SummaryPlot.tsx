@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from "react";
+import { usePanelStatus, usePanelWaiting } from "./panelState";
+import { panelStatus } from "./panelStatus";
 import { useStore } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
-import { fetchAndMountGenome } from "../lib/pairwiseStats";
 import {
-  computeSummary,
-  mountRawForSummary,
+  runSetSummary,
   filterCanonicalChromosomes,
   sortChromosomesNaturally,
   getAggregateRow,
   type SummaryRow,
-} from "../lib/summaryStats";
+} from "@achi/core/summaryStats";
+import type { SummaryItem } from "@achi/core/types";
+import { webRuntime } from "../lib/runtime";
+
+export type { SummaryItem };
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");
@@ -47,32 +51,8 @@ type Metric = "count" | "bp";
 // bedtools summary call each time a user glances at another tab and comes
 // back. Keyed by (assembly, item id, item version), so this still
 // self-invalidates correctly if the same id's content ever changes.
-const genomePathCache = new Map<string, string>();
 const summaryRowsCache = new Map<string, SummaryRow[]>();
 
-/**
- * One bar-group/stat-card's worth of input to SummaryPlot — either a whole
- * input set (the standalone Summary tab) or, in future, a selected
- * combinatorial subset (not wired up yet — see git history). Both call
- * sites just need to supply raw BED text; the bedtools summary machinery
- * below doesn't care which.
- */
-export interface SummaryItem {
-  id: string;
-  /**
-   * Included in the computation cache key alongside `id` — bump/change
-   * this when the same `id` could later resolve to different content.
-   * Whole sets can reuse `id` (a set's file content is immutable once
-   * added); selected subsets change identity, size and content on every
-   * subset(s)/overlap-setting recompute even though their `mask` numbers
-   * are stable, so the caller passes something like
-   * `${mask}:${nRegions}:${nBp}` to avoid serving a stale cached result.
-   */
-  version: string;
-  name: string;
-  color: string;
-  getRawText: () => Promise<string>;
-}
 
 /**
  * Per-item descriptive statistics via `bedtools summary -i -g` — one call
@@ -88,10 +68,11 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
   const ref = svgRef ?? localRef;
 
   const [metric, setMetric] = useState<Metric>("count");
-  const genomePathRef = useRef(genomePathCache); // shared module-level Map, not a fresh one per mount
   const [summaryState, setSummaryState] = useState<Map<string, SummaryRow[]>>(() => new Map(summaryRowsCache));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  usePanelStatus(panelStatus({ busy: loading, error, hasResult: items.length > 0, done: `${items.length} selected` }));
+  const waiting = usePanelWaiting();
 
   const cacheKey = (item: SummaryItem) => `${assembly}::${item.id}::${item.version}`;
   const itemsKey = items.map((i) => `${i.id}:${i.version}`).join(",");
@@ -99,27 +80,22 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
   useEffect(() => {
     if (items.length < 1) return;
     let cancelled = false;
+    const abort = new AbortController();
 
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        let genomePath = genomePathRef.current.get(assembly);
-        if (!genomePath) {
-          genomePath = await fetchAndMountGenome(assembly);
-          genomePathRef.current.set(assembly, genomePath);
-        }
-
-        for (const item of items) {
-          if (cancelled) return;
-          const key = cacheKey(item);
-          if (summaryRowsCache.has(key)) continue;
-          const rawPath = await mountRawForSummary(item.id, await item.getRawText());
-          const rows = await computeSummary(rawPath, genomePath);
-          if (cancelled) return;
-          summaryRowsCache.set(key, rows);
-          setSummaryState((prev) => new Map(prev).set(key, rows));
-        }
+        const todo = items.filter((item) => !summaryRowsCache.has(cacheKey(item)));
+        await runSetSummary(webRuntime, assembly, todo, {
+          signal: abort.signal,
+          onResult: (rows, item) => {
+            if (cancelled) return;
+            const key = cacheKey(item);
+            summaryRowsCache.set(key, rows);
+            setSummaryState((prev) => new Map(prev).set(key, rows));
+          },
+        });
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -129,12 +105,20 @@ export function SummaryPlot({ items, svgRef }: { items: SummaryItem[]; svgRef?: 
 
     return () => {
       cancelled = true;
+      abort.abort();
     };
     // summaryRowsCache (the module-level Map) is read for "already
     // computed?" checks only, see the same note in PairwiseHeatmap.tsx's effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assembly, itemsKey]);
 
+  if (items.length < 1 && waiting) {
+    return (
+      <div className="hint" style={{ margin: "11px 13px 13px" }}>
+        Nothing selected yet. Select a subset or set above (a bar or set name in UpSet, a count in Venn, or a row in Table): its region count, widths and coverage appear here at once.
+      </div>
+    );
+  }
   if (items.length < 1) {
     return (
       <div className="placeholder">

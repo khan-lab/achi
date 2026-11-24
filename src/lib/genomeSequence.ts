@@ -1,10 +1,10 @@
 /**
- * Genome sequence for motif scanning (lib/pwm.ts), read in the page. Four
- * sources, all returning the bases of each window (or null when the source
- * has no such chromosome):
+ * Genome sequence for motif scanning, the sources only the web app has
+ * (the interface, and the source for a local .2bit, are in
+ * @achi/core/genomeSequence). Each returns the bases of each window, or null
+ * when the source has no such chromosome:
  *
  * - a reference FASTA + .fai on the user's computer (lib/localTracks.ts);
- * - a .2bit on the user's computer;
  * - private: a public .2bit (UCSC), downloaded as whole chromosomes — the
  *   index and every canonical chromosome (chr1–22, X, Y, M) in full, in
  *   file order, whatever the regions — so the server learns nothing about
@@ -19,63 +19,12 @@
  */
 import { TwoBitFile } from "@gmod/twobit";
 import { BlobFile, RemoteFile } from "generic-filehandle2";
-import { chromAlias } from "./bigwigSource";
+import { chromAlias } from "@achi/core/bigwigSource";
+import { CANONICAL, type SequenceSource } from "@achi/core/genomeSequence";
+import { abortIfCancelled } from "@achi/core/runtime";
 import { readReferenceSequence, type LocalReference } from "./localTracks";
 
-export interface SeqWindow {
-  chrom: string;
-  start: number;
-  end: number;
-}
-
-/** Bases each side of a region's centre that are scanned. */
-export const WINDOW_HALF = 100;
-
-/** ±half around the region's centre (floor((start + end) / 2)), clamped at 0. */
-export function centreWindow(r: { chrom: string; start: number; end: number }, half = WINDOW_HALF): SeqWindow {
-  const c = Math.floor((r.start + r.end) / 2);
-  return { chrom: r.chrom, start: Math.max(0, c - half), end: c + half };
-}
-
-export interface ReadOptions {
-  onProgress?: (p: { done: number; total: number; label: string; unit?: string }) => void;
-  signal?: AbortSignal;
-}
-
-export interface SequenceSource {
-  /** For the methods text and the note under the result. */
-  label: string;
-  read(windows: SeqWindow[], o?: ReadOptions): Promise<(string | null)[]>;
-}
-
-/** Sequences of the canonical chromosomes, the only ones the private source downloads. */
-export const CANONICAL = /^chr([1-9]|1[0-9]|2[0-2]|X|Y|M)$/;
-
 const NO_COOKIES = { credentials: "omit", referrerPolicy: "no-referrer" } as const;
-
-function aborted(signal?: AbortSignal) {
-  if (signal?.aborted) throw new DOMException("Cancelled", "AbortError");
-}
-
-/** Windows read through a TwoBitFile, `concurrency` at a time, names matched in either style (chr1 / 1). */
-async function readWindows(tb: TwoBitFile, windows: SeqWindow[], o: ReadOptions & { concurrency?: number; label?: string } = {}): Promise<(string | null)[]> {
-  const names = new Map((await tb.getSequenceNames()).map((n) => [n, 0]));
-  const out: (string | null)[] = new Array(windows.length).fill(null);
-  let next = 0;
-  let done = 0;
-  const worker = async () => {
-    while (next < windows.length) {
-      aborted(o.signal);
-      const i = next++;
-      const w = windows[i];
-      const name = chromAlias(w.chrom, names);
-      if (name) out[i] = (await tb.getSequence(name, w.start, w.end)) ?? null;
-      if (++done % 200 === 0) o.onProgress?.({ done, total: windows.length, label: o.label ?? "Reading sequence", unit: "regions" });
-    }
-  };
-  await Promise.all(Array.from({ length: Math.max(1, o.concurrency ?? 1) }, worker));
-  return out;
-}
 
 /** A reference FASTA with its .fai on the user's computer. */
 export function fastaSource(ref: LocalReference): SequenceSource {
@@ -84,19 +33,13 @@ export function fastaSource(ref: LocalReference): SequenceSource {
     async read(windows, o = {}) {
       const out: (string | null)[] = [];
       for (const [i, w] of windows.entries()) {
-        aborted(o.signal);
+        abortIfCancelled(o.signal);
         out.push(await readReferenceSequence(ref, w.chrom, w.start, w.end));
         if ((i + 1) % 200 === 0) o.onProgress?.({ done: i + 1, total: windows.length, label: "Reading sequence", unit: "regions" });
       }
       return out;
     },
   };
-}
-
-/** A .2bit on the user's computer. */
-export function twoBitBlobSource(blob: Blob, name: string): SequenceSource {
-  const tb = new TwoBitFile({ filehandle: new BlobFile(blob) });
-  return { label: `local .2bit ${name}`, read: (windows, o) => readWindows(tb, windows, o) };
 }
 
 /** Bases of 2-bit codes in a .2bit's packed DNA (T C A G = 0 1 2 3). */
@@ -146,7 +89,7 @@ export function exactTwoBitSource(url: string, o: { fetch?: typeof fetch; concur
       let done = 0;
       const worker = async () => {
         while (next < windows.length) {
-          aborted(ro.signal);
+          abortIfCancelled(ro.signal);
           const i = next++;
           const w = windows[i];
           const name = chromAlias(w.chrom, names);
@@ -279,7 +222,7 @@ export function privateTwoBitSource(url: string, o: { fetch?: typeof fetch; stor
       const out: (string | null)[] = new Array(windows.length).fill(null);
       let got = 0;
       for (const rec of wanted) {
-        aborted(ro.signal);
+        abortIfCancelled(ro.signal);
         const key = `${url}#${rec.name}`;
         let blob = (await o.store?.get(key)) ?? null;
         if (!blob || blob.size !== rec.end - rec.start) {

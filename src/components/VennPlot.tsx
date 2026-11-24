@@ -15,7 +15,7 @@ import {
   type EllipseSpec,
 } from "../lib/venn";
 import { truncateToWidth } from "../lib/textMeasure";
-import { setKey } from "../lib/selection";
+import { setKey } from "@achi/core/selection";
 
 function fmt(n: number): string {
   return n.toLocaleString("en-US");

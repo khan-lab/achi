@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { nonLocalUrls } from "./browserTracks";
-import { normalizeRegionText } from "./inputValidation";
-import { parseBed, sortIntervals } from "./intervals";
+import { normalizeRegionText } from "@achi/core/inputValidation";
+import { parseBed, sortIntervals } from "@achi/core/intervals";
 import {
   brushLoci,
   contigsFromSizes,

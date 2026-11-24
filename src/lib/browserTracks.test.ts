@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { EXTERNAL_ANNOTATIONS } from "./externalAnnotations";
+import { EXTERNAL_ANNOTATIONS } from "@achi/core/externalAnnotations";
 import {
   browserConfig,
   exportFileName,

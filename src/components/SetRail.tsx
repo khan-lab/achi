@@ -1,9 +1,9 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useStore } from "../state/store";
-import type { OverlapPreset } from "../lib/bedtoolsOptions";
-import { ANNOTATION_CATEGORIES, EXTERNAL_ANNOTATIONS } from "../lib/externalAnnotations";
-import { checkAssembly, fittingAssemblies, type ChromSizes } from "../lib/inputValidation";
-import { hasBlacklist } from "../lib/blacklist";
+import type { OverlapPreset } from "@achi/core/bedtoolsOptions";
+import { ANNOTATION_CATEGORIES, EXTERNAL_ANNOTATIONS } from "@achi/core/externalAnnotations";
+import { checkAssembly, fittingAssemblies, type ChromSizes } from "@achi/core/inputValidation";
+import { hasBlacklist } from "@achi/core/blacklist";
 import { MAX_SETS } from "../types";
 import { Icon } from "./Icon";
 
@@ -128,7 +128,11 @@ function AnnotationGroup({ category, count, children }: { category: string; coun
 const NARROW = "(max-width: 1180px)";
 const isNarrow = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(NARROW).matches;
 
-export function SetRail() {
+/**
+ * The left column. `hidden` folds it (App shows a strip instead) without
+ * unmounting, so an unsaved name or advanced-options draft is kept.
+ */
+export function SetRail({ hidden = false, onHide }: { hidden?: boolean; onHide?: () => void }) {
   const [annoOpen, setAnnoOpen] = useState(() => !isNarrow());
   const sets = useStore((s) => s.sets);
   const status = useStore((s) => s.status);
@@ -220,14 +224,21 @@ export function SetRail() {
   const suggestedAssembly = commonFit[0];
 
   return (
-    <section className="col" aria-label="Data and parameters">
-      <div className="tabs modeswitch" role="tablist" aria-label="Input type">
-        <button className="tab" role="tab" aria-selected={!listMode} onClick={() => switchMode("regions")} title="Genomic regions: BED, narrowPeak or VCF files, intersected with bedtools">
-          Regions
-        </button>
-        <button className="tab" role="tab" aria-selected={listMode} onClick={() => switchMode("lists")} title="Lists of names (genes, SNP IDs, any identifiers), intersected by exact match">
-          Lists
-        </button>
+    <section className="col" id="set-rail" aria-label="Data and parameters" hidden={hidden}>
+      <div className="railhd">
+        <div className="tabs modeswitch" role="tablist" aria-label="Input type">
+          <button className="tab" role="tab" aria-selected={!listMode} onClick={() => switchMode("regions")} title="Genomic regions: BED, narrowPeak or VCF files, intersected with bedtools">
+            Regions
+          </button>
+          <button className="tab" role="tab" aria-selected={listMode} onClick={() => switchMode("lists")} title="Lists of names (genes, SNP IDs, any identifiers), intersected by exact match">
+            Lists
+          </button>
+        </div>
+        {onHide && (
+          <button className="iconbtn" onClick={onHide} aria-expanded={true} aria-controls="set-rail" aria-label="Hide the data and parameters column" title="Hide this column (widens the middle column)">
+            <Icon name="railClose" />
+          </button>
+        )}
       </div>
       <div className="eyebrow" style={{ marginBottom: 10 }}>
         {listMode ? "Lists" : "Region sets"}

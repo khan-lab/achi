@@ -1,0 +1,50 @@
+{
+  "name": "achi",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Achi on the command line: compare, annotate and interpret genomic intervals with native bedtools, on your own computer.",
+  "homepage": "https://khan-lab.github.io/achi/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/khan-lab/achi.git",
+    "directory": "packages/cli"
+  },
+  "bugs": "https://github.com/khan-lab/achi/issues",
+  "author": "Aziz Khan (CBCRG Lab)",
+  "keywords": [
+    "genomics",
+    "bioinformatics",
+    "bedtools",
+    "intervals",
+    "enrichment",
+    "GO",
+    "motifs",
+    "JASPAR",
+    "intervene",
+    "cli"
+  ],
+  "bin": {
+    "achi": "./dist/achi.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "vite build",
+    "prepack": "cp ../../LICENSE LICENSE && vite build"
+  },
+  "devDependencies": {
+    "@achi/core": "*",
+    "@achi/node": "*"
+  }
+}

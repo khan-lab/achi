@@ -1,151 +1,65 @@
-import { memo, useEffect, useRef, useState } from "react";
-import { useChosenGroups, useStore, type LoadedSet } from "../state/store";
-import { inGroup } from "../lib/selection";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { scaleLinear } from "d3";
+import { SelectFirstHint } from "./CollapsiblePanel";
+import { usePanelStatus } from "./panelState";
+import { count, panelStatus } from "./panelStatus";
+import { useChosenGroups, useStore } from "../state/store";
+import { webRuntime } from "../lib/runtime";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
-import { parseChromSizes } from "../lib/inputValidation";
+import { GO_NAMESPACES, type GoNamespace } from "@achi/core/great";
+import { CISTROMEGO_DEFAULTS, DECAY_CHOICES, type CistromeGoSettings } from "@achi/core/cistromeGo";
 import {
-  GO_NAMESPACES,
-  GREAT_DEFAULTS,
-  assignRegions,
-  greatTest,
-  inputsGoTest,
-  prepareGreat,
-  type GoData,
-  type GoNamespace,
-  type GreatSettings,
-  type PreparedGreat,
-} from "../lib/great";
-import {
-  CISTROMEGO_DEFAULTS,
-  DECAY_CHOICES,
-  cistromeGoTestAsync,
-  prepareCistromeGo,
-  type CgoPeak,
-  type CistromeGoSettings,
-  type PreparedCistromeGo,
-  type RpModel,
-} from "../lib/cistromeGo";
-import type { Subset } from "../types";
+  GREAT_RUN_DEFAULTS,
+  fmtFold,
+  fmtKb,
+  fmtP,
+  goFileStem,
+  goNamespaceLabel,
+  goTsv,
+  runGoEnrichment,
+  type GoBackground,
+  type GoGroupResult,
+  type GoMethod,
+  type GoRun,
+  type GreatRunSettings,
+} from "@achi/core/goEnrichment";
 import { PALETTE } from "../types";
 import { ComputeOverlay, type ComputeProgress } from "./ComputeStatus";
 import { Icon } from "./Icon";
-import { registerExport } from "../lib/exportRegistry";
-import { goMethods } from "../lib/analysisExport";
+import { TopRowsInput } from "./TopRowsInput";
+import { GoComparePlot } from "./GoComparePlot";
+import { markExportStale, registerExport } from "../lib/exportRegistry";
+import { goCompareMethods, goMethods } from "@achi/core/analysisExport";
 
-type Method = "great" | "cistromego";
-type GoBackground = "inputs" | "genome";
-/** GREAT's settings plus the background it is tested against (a setting, default genome as in GREAT). */
-type GreatUi = GreatSettings & { background: GoBackground };
-const GREAT_UI_DEFAULTS: GreatUi = { ...GREAT_DEFAULTS, background: "genome" };
+type Method = GoMethod;
+type GreatUi = GreatRunSettings;
+const GREAT_UI_DEFAULTS: GreatUi = GREAT_RUN_DEFAULTS;
 
-interface Row {
-  id: string;
-  name: string;
-  /** q of the test that ranks terms (binomial for genome, Fisher for input sets, XL-mHG for Cistrome-GO). */
-  q: number;
-  fold: number;
-  detail: string;
-  genes?: string[];
-  significant: boolean;
-  tsv: (string | number)[];
-}
-
-interface SubsetResult {
-  mask: number;
-  label: string;
+/** A group's result, with its colour in this run. */
+interface SubsetResult extends GoGroupResult {
   color: string;
-  rows: Row[];
-  summary: string;
 }
 
-interface Result {
+/** A run as shown: core's GoRun, the key it was run for, and each group with its colour. */
+interface Result extends GoRun {
   key: string;
-  method: Method;
-  background: GoBackground;
-  ns: GoNamespace;
-  qThreshold: number;
-  tsvHead: string[];
+  assembly: string;
   subsets: SubsetResult[];
-  /** The settings it was run with, for the methods text of an analysis export. */
-  settings: GreatUi | CistromeGoSettings;
 }
 
 const INK = "#101826";
 const INK_3 = "#8b97a9";
+/** Axis lines and scale: the same ink as the motif heatmap's border. */
+const AXIS_INK = "#3a4250";
 const PAPER = "#ffffff";
 const TABLE_ROWS = 100;
-
-const base = (assembly: string) => `${window.location.origin}${import.meta.env.BASE_URL}refdata/${assembly}`;
-
-// Downloads and prepared data survive remounts (GO 2 MB, Cistrome-GO gene model 0.6 MB, gzipped).
-const goCache = new Map<string, Promise<{ go: GoData; sizes: Record<string, number>; gaps: string }>>();
-const greatCache = new Map<string, Promise<PreparedGreat>>();
-const cgoCache = new Map<string, Promise<PreparedCistromeGo>>();
-
-function cached<T>(cache: Map<string, Promise<T>>, key: string, make: () => Promise<T>): Promise<T> {
-  let p = cache.get(key);
-  if (!p) {
-    p = make();
-    cache.set(key, p);
-    p.catch(() => cache.delete(key));
-  }
-  return p;
-}
-
-function loadGo(assembly: string) {
-  return cached(goCache, assembly, async () => {
-    const [goRes, gapsRes, sizesRes] = await Promise.all([fetch(`${base(assembly)}/go/go.json`), fetch(`${base(assembly)}/go/gaps.bed`), fetch(`${base(assembly)}/${assembly}.chrom.sizes`)]);
-    if (!goRes.ok || !gapsRes.ok || !sizesRes.ok) throw new Error(`Could not load GO data for ${assembly}`);
-    return { go: (await goRes.json()) as GoData, sizes: parseChromSizes(await sizesRes.text()), gaps: await gapsRes.text() };
-  });
-}
-
-function loadGreat(assembly: string, s: GreatSettings) {
-  return cached(greatCache, [assembly, s.upstream, s.downstream, s.maxExtension].join("|"), async () => {
-    const { go, sizes, gaps } = await loadGo(assembly);
-    return prepareGreat(go, sizes, gaps, s);
-  });
-}
-
-function loadCistromeGo(assembly: string) {
-  return cached(cgoCache, assembly, async () => {
-    const [{ go }, res] = await Promise.all([loadGo(assembly), fetch(`${base(assembly)}/cistromego/rp_model.json`)]);
-    if (!res.ok) throw new Error(`Could not load the Cistrome-GO gene model for ${assembly}`);
-    return prepareCistromeGo((await res.json()) as RpModel, go);
-  });
-}
-
-/**
- * The subset's regions as Cistrome-GO peaks. Regions come from the
- * combination's first set; column 5 of that set's file is the peak score
- * when every line has a numeric one (narrowPeak), as Cistrome-GO requires.
- */
-async function subsetPeaks(subset: Subset, sets: LoadedSet[]): Promise<CgoPeak[]> {
-  const set = sets.find((x) => x.id === subset.memberIds[0]);
-  if (!set) return subset.regions;
-  const scores = new Map<string, number[]>();
-  for (const line of (await set.file.text()).split("\n")) {
-    if (!line) continue;
-    const f = line.split("\t");
-    const score = f.length >= 5 && f[4] !== "" ? Number(f[4]) : NaN;
-    if (!Number.isFinite(score)) return subset.regions;
-    const key = `${f[0]}\t${f[1]}\t${f[2]}`;
-    const list = scores.get(key);
-    if (list) list.push(score);
-    else scores.set(key, [score]);
-  }
-  return subset.regions.map((r) => ({ ...r, score: scores.get(`${r.chrom}\t${r.start}\t${r.end}`)?.shift() }));
-}
-
+/** Terms in the bar chart unless the user picks another number. */
+const DEFAULT_TOP_TERMS = 10;
+const negLog10 = (q: number) => Math.min(300, q > 0 ? -Math.log10(q) : 300);
+const nsLabel = goNamespaceLabel;
 /** The term's page in AmiGO, the Gene Ontology Consortium's browser. Opened in a new tab without a referrer: only the GO id leaves the page. */
 const amigoUrl = (id: string) => `https://amigo.geneontology.org/amigo/term/${id}`; // ids are GO:nnnnnnn (great.test.ts checks the data)
-const fmtP = (p: number) => (p === 0 ? "<1e-300" : p < 0.001 ? p.toExponential(1) : p.toPrecision(2));
-const fmtFold = (f: number) => (!Number.isFinite(f) ? (f > 0 ? "∞" : "n/a") : f >= 10 ? f.toFixed(0) : f.toFixed(2));
-const fmtKb = (bp: number) => (bp >= 1000 ? `${(bp / 1000).toLocaleString()} kb` : `${bp} bp`);
-const negLog10 = (q: number) => Math.min(300, q > 0 ? -Math.log10(q) : 300);
-const nextFrame = () => new Promise((r) => setTimeout(r, 0));
-const nsLabel = (ns: GoNamespace) => GO_NAMESPACES.find((n) => n.id === ns)!.label;
 
 // Choices and results survive remounts within the session.
 const saved = {
@@ -154,6 +68,9 @@ const saved = {
   great: { ...GREAT_UI_DEFAULTS },
   cgo: { ...CISTROMEGO_DEFAULTS },
   results: new Map<Method, Result>(),
+  top: DEFAULT_TOP_TERMS,
+  /** The comparison across groups as last shown, per method, for "Export analysis". */
+  compareTsv: new Map<Method, { tsv: string; top: number; minKappa?: number }>(),
 };
 
 export function GoEnrichmentPanel() {
@@ -187,7 +104,10 @@ export function GoEnrichmentPanel() {
   const settings = method === "great" ? great : cgo;
   const key = [method, ns, assembly, chosen.map((s) => s.mask).join("|"), universeSig, JSON.stringify(settings), sets.map((s) => s.contentKey).join(",")].join("#");
   const stale = result !== null && result.key !== key;
+  useEffect(() => markExportStale("go", stale), [stale]);
   const busy = progress !== null;
+  const nSignificant = result ? new Set(result.groups.flatMap((g) => g.rows.filter((r) => r.significant).map((r) => r.id))).size : 0;
+  usePanelStatus(panelStatus({ progress, error, hasResult: result !== null, stale, done: `${count(nSignificant, "term")} q < ${result?.qThreshold}` }));
   const active = result?.subsets.find((s) => s.mask === activeMask) ?? result?.subsets[0] ?? null;
 
   const run = async () => {
@@ -197,104 +117,12 @@ export function GoEnrichmentPanel() {
     const label = method === "great" ? `Loading GO annotation for ${assembly}` : `Loading GO annotation and the Cistrome-GO gene model for ${assembly}`;
     setProgress({ done: 0, total, label, unit: "steps" });
     try {
-      const out: SubsetResult[] = [];
-      let tsvHead: string[];
-      const q = settings.qThreshold;
-      if (method === "great") {
-        const prepared = await loadGreat(assembly, great);
-        const nTerms = prepared.data.terms[ns].filter((t) => t[2].length >= great.minGenes && t[2].length <= great.maxGenes).length;
-        let universeGenes: (number[] | null)[] | null = null;
-        let owner: Int32Array | null = null;
-        if (background === "inputs") {
-          owner = Int32Array.from(allSubsets.flatMap((s) => s.regions.map(() => s.mask)));
-          universeGenes = assignRegions(
-            allSubsets.flatMap((s) => s.regions),
-            prepared
-          );
-        }
-        tsvHead =
-          background === "genome"
-            ? ["subset", "go_id", "term", "regions_hit", "regions", "genome_fraction", "binom_fold", "binom_p", "binom_q", "genes_hit", "genes_selected", "term_genes", "genes", "hyper_fold", "hyper_p", "hyper_q", "significant"]
-            : ["subset", "go_id", "term", "term_genes", "subset_hit", "subset_no_hit", "rest_hit", "rest_no_hit", "odds_ratio", "p", "q", "significant"];
-        for (const [i, s] of chosen.entries()) {
-          setProgress({ done: i + 1, total, unit: "steps", label: `${s.label}: testing ${nTerms.toLocaleString()} GO terms` });
-          await nextFrame();
-          let rows: Row[];
-          let n = 0;
-          if (background === "genome") {
-            rows = greatTest(prepared, assignRegions(s.regions, prepared), ns, great).map((r) => {
-              n = r.n;
-              return {
-                id: r.id,
-                name: r.name,
-                q: r.binomQ,
-                fold: r.binomFold,
-                significant: r.significant,
-                detail: `${r.k.toLocaleString()} of ${r.n.toLocaleString()} regions (expected ${(r.n * r.fraction).toFixed(1)}) · binomial q ${fmtP(r.binomQ)} · ${r.j} of ${r.m.toLocaleString()} genes, hypergeometric q ${fmtP(r.hyperQ)}`,
-                tsv: [r.id, r.name, r.k, r.n, r.fraction, r.binomFold, r.binomP, r.binomQ, r.j, r.m, r.K, r.N, r.hyperFold, r.hyperP, r.hyperQ, r.significant ? "yes" : "no"],
-              };
-            });
-          } else {
-            rows = inputsGoTest(prepared, universeGenes!, owner!, s.mask, ns, great).map((r) => {
-              const [a, b, c, d] = r.table;
-              const significant = r.q < q && r.oddsRatio > 1;
-              return {
-                id: r.id,
-                name: r.name,
-                q: r.q,
-                fold: r.oddsRatio,
-                significant,
-                detail: `${a.toLocaleString()} of ${(a + b).toLocaleString()} subset regions vs ${c.toLocaleString()} of ${(c + d).toLocaleString()} other regions · odds ratio ${fmtFold(r.oddsRatio)} · q ${fmtP(r.q)}`,
-                tsv: [r.id, r.name, r.K, a, b, c, d, r.oddsRatio, r.p, r.q, significant ? "yes" : "no"],
-              };
-            });
-          }
-          // Enriched terms first, by q; depletion is reported in the TSV but not ranked here.
-          rows.sort((x, y) => Number(y.fold > 1) - Number(x.fold > 1) || x.q - y.q);
-          const nSig = rows.filter((r) => r.significant).length;
-          const rule = `${fmtKb(great.upstream)} up, ${fmtKb(great.downstream)} down, up to ${fmtKb(great.maxExtension)}`;
-          const summary =
-            background === "genome"
-              ? `${nSig} significant term${nSig === 1 ? "" : "s"} (binomial and hypergeometric q < ${q}, fold ≥ ${great.minFold}) · ${n.toLocaleString()} regions · domains ${rule}`
-              : (() => {
-                  // A whole set is tested as the subsets it is a member of (each locus once): count those, not the set's own regions.
-                  const nS = owner!.reduce((k, o) => k + (inGroup(o, s.mask) ? 1 : 0), 0);
-                  return `${nSig} significant term${nSig === 1 ? "" : "s"} (q < ${q}, enriched) · ${nS.toLocaleString()} ${s.whole ? "regions of the set's subsets" : "subset regions"} vs ${(owner!.length - nS).toLocaleString()} others · domains ${rule}`;
-                })();
-          out.push({ mask: s.mask, label: s.label, color: PALETTE[i % PALETTE.length], rows, summary });
-        }
-      } else {
-        const prepared = await loadCistromeGo(assembly);
-        setProgress({ done: 0, total: chosen.length, unit: "subsets done", label: `Preparing ${nsLabel(ns).toLowerCase()} terms${cgo.dedup ? " (removing redundant terms)" : ""}` });
-        await nextFrame();
-        prepared.terms(ns, cgo); // warm the redundancy filter (cached per namespace) while the label above shows
-        tsvHead = ["subset", "go_id", "term", "term_genes", "ranked_genes", "L", "cutoff", "term_genes_above_cutoff", "fold", "mhg_stat", "p", "q", "significant", "leading_genes"];
-        for (const [i, s] of chosen.entries()) {
-          setProgress({ done: i, total: chosen.length, unit: "subsets done", label: `${s.label}: regulatory potential and gene ranking` });
-          await nextFrame();
-          const res = await cistromeGoTestAsync(prepared, await subsetPeaks(s, sets), ns, cgo, (d, n) =>
-            setProgress({ done: i + d / n, total: chosen.length, unit: "subsets done", label: `${s.label}: XL-mHG test, ${d.toLocaleString()} of ${n.toLocaleString()} GO terms` })
-          );
-          const rows: Row[] = res.rows
-            .map((r) => ({
-              id: r.id,
-              name: r.name,
-              q: r.q,
-              fold: r.fold,
-              significant: r.q < q,
-              genes: r.leadGenes,
-              detail: `${r.k} of ${r.K} term genes in the top ${r.cutoff.toLocaleString()} of ${r.N.toLocaleString()} genes · XL-mHG p ${fmtP(r.p)} · q ${fmtP(r.q)}`,
-              tsv: [r.id, r.name, r.K, r.N, r.L, r.cutoff, r.k, r.fold, r.stat, r.p, r.q, r.q < q ? "yes" : "no", r.leadGenes.join(",")],
-            }))
-            .sort((x, y) => x.q - y.q || y.fold - x.fold);
-          const nSig = rows.filter((r) => r.significant).length;
-          const auto = cgo.decay === "auto" ? ` (auto: ${Math.round(100 * Math.max(...Object.values(res.fractions)))}% of peaks within 1 kb of a TSS)` : "";
-          const peaks = res.scored ? `top ${res.nPeaksUsed.toLocaleString()} peaks by score` : `all ${res.nPeaksUsed.toLocaleString()} regions (no score column)`;
-          const summary = `${nSig} term${nSig === 1 ? "" : "s"} with q < ${q} · half-decay ${fmtKb(res.decay)}${auto} · ${peaks} · ${res.ranking.nPositive.toLocaleString()} genes with adjusted RP > 0 · L = ${res.ranking.L.toLocaleString()}`;
-          out.push({ mask: s.mask, label: s.label, color: PALETTE[i % PALETTE.length], rows, summary });
-        }
-      }
-      const r: Result = { key, method, background, ns, qThreshold: q, tsvHead, subsets: out, settings: { ...settings } };
+      // Cistrome-GO scores peaks by column 5 of the group's first set (narrowPeak).
+      const scoreSource = async (s: (typeof chosen)[number]) => (method === "cistromego" ? await sets.find((x) => x.id === s.memberIds[0])?.file.text() : undefined);
+      const groups = await Promise.all(chosen.map(async (s) => ({ mask: s.mask, label: s.label, regions: s.regions, whole: s.whole, scoreSource: await scoreSource(s) })));
+      const run = await runGoEnrichment(webRuntime, { method, ns, assembly, groups, allSubsets, great, cgo }, { onProgress: setProgress });
+      const r: Result = { ...run, key, assembly, subsets: run.groups.map((g, i) => ({ ...g, color: PALETTE[i % PALETTE.length] })) };
+      const out = r.subsets;
       saved.results.set(method, r);
       setResult(r);
       if (!out.some((s) => s.mask === activeMask)) setActiveMask(out[0]?.mask ?? null);
@@ -307,7 +135,7 @@ export function GoEnrichmentPanel() {
 
 
   return (
-    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy} style={{ minHeight: 120 }}>
+    <div className={`annowrap${busy ? " busy" : ""}`} aria-busy={busy}>
       {busy && <ComputeOverlay label={progress.label} progress={progress} />}
       <div className="rowsplit" style={{ marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -331,6 +159,11 @@ export function GoEnrichmentPanel() {
           {result ? "Run again" : "Run GO enrichment"}
         </button>
       </div>
+      {!chosen.length && (
+        <div style={{ margin: "0 0 10px" }}>
+          <SelectFirstHint />
+        </div>
+      )}
       <div className="hint" style={{ margin: "0 0 10px" }}>
         {method === "great" ? (
           <>
@@ -350,26 +183,27 @@ export function GoEnrichmentPanel() {
       </div>
       {method === "great" ? <GreatSettingsForm value={great} onChange={setGreat} /> : <CistromeGoSettingsForm value={cgo} onChange={setCgo} />}
       {error && <div className="hint error">{error}</div>}
-      {stale && !busy && (
+      {stale && !busy && chosen.length > 0 && (
         <div className="setinfo" style={{ marginBottom: 8 }}>
           Settings or selection changed since this result. Press Run again to update it.
         </div>
       )}
-      {result && active && <ResultView result={result} active={active} stale={stale} onSelect={setActiveMask} />}
+      {result && active && chosen.length > 0 && <ResultView result={result} active={active} stale={stale} onSelect={setActiveMask} />}
     </div>
   );
 }
 
-/** All subsets of a run (or one) as TSV: the download, and what the analysis export takes. */
-const goTsv = (r: Result, only?: SubsetResult) =>
-  [r.tsvHead.join("\t"), ...(only ? [only] : r.subsets).flatMap((s) => s.rows.map((row) => [s.label, ...row.tsv].join("\t")))].join("\n") + "\n";
 
 /** Every GO run kept this session (one per method) goes into "Export analysis". */
 function goExport() {
   const runs = [...saved.results.values()];
   if (!runs.length) return null;
+  const compares = runs.flatMap((r) => (r.subsets.length > 1 && saved.compareTsv.has(r.method) ? [saved.compareTsv.get(r.method)!] : []));
   return {
-    files: runs.map((r) => ({ path: `tables/${fileStem(r)}.tsv`, content: goTsv(r) })),
+    files: runs.flatMap((r) => {
+      const compare = r.subsets.length > 1 ? saved.compareTsv.get(r.method) : undefined;
+      return [{ path: `tables/${fileStem(r)}.tsv`, content: goTsv(r) }, ...(compare ? [{ path: `tables/${fileStem(r)}-compare.tsv`, content: compare.tsv }] : [])];
+    }),
     methods: {
       methods: runs
         .map(
@@ -381,15 +215,19 @@ function goExport() {
               ...(r.method === "great" ? { great: r.settings as GreatUi } : { cgo: r.settings as CistromeGoSettings }),
             }).methods,
         )
+        .concat(compares.map((c) => goCompareMethods(c).methods))
         .join("\n\n"),
-      references: runs.flatMap((r) => goMethods({ method: r.method, background: r.background, namespace: "", great: r.settings as GreatUi, cgo: r.settings as CistromeGoSettings }).references),
+      references: [
+        ...runs.flatMap((r) => goMethods({ method: r.method, background: r.background, namespace: "", great: r.settings as GreatUi, cgo: r.settings as CistromeGoSettings }).references),
+        ...new Set(compares.flatMap((c) => goCompareMethods(c).references)),
+      ],
     },
   };
 }
 
-const fileStem = (r: Result) => `achi-go-${r.ns}-${r.method === "great" ? `greatlike-${r.background}` : "cistromegolike"}`;
+const fileStem = goFileStem;
 const exportTsv = (r: Result, only?: SubsetResult) => {
-  const blob = new Blob([goTsv(r, only)], { type: "text/tab-separated-values" });
+  const blob = new Blob([goTsv(r, only?.mask)], { type: "text/tab-separated-values" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -405,8 +243,38 @@ const methodLabel = (r: Result) => (r.method === "cistromego" ? "Cistrome-GO-lik
 /** The finished result: one tab per subset, each with its own chart, table and downloads. Memoised so progress updates during a run don't re-render it. */
 const ResultView = memo(function ResultView({ result, active, stale, onSelect }: { result: Result; active: SubsetResult; stale: boolean; onSelect: (mask: number) => void }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const [top, setTopState] = useState(saved.top);
+  const setTop = (n: number) => setTopState((saved.top = n));
+  const nEnriched = active.rows.filter((r) => r.fold > 1).length;
+  const metric = result.method === "cistromego" ? "XL-mHG" : result.background === "genome" ? "binomial" : "Fisher";
+  const foldLabel = result.method === "great" && result.background === "inputs" ? "odds ratio" : "fold";
+  const compareInput = useMemo(
+    () => ({ assembly: result.assembly, ns: result.ns, qThreshold: result.qThreshold, metric, foldLabel, stem: fileStem(result), groups: result.subsets }),
+    [result, metric, foldLabel],
+  );
+  const onCompareTsv = useCallback(
+    (tsv: { tsv: string; top: number; minKappa?: number } | null) => {
+      if (tsv) saved.compareTsv.set(result.method, tsv);
+      else saved.compareTsv.delete(result.method);
+    },
+    [result.method],
+  );
   return (
-    <div className={stale ? "stale" : undefined}>
+    <div className={`${stale ? "stale " : ""}${result.subsets.length > 1 ? "gocols" : ""}`}>
+      {result.subsets.length > 1 && (
+        <section aria-label="GO terms across subsets">
+          <div className="eyebrow" style={{ margin: "2px 0 8px" }}>
+            Across subsets
+          </div>
+          <GoComparePlot input={compareInput} onTsv={onCompareTsv} />
+        </section>
+      )}
+      <section aria-label="GO terms of each subset">
+        {result.subsets.length > 1 && (
+          <div className="eyebrow" style={{ margin: "2px 0 8px" }}>
+            Each subset
+          </div>
+        )}
       <div className="tabs wrap" role="tablist" aria-label="Subset" style={{ marginBottom: 8 }}>
         {result.subsets.map((s) => {
           const nSig = s.rows.filter((r) => r.significant).length;
@@ -425,12 +293,15 @@ const ResultView = memo(function ResultView({ result, active, stale, onSelect }:
       <GoBarChart
         subset={active}
         title={`${active.label} — ${nsLabel(result.ns)}, ${methodLabel(result)}`}
-        metric={result.method === "cistromego" ? "XL-mHG" : result.background === "genome" ? "binomial" : "Fisher"}
-        foldLabel={result.method === "great" && result.background === "inputs" ? "odds ratio" : "fold"}
+        metric={metric}
+        foldLabel={foldLabel}
         qThreshold={result.qThreshold}
+        top={top}
         svgRef={svgRef}
       />
       <div className="plotactions">
+        <TopRowsInput value={top} max={nEnriched} noun="terms" chart="bar chart" def={DEFAULT_TOP_TERMS} onChange={setTop} />
+        <span style={{ marginRight: "auto" }} />
         <button className="iconbtn" title={`Download all terms for ${active.label} as TSV`} aria-label={`Download GO results for ${active.label} as TSV`} onClick={() => exportTsv(result, active)}>
           <Icon name="download" />
         </button>
@@ -490,6 +361,7 @@ const ResultView = memo(function ResultView({ result, active, stale, onSelect }:
         {result.qThreshold}
         {result.method === "great" && result.background === "genome" ? " for both tests and fold above the minimum" : ""}.
       </div>
+      </section>
     </div>
   );
 });
@@ -632,39 +504,61 @@ function CistromeGoSettingsForm({ value, onChange }: { value: CistromeGoSettings
 
 /* ---------- chart ---------- */
 
-/** Top enriched terms of one subset: bars of −log10 q in the subset's colour, term names direct-labelled. */
-function GoBarChart(props: { subset: SubsetResult; title: string; metric: string; foldLabel: string; qThreshold: number; svgRef: React.RefObject<SVGSVGElement | null> }) {
-  const { subset, title, metric, foldLabel, qThreshold, svgRef } = props;
-  const TOP = 15;
+/** Top enriched terms of one subset: bars of −log10 q in the subset's colour on a scaled top axis, term names direct-labelled. */
+function GoBarChart(props: { subset: SubsetResult; title: string; metric: string; foldLabel: string; qThreshold: number; top: number; svgRef: React.RefObject<SVGSVGElement | null> }) {
+  const { subset, title, metric, foldLabel, qThreshold, top: nTop, svgRef } = props;
   const LABEL_W = 280;
   const BAR_MAX = 240;
   const ROW = 18;
   const PAD = 10;
   const HEAD = 22;
-  const top = subset.rows.filter((r) => r.fold > 1).slice(0, TOP);
-  const max = Math.max(1, negLog10(qThreshold) * 1.15, ...top.map((r) => negLog10(r.q)));
-  const footer = `Bar: −log₁₀ q (${metric}); dashed line q = ${qThreshold}; label: ${foldLabel}. Faded: not significant.`;
-  const height = PAD + HEAD + Math.max(1, top.length) * ROW + 30;
-  const width = Math.max(PAD + LABEL_W + 8 + BAR_MAX + 60, PAD + estimateTextWidth(footer, 10) + PAD, PAD + 14 + estimateTextWidth(title, 11.5) + PAD);
+  const AXIS = 20; // tick labels and ticks above the bars
+  const top = subset.rows.filter((r) => r.fold > 1).slice(0, nTop);
   const x0 = PAD + LABEL_W + 8;
-  const thresholdX = x0 + (negLog10(qThreshold) / max) * BAR_MAX;
+  const x = scaleLinear()
+    .domain([0, Math.max(1, negLog10(qThreshold) * 1.15, ...top.map((r) => negLog10(r.q)))])
+    .range([x0, x0 + BAR_MAX])
+    .nice(5);
+  const ticks = x.ticks(5);
+  const axisTitle = "−log₁₀ q";
+  const footer = `Bar: −log₁₀ q (${metric}); dashed line q = ${qThreshold}; label: ${foldLabel}. Faded: not significant.`;
+  const barsTop = PAD + HEAD + AXIS;
+  const barsBottom = barsTop + Math.max(1, top.length) * ROW;
+  const height = barsBottom + 30;
+  const width = Math.max(x0 + BAR_MAX + 18 + estimateTextWidth(axisTitle, 10) + PAD, x0 + BAR_MAX + 60, PAD + estimateTextWidth(footer, 10) + PAD, PAD + 14 + estimateTextWidth(title, 11.5) + PAD);
+  const thresholdX = x(negLog10(qThreshold));
   return (
     <div className="heatwrap">
       <svg ref={svgRef} width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Top GO terms for ${subset.label}`}>
         <rect x={0} y={0} width={width} height={height} fill={PAPER} />
-        <line x1={thresholdX} x2={thresholdX} y1={PAD + HEAD - 4} y2={height - 26} stroke={INK_3} strokeDasharray="3 3" strokeWidth={1} />
         <rect x={PAD} y={PAD + 2} width={9} height={9} rx={2} fill={subset.color} />
         <text x={PAD + 14} y={PAD + 11} fontSize={11.5} fill={INK} fontWeight={500}>
           {title}
         </text>
+        {/* top axis: −log10 q scale */}
+        <g fontSize={10} fill={AXIS_INK}>
+          <line x1={x0} x2={x0 + BAR_MAX} y1={barsTop} y2={barsTop} stroke={AXIS_INK} strokeWidth={1} shapeRendering="crispEdges" />
+          {ticks.map((t) => (
+            <g key={t}>
+              <line x1={x(t)} x2={x(t)} y1={barsTop - 4} y2={barsTop} stroke={AXIS_INK} strokeWidth={1} shapeRendering="crispEdges" />
+              <text x={x(t)} y={barsTop - 7} textAnchor="middle" fontFamily="monospace">
+                {t}
+              </text>
+            </g>
+          ))}
+          <text x={x0 + BAR_MAX + 18} y={barsTop - 7}>
+            {axisTitle}
+          </text>
+        </g>
+        <line x1={thresholdX} x2={thresholdX} y1={barsTop} y2={barsBottom + 4} stroke={INK_3} strokeDasharray="3 3" strokeWidth={1} />
         {!top.length && (
-          <text x={PAD} y={PAD + HEAD + 12} fontSize={11} fill={INK_3}>
+          <text x={PAD} y={barsTop + 12} fontSize={11} fill={INK_3}>
             No enriched terms
           </text>
         )}
         {top.map((r, i) => {
-          const ry = PAD + HEAD + i * ROW;
-          const w = Math.max(2, (negLog10(r.q) / max) * BAR_MAX);
+          const ry = barsTop + i * ROW;
+          const w = Math.max(2, x(negLog10(r.q)) - x0);
           return (
             <g key={r.id}>
               <title>{`${r.name} (${r.id})\n${r.detail}${r.genes?.length ? `\n${r.genes.slice(0, 20).join(", ")}` : ""}`}</title>
@@ -678,6 +572,8 @@ function GoBarChart(props: { subset: SubsetResult; title: string; metric: string
             </g>
           );
         })}
+        {/* left axis: the bars' baseline */}
+        <line x1={x0} x2={x0} y1={barsTop} y2={barsBottom} stroke={AXIS_INK} strokeWidth={1} shapeRendering="crispEdges" />
         <text x={PAD} y={height - 8} fontSize={10} fill={INK_3}>
           {footer}
         </text>

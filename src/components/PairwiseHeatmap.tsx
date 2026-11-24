@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useStore, type PairwiseStat } from "../state/store";
 import { downloadPng, downloadSvg } from "../lib/exportImage";
 import { estimateTextWidth, truncateToWidth } from "../lib/textMeasure";
-import { resolveOverlapFlags } from "../lib/bedtoolsOptions";
-import { fetchAndMountGenome, sortForGenome, sortPlain, computeFisher, computeJaccard, computeReldist, type FisherResult, type JaccardResult, type ReldistResult } from "../lib/pairwiseStats";
+import { resolveOverlapFlags } from "@achi/core/bedtoolsOptions";
+import { runPairwise, type FisherResult, type JaccardResult, type ReldistResult } from "@achi/core/pairwiseStats";
+import { webRuntime } from "../lib/runtime";
+import { PermutationControls } from "./PermutationControls";
+import { usePermutation } from "./usePermutation";
 
 // Concrete colors (not CSS vars) so the exported standalone SVG/PNG render
 // correctly outside this page's stylesheet.
@@ -45,6 +48,7 @@ const STAT_TABS: { id: PairwiseStat; label: string }[] = [
   { id: "jaccard", label: "Jaccard" },
   { id: "fisher", label: "Fisher" },
   { id: "reldist", label: "Reldist" },
+  { id: "permutation", label: "Permutation" },
 ];
 
 function pairKey(aId: string, bId: string): string {
@@ -79,9 +83,6 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
   const localRef = useRef<SVGSVGElement | null>(null);
   const ref = svgRef ?? localRef;
 
-  const genomePathRef = useRef<Map<string, string>>(new Map()); // assembly -> mounted path
-  const sortedPathRef = useRef<Map<string, string>>(new Map()); // set id -> genome-sorted path
-  const plainSortedPathRef = useRef<Map<string, string>>(new Map()); // set id -> plain-sorted path (Jaccard)
   const [jaccardCache, setJaccardCache] = useState<Map<string, JaccardResult>>(new Map());
   const [fisherCache, setFisherCache] = useState<Map<string, FisherResult>>(new Map());
   const [reldistCache, setReldistCache] = useState<Map<string, ReldistResult>>(new Map());
@@ -89,76 +90,40 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
   const [error, setError] = useState<string | null>(null);
 
   const setsKey = sets.map((s) => s.id).join(",");
+  const perm = usePermutation(
+    sets.map((s) => ({ id: s.id, name: s.name, file: s.file })),
+    overlapFlags
+  );
 
   useEffect(() => {
-    if (sets.length < 2) return;
+    // The permutation test runs when asked (PermutationControls), not on opening the tab.
+    if (sets.length < 2 || pairwiseStat === "permutation") return;
+    const stat = pairwiseStat;
     let cancelled = false;
+    const abort = new AbortController();
 
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        if (pairwiseStat === "jaccard") {
-          // No genome file needed (as in the CLI), so wrong-assembly sets still work here.
-          for (const s of sets) {
-            if (cancelled) return;
-            if (!plainSortedPathRef.current.has(s.id)) {
-              const { sortedPath } = await sortPlain({ id: s.id, name: s.name, file: s.file });
-              plainSortedPathRef.current.set(s.id, sortedPath);
-            }
-          }
-          for (const a of sets) {
-            for (const b of sets) {
+        // Jaccard needs no genome file (as in the CLI), so wrong-assembly sets still work there.
+        const keyOf = (a: string, b: string) => (stat === "reldist" ? pairKey(a, b) : fisherKey(a, b, overlapFlags));
+        const have = stat === "jaccard" ? jaccardCache : stat === "fisher" ? fisherCache : reldistCache;
+        await runPairwise(
+          webRuntime,
+          { stat, assembly, sets: sets.map((s) => ({ id: s.id, name: s.name, file: s.file })), overlapFlags },
+          {
+            signal: abort.signal,
+            skip: (a, b) => have.has(keyOf(a, b)),
+            onResult: (a, b, result) => {
               if (cancelled) return;
-              if (a.id === b.id) continue;
-              const key = fisherKey(a.id, b.id, overlapFlags);
-              if (jaccardCache.has(key)) continue;
-              const result = await computeJaccard(plainSortedPathRef.current.get(a.id)!, plainSortedPathRef.current.get(b.id)!, overlapFlags);
-              if (cancelled) return;
-              setJaccardCache((prev) => new Map(prev).set(key, result));
-            }
+              const key = keyOf(a, b);
+              if (stat === "jaccard") setJaccardCache((prev) => new Map(prev).set(key, result as JaccardResult));
+              else if (stat === "fisher") setFisherCache((prev) => new Map(prev).set(key, result as FisherResult));
+              else setReldistCache((prev) => new Map(prev).set(key, result as ReldistResult));
+            },
           }
-          return;
-        }
-
-        let genomePath = genomePathRef.current.get(assembly);
-        if (!genomePath) {
-          genomePath = await fetchAndMountGenome(assembly);
-          genomePathRef.current.set(assembly, genomePath);
-        }
-
-        for (const s of sets) {
-          if (cancelled) return;
-          if (!sortedPathRef.current.has(s.id)) {
-            const { sortedPath } = await sortForGenome({ id: s.id, name: s.name, file: s.file }, genomePath);
-            sortedPathRef.current.set(s.id, sortedPath);
-          }
-        }
-
-        for (const a of sets) {
-          for (const b of sets) {
-            if (cancelled) return;
-            if (a.id === b.id) continue;
-            const aPath = sortedPathRef.current.get(a.id)!;
-            const bPath = sortedPathRef.current.get(b.id)!;
-
-            if (pairwiseStat === "fisher") {
-              const key = fisherKey(a.id, b.id, overlapFlags);
-              if (!fisherCache.has(key)) {
-                const result = await computeFisher(aPath, bPath, genomePath, overlapFlags);
-                if (cancelled) return;
-                setFisherCache((prev) => new Map(prev).set(key, result));
-              }
-            } else if (pairwiseStat === "reldist") {
-              const key = pairKey(a.id, b.id);
-              if (!reldistCache.has(key)) {
-                const result = await computeReldist(aPath, bPath);
-                if (cancelled) return;
-                setReldistCache((prev) => new Map(prev).set(key, result));
-              }
-            }
-          }
-        }
+        );
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -168,6 +133,7 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
 
     return () => {
       cancelled = true;
+      abort.abort();
     };
     // jaccardCache/fisherCache/reldistCache are read for "already computed?" checks only
     // (to avoid redundant bedtools calls); including them would re-run this
@@ -238,6 +204,25 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
       };
     }
 
+    if (pairwiseStat === "permutation") {
+      const run = perm.shown?.run;
+      const r = run?.pairs.find((x) => x.a === row.id && x.b === col.id);
+      if (!run || !r) return { fill: PAPER, alpha: 0, main: "·", title: `${row.name} → ${col.name} — press Run permutation test` };
+      const minP = 2 / (run.settings.n + 1);
+      const alpha = r.q < 0.05 ? 0.2 + 0.65 * Math.min(1, Math.log10(1 / r.q) / Math.log10(1 / minP)) : 0;
+      const enriched = r.observed > r.mean;
+      const fold = Number.isFinite(r.fold) ? (r.fold >= 10 ? r.fold.toFixed(0) : r.fold.toFixed(1)) : r.fold === Infinity ? "∞" : "n/a";
+      const leftOut = r.leftOut ? `; ${r.leftOut.toLocaleString("en-US")} of its regions left out (chromosome outside ${run.assembly}, or too long to place)` : "";
+      return {
+        fill: alpha ? (enriched ? `rgba(214,40,40,${alpha})` : `rgba(43,74,224,${alpha})`) : PAPER,
+        alpha,
+        main: fold,
+        title:
+          `${row.name} → ${col.name} — ${r.observed.toLocaleString("en-US")} of ${r.nTested.toLocaleString("en-US")} regions overlap; over ${run.settings.n.toLocaleString("en-US")} shuffles ` +
+          `${r.mean.toFixed(1)} ± ${r.sd.toFixed(1)}; fold ${Number.isFinite(r.fold) ? r.fold.toFixed(2) : fold}, z ${Number.isFinite(r.z) ? r.z.toFixed(1) : "n/a"}; two-sided p = ${r.p.toPrecision(2)}, q = ${r.q.toPrecision(2)}${leftOut}`,
+      };
+    }
+
     // reldist — KS p-value drives the color but is only shown on hover
     // (via the tooltip below), not in the cell itself; the cell shows just
     // the median relative distance.
@@ -272,7 +257,7 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
             {error}
           </span>
         ) : (
-          loading && (
+          loading && pairwiseStat !== "permutation" && (
             <span className="hint" style={{ margin: 0 }}>
               computing {pairwiseStat}…
             </span>
@@ -280,8 +265,11 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
         )}
       </div>
 
+      {pairwiseStat === "permutation" && <PermutationControls p={perm} nSets={sets.length} />}
+
       <svg
         ref={ref}
+        className={pairwiseStat === "permutation" && perm.stale ? "stale" : undefined}
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
@@ -368,6 +356,14 @@ export function PairwiseHeatmap({ svgRef }: { svgRef?: React.RefObject<SVGSVGEle
           Cell = median relative distance; color = −log10(KS p-value) testing the row→column relative-distance
           distribution against uniform (bedtools' own null for "unrelated") — redder = less uniform / more spatially
           related. Hover a cell for the exact p-value.
+        </p>
+      )}
+
+      {pairwiseStat === "permutation" && (
+        <p className="hint">
+          Cell = regions of the row set overlapping the column set ÷ the mean over shuffles of the row set (1 = as expected by chance). Coloured when q &lt; 0.05 (Benjamini–Hochberg over all
+          pairs): <b style={{ color: "rgb(214,40,40)" }}>red</b> more overlap than chance, <b style={{ color: "rgb(43,74,224)" }}>blue</b> less; deeper = smaller q. The smallest possible two-sided p is 2 / (permutations + 1). Hover a cell
+          for counts, z and p. Uses the Minimum overlap setting above.
         </p>
       )}
 
